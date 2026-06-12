@@ -142,3 +142,6 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+
+# スクリーンショット (確認用一時ファイル)
+screenshot-*.png
