@@ -16,9 +16,11 @@ interface NavProps {
   proposalCount: number
   submitProposals: () => void
   submitting: boolean
+  saveQuests: () => void
+  saving: boolean
 }
 
-function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, submitting }: NavProps) {
+function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, submitting, saveQuests, saving }: NavProps) {
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: () => authApi.me(),
@@ -105,7 +107,9 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           <div className="ml-auto pr-2">
             <button
               id="nav-save-btn"
-              className="text-xs px-3 py-0.5 border-2 font-bold flex items-center gap-1"
+              onClick={saveQuests}
+              disabled={saving}
+              className="text-xs px-3 py-0.5 border-2 font-bold flex items-center gap-1 disabled:opacity-50"
               style={{
                 color: '#2a1f0e',
                 backgroundColor: '#C6C6C6',
@@ -115,6 +119,7 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
                 borderRightColor: '#555555',
               }}
               onMouseDown={(e) => {
+                if (saving) return
                 const t = e.currentTarget
                 t.style.backgroundColor = '#9B9B9B'
                 t.style.borderTopColor = '#3B3B3B'
@@ -131,7 +136,7 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
                 t.style.borderRightColor = '#555555'
               }}
             >
-              💾 保存
+              {saving ? '保存中...' : '💾 保存'}
             </button>
           </div>
         )}
@@ -152,8 +157,10 @@ export default function App() {
   const [proposalMode, setProposalMode] = useState(false)
   const [proposalCount, setProposalCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
-  // submitProposals の実体は EditorPage が差し込む
+  const [saving, setSaving] = useState(false)
+  // 実体は EditorPage が差し込む
   const [submitProposals, setSubmitProposals] = useState<() => void>(() => () => {})
+  const [saveQuests, setSaveQuests] = useState<() => void>(() => () => {})
 
   const editorContextValue = {
     proposalMode,
@@ -164,6 +171,10 @@ export default function App() {
     setSubmitProposals,
     submitting,
     setSubmitting,
+    saveQuests,
+    setSaveQuests,
+    saving,
+    setSaving,
     queryClient,
   }
 
@@ -176,6 +187,8 @@ export default function App() {
           proposalCount={proposalCount}
           submitProposals={submitProposals}
           submitting={submitting}
+          saveQuests={saveQuests}
+          saving={saving}
         />
       </div>
     </EditorContext.Provider>

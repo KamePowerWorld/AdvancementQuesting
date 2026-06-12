@@ -8,7 +8,7 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
-import { playerSessions } from './db/schema.js'
+import { playerSessions, authCodes } from './db/schema.js'
 
 config()
 
@@ -39,6 +39,21 @@ app.post('/api/test/restore-sessions', async (_req, res) => {
     { sessionToken: 'demo-editor-token', playerUuid: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff', playerName: 'Editor', role: 'editor' as const, expiresAt },
     { sessionToken: 'demo-player-token', playerUuid: 'cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa', playerName: 'Alex', role: 'player' as const, expiresAt },
   ]).onConflictDoUpdate({ target: playerSessions.sessionToken, set: { expiresAt } })
+  res.json({ ok: true })
+})
+
+// テスト用: デモ認証コードをリセットする (used=false, 有効期限を5分延長)
+app.post('/api/test/restore-auth-code', async (_req, res) => {
+  const codeExpiresAt = new Date(Date.now() + 5 * 60 * 1000)
+  await db.insert(authCodes).values({
+    code: '123456',
+    playerUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+    playerName: 'Steve',
+    expiresAt: codeExpiresAt,
+  }).onConflictDoUpdate({
+    target: authCodes.code,
+    set: { used: false, expiresAt: codeExpiresAt },
+  })
   res.json({ ok: true })
 })
 

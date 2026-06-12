@@ -11,6 +11,11 @@ interface EditorContextValue {
   setSubmitProposals: (fn: () => void) => void
   submitting: boolean
   setSubmitting: (v: boolean) => void
+  /** EditorPage が起動時に実際の保存関数を登録する */
+  saveQuests: () => void
+  setSaveQuests: (fn: () => void) => void
+  saving: boolean
+  setSaving: (v: boolean) => void
   queryClient: QueryClient | null
 }
 
@@ -23,6 +28,10 @@ export const EditorContext = createContext<EditorContextValue>({
   setSubmitProposals: () => {},
   submitting: false,
   setSubmitting: () => {},
+  saveQuests: () => {},
+  setSaveQuests: () => {},
+  saving: false,
+  setSaving: () => {},
   queryClient: null,
 })
 

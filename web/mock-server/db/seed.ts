@@ -1,7 +1,6 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { db } from './client.js'
 import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes } from './schema.js'
-import { randomUUID } from 'crypto'
 
 const DEMO_PLAYER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const DEMO_PLAYER_NAME = 'Steve'
@@ -15,6 +14,12 @@ const EDITOR_TOKEN = 'demo-editor-token'
 const PLAYER_UUID = 'cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa'
 const PLAYER_NAME = 'Alex'
 const PLAYER_TOKEN = 'demo-player-token'
+
+// テスト時に data-node-id で特定できるよう固定 ID を使う
+const QUEST_ID_1 = '00000000-0000-0000-0000-000000000001'
+const QUEST_ID_2 = '00000000-0000-0000-0000-000000000002'
+const QUEST_ID_3 = '00000000-0000-0000-0000-000000000003'
+const QUEST_ID_4 = '00000000-0000-0000-0000-000000000004'
 
 async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
@@ -31,8 +36,8 @@ async function seed() {
   // クエストデータ
   const questData = [
     {
-      id: randomUUID(),
-      title: '最初の一歩',
+      id: QUEST_ID_1,
+      title: '基本',
       description: 'ゲームを始めよう。木を1つ入手してください。',
       icon: 'oak_log',
       category: '序盤',
@@ -45,7 +50,7 @@ async function seed() {
       creatorUuid: null,
     },
     {
-      id: randomUUID(),
+      id: QUEST_ID_2,
       title: '石器時代',
       description: '石のツルハシを作って採掘を始めよう。',
       icon: 'stone_pickaxe',
@@ -59,7 +64,7 @@ async function seed() {
       creatorUuid: null,
     },
     {
-      id: randomUUID(),
+      id: QUEST_ID_3,
       title: 'ダイヤの輝き',
       description: 'ダイヤモンドを手に入れよう。',
       icon: 'diamond',
@@ -73,7 +78,7 @@ async function seed() {
       creatorUuid: null,
     },
     {
-      id: randomUUID(),
+      id: QUEST_ID_4,
       title: 'ネザーの扉',
       description: 'ネザーポータルを作って別の次元へ。',
       icon: 'obsidian',
@@ -89,9 +94,9 @@ async function seed() {
   ]
 
   // 前提クエスト設定
-  questData[1].prerequisites = [questData[0].id]
-  questData[2].prerequisites = [questData[1].id]
-  questData[3].prerequisites = [questData[2].id]
+  questData[1].prerequisites = [QUEST_ID_1]
+  questData[2].prerequisites = [QUEST_ID_2]
+  questData[3].prerequisites = [QUEST_ID_3]
 
   await db.insert(quests).values(questData).onConflictDoNothing()
 
@@ -136,7 +141,7 @@ async function seed() {
   // デモ用進捗データ
   await db.insert(playerProgress).values({
     playerUuid: DEMO_PLAYER_UUID,
-    questId: questData[0].id,
+    questId: QUEST_ID_1,
     progress: [{ conditionIndex: 0, currentCount: 1, completed: true }],
     completed: true,
     rewardClaimed: true,

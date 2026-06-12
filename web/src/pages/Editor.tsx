@@ -14,8 +14,48 @@ import { LoginModal } from '@/components/LoginModal.js'
 import { useAuth } from '@/contexts/AuthContext.js'
 import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
+import { questsApi } from '@/api/quests.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
+import type { Quest } from '@/types/quest.js'
+
+// ---------------------------------------------------------------------------
+// Quest API ↔ EditorNode 変換
+// ---------------------------------------------------------------------------
+
+function questToNode(q: Quest): EditorNode {
+  return {
+    id: q.id,
+    x: q.mapPosition?.x ?? 100,
+    y: q.mapPosition?.y ?? 100,
+    icon: q.icon ?? 'stone',
+    title: q.title,
+    subtitle: '',
+    description: q.description ?? '',
+    tasks: (q.conditions ?? []).map((c, i) => ({
+      id: `${q.id}-t${i}`,
+      type: c.type,
+      value: c.advancementId,
+    })),
+    rewards: (q.rewards ?? []).map((r, i) => {
+      const base = { id: `${q.id}-r${i}`, value: '' }
+      if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId }
+      if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
+      if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
+      return { ...base, type: r.type }
+    }),
+  }
+}
+
+function questsToEdges(quests: Quest[]): EditorEdge[] {
+  const edges: EditorEdge[] = []
+  for (const q of quests) {
+    for (const prereqId of (q.prerequisites ?? [])) {
+      edges.push({ id: `e-${prereqId}-${q.id}`, source: prereqId, target: q.id })
+    }
+  }
+  return edges
+}
 
 // ---------------------------------------------------------------------------
 // 型
@@ -78,11 +118,26 @@ export default function EditorPage() {
   const {
     proposalMode, setProposalMode,
     setProposalCount, setSubmitting,
+    setSaveQuests, saving, setSaving,
   } = useEditor()
 
-  // ---- マップ状態 ----
+  // ---- クエストデータをAPIから取得 ----
+  const { data: questsData } = useQuery({
+    queryKey: ['quests'],
+    queryFn: () => questsApi.list(),
+  })
+
+  // ---- マップ状態 (APIデータがあればそちらを使い、なければフォールバック) ----
   const [nodes, setNodes] = useState<EditorNode[]>(INITIAL_NODES)
   const [edges, setEdges] = useState<EditorEdge[]>(INITIAL_EDGES)
+
+  // APIデータが読み込まれたらノード/エッジを更新
+  useEffect(() => {
+    if (!questsData) return
+    const publicQuests = questsData.filter((q) => q.status === 'public' || (isEditor && q.status !== 'proposed'))
+    setNodes(publicQuests.length > 0 ? publicQuests.map(questToNode) : INITIAL_NODES)
+    setEdges(publicQuests.length > 0 ? questsToEdges(publicQuests) : INITIAL_EDGES)
+  }, [questsData, isEditor])
 
   // ---- 提案ドラフト (ローカル) ----
   const [proposalNodes, setProposalNodes] = useState<EditorNode[]>([])
@@ -147,15 +202,21 @@ export default function EditorPage() {
   const isProposalDraft = useCallback((nodeId: string) =>
     proposalNodesRef.current.some((n) => n.id === nodeId), [])
 
-  // ---- ノードを開けるか (selectモード時) ----
-  // 編集者: 常に開ける
-  // プレイヤー提案モード: ドラフトノードのみ開ける
-  // プレイヤー通常: 開けない
+  // ---- ノードを開けるか / 読み取り専用か (selectモード時) ----
+  // 未ログイン・プレイヤー通常: 読み取り専用で開ける
+  // プレイヤー提案モード: ドラフトのみ編集可、既存は読み取り専用
+  // 編集者: 常に編集可
   const canOpenNode = useCallback((nodeId: string, isOtherProposal = false): boolean => {
-    if (isEditor) return true
-    if (isOtherProposal) return false  // 他者の提案は常に編集者のみ
-    if (proposalMode) return isProposalDraft(nodeId)
-    return false
+    if (isOtherProposal) return isEditor  // 他者の提案は編集者のみ
+    // 提案モード中は既存ノードは開かない (ドラフトのみ開ける)
+    if (proposalMode && !isProposalDraft(nodeId)) return false
+    return true  // 通常ノードは誰でも開ける (読み取り専用になる場合あり)
+  }, [isEditor, proposalMode, isProposalDraft])
+
+  const isReadOnlyNode = useCallback((nodeId: string): boolean => {
+    if (isEditor) return false
+    if (proposalMode && isProposalDraft(nodeId)) return false
+    return true  // 未ログイン・プレイヤー通常・提案モードの既存ノード
   }, [isEditor, proposalMode, isProposalDraft])
 
   // ---- モード変更 ----
@@ -326,6 +387,47 @@ export default function EditorPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // 保存
+  // ---------------------------------------------------------------------------
+
+  const handleSave = useCallback(async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      // APIに存在しないノードを新規作成、既存ノードを更新
+      const existingIds = new Set((questsData ?? []).map((q) => q.id))
+      await Promise.all(nodes.map(async (node) => {
+        const body = {
+          title: node.title,
+          description: node.description,
+          icon: node.icon,
+          mapPosition: { x: node.x, y: node.y },
+          prerequisites: edges
+            .filter((e) => e.target === node.id)
+            .map((e) => e.source),
+          status: 'public' as const,
+        }
+        if (existingIds.has(node.id)) {
+          await questsApi.update(node.id, body)
+        } else {
+          await questsApi.create({ ...body, category: null, conditions: [], rewards: [], customButtons: [] })
+        }
+      }))
+      queryClient.invalidateQueries({ queryKey: ['quests'] })
+      showToast('保存しました')
+    } catch {
+      showToast('保存に失敗しました')
+    } finally {
+      setSaving(false)
+    }
+  }, [saving, nodes, edges, questsData, queryClient])
+
+  // handleSave が変わるたびに App 側へ登録
+  useEffect(() => {
+    setSaveQuests(() => handleSave)
+  }, [handleSave, setSaveQuests])
+
+  // ---------------------------------------------------------------------------
   // キャンバスイベント (マウス)
   // ---------------------------------------------------------------------------
 
@@ -405,6 +507,7 @@ export default function EditorPage() {
     if (!canOpenNode(nodeId)) return
     setEditingNodeId(nodeId)
   }
+
 
   // ---------------------------------------------------------------------------
   // キャンバスイベント (タッチ)
@@ -945,6 +1048,7 @@ export default function EditorPage() {
             close={() => setEditingNodeId(null)}
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
+            readOnly={isReadOnlyNode(editingNodeId!)}
           />
         )}
 
