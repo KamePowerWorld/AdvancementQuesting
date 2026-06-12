@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 export interface AuthRequest extends Request {
   playerUuid?: string
   playerName?: string
+  playerRole?: 'player' | 'editor' | 'admin'
 }
 
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
@@ -29,5 +30,6 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 
   req.playerUuid = session.playerUuid
   req.playerName = session.playerName
+  req.playerRole = session.role
   next()
 }

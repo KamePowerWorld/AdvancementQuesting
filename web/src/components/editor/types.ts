@@ -3,8 +3,15 @@
  * APIの型 (src/types/) とは別物 — エディタの操作状態・描画データを表す
  */
 
-/** ツールバーで選べる操作モード */
-export type ToolMode = 'select' | 'add_node' | 'add_link' | 'edit_quest' | 'delete'
+/**
+ * ツールバーで選べる操作モード
+ * select  : 矢印。背景ドラッグでパン、ノードクリックでモーダル
+ * move    : 十字矢印。ノードドラッグで位置変更。editor=全ノード / player提案中=提案ドラフトのみ
+ * add_node: キャンバスクリックでノード追加
+ * add_link: ノード→ノードで依存エッジを引く
+ * delete  : ノードクリックで削除。editor=全ノード / player提案中=提案ドラフトのみ
+ */
+export type ToolMode = 'select' | 'move' | 'add_node' | 'add_link' | 'delete'
 
 /** 2D座標 */
 export interface Vec2 {

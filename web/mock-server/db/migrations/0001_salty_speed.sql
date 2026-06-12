@@ -1,0 +1,1 @@
+ALTER TABLE `player_sessions` ADD `role` text DEFAULT 'player' NOT NULL;

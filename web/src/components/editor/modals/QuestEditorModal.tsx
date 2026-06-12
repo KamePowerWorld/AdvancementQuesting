@@ -6,12 +6,22 @@ import { ItemIcon } from '../ItemIcon.js'
 import { getDisplayText } from '../utils.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 
+interface ProposalMeta {
+  proposalId: number
+  proposerName: string
+  votesUp: number
+  onApprove: () => void
+  onReject: () => void
+}
+
 interface QuestEditorModalProps {
   node: EditorNode
   updateNode: (node: EditorNode) => void
   close: () => void
   openItemSelector: (config: ItemSelectorConfig) => void
   openTaskRewardEditor: (config: EditingTaskReward) => void
+  proposalMeta?: ProposalMeta
+  readOnly?: boolean
 }
 
 /**
@@ -25,6 +35,8 @@ export function QuestEditorModal({
   close,
   openItemSelector,
   openTaskRewardEditor,
+  proposalMeta,
+  readOnly = false,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
@@ -75,12 +87,12 @@ export function QuestEditorModal({
       <div className="flex justify-between items-center bg-[#1e1f29] p-2 border-b border-gray-700 shrink-0">
         <span className="font-bold text-sm text-blue-300">タスク</span>
         <div className="relative">
-          <button
+          {!readOnly && <button
             onClick={() => { setShowTaskMenu(!showTaskMenu); setShowRewardMenu(false) }}
             className="hover:bg-white/10 p-1 rounded"
           >
             <Plus size={18} className="text-green-400" />
-          </button>
+          </button>}
           {showTaskMenu && (
             <div className="absolute top-full right-0 mt-1 bg-[#1e1f29] border border-gray-600 p-1 z-50 shadow-xl min-w-[180px] rounded-sm">
               {TASK_TYPES.map((t) => (
@@ -115,13 +127,15 @@ export function QuestEditorModal({
             <div className="flex-1 text-sm text-gray-200 truncate font-semibold">
               {getDisplayText(task, 'task')}
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
-              className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
-              title="削除"
-            >
-              <Trash2 size={16} />
-            </button>
+            {!readOnly && (
+              <button
+                onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
+                className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
+                title="削除"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -134,12 +148,12 @@ export function QuestEditorModal({
       <div className="flex justify-between items-center bg-[#1e1f29] p-2 border-b border-gray-700 shrink-0">
         <span className="font-bold text-sm text-yellow-300">報酬</span>
         <div className="relative">
-          <button
+          {!readOnly && <button
             onClick={() => { setShowRewardMenu(!showRewardMenu); setShowTaskMenu(false) }}
             className="hover:bg-white/10 p-1 rounded"
           >
             <Plus size={18} className="text-green-400" />
-          </button>
+          </button>}
           {showRewardMenu && (
             <div className="absolute top-full right-0 mt-1 bg-[#1e1f29] border border-gray-600 p-1 z-50 shadow-xl min-w-[180px] rounded-sm">
               {REWARD_TYPES.map((r) => (
@@ -174,13 +188,15 @@ export function QuestEditorModal({
             <div className="flex-1 text-sm text-gray-200 truncate font-semibold">
               {getDisplayText(reward, 'reward')}
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); removeReward(reward.id) }}
-              className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
-              title="削除"
-            >
-              <Trash2 size={16} />
-            </button>
+            {!readOnly && (
+              <button
+                onClick={(e) => { e.stopPropagation(); removeReward(reward.id) }}
+                className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
+                title="削除"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -268,9 +284,9 @@ export function QuestEditorModal({
         {/* ヘッダー: アイコン + タイトル */}
         <div className="flex items-center gap-3 mb-4 pb-2 border-b border-gray-600">
           <div
-            className="cursor-pointer bg-black/30 p-2 rounded hover:bg-black/50 ring-1 ring-gray-600"
-            onClick={() => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
-            title="アイコンを変更"
+            className={readOnly ? 'bg-black/30 p-2 rounded ring-1 ring-gray-600' : 'cursor-pointer bg-black/30 p-2 rounded hover:bg-black/50 ring-1 ring-gray-600'}
+            onClick={readOnly ? undefined : () => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
+            title={readOnly ? undefined : 'アイコンを変更'}
           >
             <ItemIcon type={node.icon} size={32} />
           </div>
@@ -278,9 +294,30 @@ export function QuestEditorModal({
             type="text"
             value={node.title}
             onChange={(e) => updateNode({ ...node, title: e.target.value })}
-            className="flex-1 bg-transparent text-2xl font-bold border-b border-transparent focus:border-blue-400 outline-none placeholder-gray-500"
+            readOnly={readOnly}
+            className={`flex-1 bg-transparent text-2xl font-bold border-b border-transparent outline-none placeholder-gray-500 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
             placeholder="クエストのタイトル"
           />
+          {proposalMeta && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+              <span className="text-xs text-gray-400">by {proposalMeta.proposerName}</span>
+              <button
+                onClick={proposalMeta.onApprove}
+                className="text-xs px-2 py-1 border font-bold"
+                style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+              >
+                ✓ 承認
+              </button>
+              <button
+                onClick={proposalMeta.onReject}
+                className="text-xs px-2 py-1 border font-bold"
+                style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+              >
+                ✕ 却下
+              </button>
+            </div>
+          )}
           <button onClick={close} className="text-gray-400 hover:text-red-400">
             <X size={28} />
           </button>

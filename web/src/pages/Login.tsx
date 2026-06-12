@@ -27,15 +27,18 @@ export default function LoginPage() {
     }
   }
 
+  const quickLogin = (token: string) => {
+    localStorage.setItem('token', token)
+    queryClient.invalidateQueries({ queryKey: ['me'] })
+    navigate('/')
+  }
+
   return (
     <div className="max-w-sm mx-auto mt-16">
       <h1 className="text-2xl font-bold mb-6">ログイン</h1>
       <p className="text-gray-400 text-sm mb-6">
         Minecraft で <code className="bg-gray-800 px-1 rounded">/quest code</code> を実行して
         表示された6桁のコードを入力してください。
-      </p>
-      <p className="text-gray-500 text-xs mb-6">
-        開発用: コード <code className="bg-gray-800 px-1 rounded">123456</code>
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <input
@@ -55,6 +58,25 @@ export default function LoginPage() {
           {loading ? 'ログイン中...' : 'ログイン'}
         </button>
       </form>
+
+      {/* 開発用クイックログイン */}
+      <div className="mt-8 border-t border-gray-700 pt-6">
+        <p className="text-gray-500 text-xs mb-3 text-center">テスト用クイックログイン</p>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => quickLogin('demo-editor-token')}
+            className="bg-yellow-700 hover:bg-yellow-600 rounded-lg py-2.5 text-sm font-medium transition-colors text-yellow-100"
+          >
+            ✏️ 編集者としてログイン
+          </button>
+          <button
+            onClick={() => quickLogin('demo-player-token')}
+            className="bg-green-800 hover:bg-green-700 rounded-lg py-2.5 text-sm font-medium transition-colors text-green-100"
+          >
+            🎮 プレイヤーとしてログイン
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

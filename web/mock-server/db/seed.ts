@@ -7,6 +7,14 @@ const DEMO_PLAYER_NAME = 'Steve'
 const DEMO_TOKEN = 'demo-session-token-for-development'
 const DEMO_CODE = '123456'
 
+const EDITOR_UUID = 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff'
+const EDITOR_NAME = 'Editor'
+const EDITOR_TOKEN = 'demo-editor-token'
+
+const PLAYER_UUID = 'cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa'
+const PLAYER_NAME = 'Alex'
+const PLAYER_TOKEN = 'demo-player-token'
+
 async function seed() {
   console.log('Seeding database...')
 
@@ -79,12 +87,29 @@ async function seed() {
 
   // デモ用セッショントークン (7日間有効)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  await db.insert(playerSessions).values({
-    sessionToken: DEMO_TOKEN,
-    playerUuid: DEMO_PLAYER_UUID,
-    playerName: DEMO_PLAYER_NAME,
-    expiresAt,
-  }).onConflictDoNothing()
+  await db.insert(playerSessions).values([
+    {
+      sessionToken: DEMO_TOKEN,
+      playerUuid: DEMO_PLAYER_UUID,
+      playerName: DEMO_PLAYER_NAME,
+      role: 'editor' as const,
+      expiresAt,
+    },
+    {
+      sessionToken: EDITOR_TOKEN,
+      playerUuid: EDITOR_UUID,
+      playerName: EDITOR_NAME,
+      role: 'editor' as const,
+      expiresAt,
+    },
+    {
+      sessionToken: PLAYER_TOKEN,
+      playerUuid: PLAYER_UUID,
+      playerName: PLAYER_NAME,
+      role: 'player' as const,
+      expiresAt,
+    },
+  ]).onConflictDoNothing()
 
   // デモ用認証コード
   const codeExpiresAt = new Date(Date.now() + 5 * 60 * 1000)
@@ -107,8 +132,9 @@ async function seed() {
   }).onConflictDoNothing()
 
   console.log(`Seeded ${questData.length} quests`)
-  console.log(`Demo session token: ${DEMO_TOKEN}`)
-  console.log(`Demo auth code: ${DEMO_CODE}`)
+  console.log(`[editor] token: ${EDITOR_TOKEN}`)
+  console.log(`[player] token: ${PLAYER_TOKEN}`)
+  console.log(`[legacy] token: ${DEMO_TOKEN}  code: ${DEMO_CODE}`)
 }
 
 seed().catch(console.error)

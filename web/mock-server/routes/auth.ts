@@ -37,15 +37,16 @@ router.post('/code', async (req, res) => {
     sessionToken: token,
     playerUuid: authCode.playerUuid,
     playerName: authCode.playerName,
+    role: 'player',
     expiresAt,
   })
 
-  res.json({ token, playerUuid: authCode.playerUuid, playerName: authCode.playerName })
+  res.json({ token, playerUuid: authCode.playerUuid, playerName: authCode.playerName, role: 'player' })
 })
 
 // GET /api/auth/me — セッション情報取得
 router.get('/me', requireAuth, (req: AuthRequest, res) => {
-  res.json({ playerUuid: req.playerUuid, playerName: req.playerName })
+  res.json({ playerUuid: req.playerUuid, playerName: req.playerName, role: req.playerRole ?? 'player' })
 })
 
 // DELETE /api/auth/logout — ログアウト

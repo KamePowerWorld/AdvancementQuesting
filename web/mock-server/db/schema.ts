@@ -56,6 +56,7 @@ export const playerSessions = sqliteTable('player_sessions', {
   sessionToken: text('session_token').primaryKey(),
   playerUuid: text('player_uuid').notNull(),
   playerName: text('player_name').notNull(),
+  role: text('role', { enum: ['player', 'editor', 'admin'] }).notNull().default('player'),
   ipAddress: text('ip_address'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
