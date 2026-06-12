@@ -1,22 +1,22 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import { ApiError } from '@/api/client.js'
 
 export default function LoginPage() {
-  const [code, setCode] = useState('')
+  const [searchParams] = useSearchParams()
+  const [code, setCode] = useState(searchParams.get('code') ?? '')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const doLogin = async (loginCode: string) => {
     setError(null)
     setLoading(true)
     try {
-      const res = await authApi.loginWithCode({ code })
+      const res = await authApi.loginWithCode({ code: loginCode })
       localStorage.setItem('token', res.token)
       queryClient.invalidateQueries({ queryKey: ['me'] })
       navigate('/')
@@ -25,6 +25,20 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // URLに ?code= がある場合は自動ログイン
+  useEffect(() => {
+    const urlCode = searchParams.get('code')
+    if (urlCode && /^\d{6}$/.test(urlCode)) {
+      doLogin(urlCode)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await doLogin(code)
   }
 
   const quickLogin = (token: string) => {

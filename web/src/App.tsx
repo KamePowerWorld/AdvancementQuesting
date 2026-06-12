@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import { AuthContext } from '@/contexts/AuthContext.js'
@@ -155,6 +155,26 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
 
 export default function App() {
   const queryClient = useQueryClient()
+
+  // URLに ?code=XXXXXX が含まれる場合は自動ログイン
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code && /^\d{6}$/.test(code)) {
+      // URLからcodeを除去してからログイン
+      const url = new URL(window.location.href)
+      url.searchParams.delete('code')
+      window.history.replaceState({}, '', url.toString())
+
+      authApi.loginWithCode({ code }).then((res) => {
+        localStorage.setItem('token', res.token)
+        queryClient.setQueryData(['me'], { playerUuid: res.playerUuid, playerName: res.playerName, role: res.role })
+      }).catch(() => {
+        // コードが無効でも静かに失敗（通常のログインモーダルを表示）
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [proposalMode, setProposalMode] = useState(false)
   const [proposalCount, setProposalCount] = useState(0)

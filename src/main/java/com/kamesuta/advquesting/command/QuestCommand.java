@@ -29,11 +29,29 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            // /quest — Web URL を表示
-            sender.sendMessage(Component.text("Web UI: ", NamedTextColor.GOLD)
-                .append(Component.text(webUrl, NamedTextColor.AQUA)
-                    .clickEvent(ClickEvent.openUrl(webUrl))
-                    .decorate(TextDecoration.UNDERLINED)));
+            // /quest — コード付きログインURLを表示
+            if (sender instanceof Player player) {
+                String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
+                String role = determineRole(player);
+                Instant expiresAt = Instant.now().plusSeconds(300);
+                try {
+                    authCodeDao.insert(code, player.getUniqueId().toString(), player.getName(), role, expiresAt);
+                } catch (SQLException e) {
+                    player.sendMessage(Component.text("URLの生成に失敗しました。", NamedTextColor.RED));
+                    return true;
+                }
+                String loginUrl = webUrl + "/login?code=" + code;
+                player.sendMessage(Component.text("クエストマップを開く: ", NamedTextColor.GOLD)
+                    .append(Component.text(loginUrl, NamedTextColor.AQUA)
+                        .clickEvent(ClickEvent.openUrl(loginUrl))
+                        .decorate(TextDecoration.UNDERLINED)));
+                player.sendMessage(Component.text("URLをクリックするとそのままログインできます。", NamedTextColor.GRAY));
+            } else {
+                sender.sendMessage(Component.text("Web UI: ", NamedTextColor.GOLD)
+                    .append(Component.text(webUrl, NamedTextColor.AQUA)
+                        .clickEvent(ClickEvent.openUrl(webUrl))
+                        .decorate(TextDecoration.UNDERLINED)));
+            }
             return true;
         }
 

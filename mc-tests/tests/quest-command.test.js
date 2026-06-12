@@ -23,11 +23,12 @@ describe('/quest コマンド & 認証 API', () => {
 
   // -----------------------------------------------------------------------
 
-  it('/quest でWebURLがチャットに表示される', async () => {
+  it('/quest でコード付きログインURLがチャットに表示される', async () => {
     const chatPromise = waitForChat(bot, text => text.includes('http'), 5000)
     bot.chat('/quest')
     const msg = await chatPromise
     assert.ok(msg.includes('http'), `URLが含まれていない: "${msg}"`)
+    assert.ok(msg.includes('code=') && /code=\d{6}/.test(msg), `code=XXXXXXが含まれていない: "${msg}"`)
   })
 
   it('/quest code で6桁コードがチャットに表示される', async () => {

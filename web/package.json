@@ -7,7 +7,6 @@
     "dev": "concurrently -n \"mock,vite\" -c \"cyan,green\" \"npm run mock\" \"vite\"",
     "mock": "tsx watch mock-server/index.ts",
     "mock:seed": "tsx mock-server/db/seed.ts",
-    "prebuild": "tsx scripts/download-mc-assets.ts",
     "download-assets": "tsx scripts/download-mc-assets.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
