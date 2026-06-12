@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, LogOut } from 'lucide-react'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -870,19 +870,33 @@ export default function EditorPage() {
           {me ? (
             <button
               onClick={handleLogout}
-              title="ログアウト"
+              title={`${me.playerName} — クリックでログアウト`}
               aria-label="ログアウト"
-              className="mt-1 w-10 h-10 flex items-center justify-center border-2 relative"
+              className="mt-1 w-10 h-10 flex items-center justify-center border-2 relative overflow-hidden"
               style={{
                 backgroundColor: '#6B6B6B',
                 borderTopColor: '#9B9B9B',
                 borderLeftColor: '#9B9B9B',
                 borderBottomColor: '#3B3B3B',
                 borderRightColor: '#3B3B3B',
+                padding: 0,
               }}
             >
-              <LogOut size={18} style={{ color: '#d8cbb0' }} />
-              <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-400 border border-black" />
+              <img
+                src={`https://crafatar.com/avatars/${me.playerUuid}?size=40&overlay`}
+                alt={me.playerName}
+                width={40}
+                height={40}
+                style={{ imageRendering: 'pixelated', display: 'block' }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
+              {/* editor 装飾: 右上に✏️バッジ */}
+              {isEditorRole && (
+                <div className="absolute top-0 right-0 text-[9px] leading-none px-0.5 font-bold"
+                  style={{ backgroundColor: '#7BC67B', color: '#0a1f0a' }}>
+                  ✏
+                </div>
+              )}
             </button>
           ) : (
             <button

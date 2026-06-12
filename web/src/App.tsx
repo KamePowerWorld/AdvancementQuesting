@@ -53,45 +53,32 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           AdvancementQuesting
         </span>
 
-        {/* ロールバッジ */}
-        {me && (
-          <span
-            className="text-xs px-2 py-0.5 border-2 ml-1 shrink-0"
-            style={{
-              color: effectiveIsEditor ? '#1a3a1a' : '#1a1a3a',
-              backgroundColor: effectiveIsEditor ? '#7BC67B' : '#7B9BC6',
-              borderTopColor: effectiveIsEditor ? '#9BE09B' : '#9BB3E0',
-              borderLeftColor: effectiveIsEditor ? '#9BE09B' : '#9BB3E0',
-              borderBottomColor: effectiveIsEditor ? '#3B7B3B' : '#3B5B9B',
-              borderRightColor: effectiveIsEditor ? '#3B7B3B' : '#3B5B9B',
-            }}
-          >
-            {effectiveIsEditor ? '編集者' : 'プレイヤー'}
-          </span>
-        )}
-
-        {/* editor: モード切り替えトグル */}
+        {/* editor: モード切り替えトグル (アイコンのみ、スマホ対応) */}
         {me && isEditor && (
           <div className="flex items-center ml-1 border-2 shrink-0" style={{ borderTopColor: '#3B3B3B', borderLeftColor: '#3B3B3B', borderBottomColor: '#C6C6C6', borderRightColor: '#C6C6C6' }}>
             <button
               onClick={() => setViewMode('edit')}
-              className="text-xs px-2 py-0.5 font-bold"
+              title="編集モード"
+              className="flex items-center gap-1 px-1.5 py-0.5 font-bold text-xs"
               style={{
                 color: viewMode === 'edit' ? '#0a1f0a' : '#2a2a2a',
                 backgroundColor: viewMode === 'edit' ? '#7BC67B' : '#C6C6C6',
               }}
             >
-              ✏️ 編集
+              <span>✏️</span>
+              <span className="hidden sm:inline">編集</span>
             </button>
             <button
               onClick={() => setViewMode('play')}
-              className="text-xs px-2 py-0.5 font-bold"
+              title="プレイモード"
+              className="flex items-center gap-1 px-1.5 py-0.5 font-bold text-xs"
               style={{
                 color: viewMode === 'play' ? '#0a0a1f' : '#2a2a2a',
                 backgroundColor: viewMode === 'play' ? '#7B9BC6' : '#C6C6C6',
               }}
             >
-              🎮 プレイ
+              <span>🎮</span>
+              <span className="hidden sm:inline">プレイ</span>
             </button>
           </div>
         )}
