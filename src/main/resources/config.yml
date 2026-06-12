@@ -1,0 +1,7 @@
+# AdvancementQuesting 設定ファイル
+
+# Web UI を提供する HTTP サーバーのポート番号
+web-port: 8080
+
+# チャットに表示する Web UI の URL（プロキシ経由の場合はここを変更する）
+web-url: "http://localhost:8080"

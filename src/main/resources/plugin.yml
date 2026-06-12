@@ -3,3 +3,16 @@ version: '1.0-SNAPSHOT'
 main: com.kamesuta.advquesting.AdvancementQuesting
 api-version: '1.21'
 authors: [ Kamesuta ]
+
+commands:
+  quest:
+    description: AdvancementQuesting メインコマンド
+    usage: /quest [code]
+
+permissions:
+  aq.editor:
+    description: クエスト編集権限
+    default: op
+  aq.admin:
+    description: クエスト管理権限
+    default: op
