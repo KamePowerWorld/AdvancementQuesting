@@ -336,22 +336,19 @@ export default function EditorPage() {
     try {
       for (const node of proposalNodes) {
         await proposalsApi.create({
-          questSnapshot: {
-            title: node.title,
-            subtitle: node.subtitle,
-            description: node.description,
-            icon: node.icon,
-            tasks: node.tasks,
-            rewards: node.rewards,
-            prerequisites: proposalEdges
-              .filter((e) => e.target === node.id)
-              .map((e) => e.source),
-          },
+          title: node.title,
+          description: node.description,
+          icon: node.icon,
+          prerequisites: proposalEdges
+            .filter((e) => e.target === node.id)
+            .map((e) => e.source),
           mapPosition: { x: node.x, y: node.y },
         } as any)
       }
       queryClient.invalidateQueries({ queryKey: ['proposals'] })
-      setProposalMode(false)
+      // 提案モードは継続 — 送信済み提案をマップ上で確認できるようにする
+      setProposalNodes([])
+      setProposalEdges([])
       showToast('提案を送信しました！')
     } catch {
       showToast('送信に失敗しました')

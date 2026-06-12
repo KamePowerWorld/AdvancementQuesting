@@ -72,23 +72,25 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
             {proposalMode ? (
               <>
                 <span className="text-xs truncate mr-auto" style={{ color: '#EDE09B' }}>
-                  提案モード — クエストを追加してください
+                  {proposalCount > 0 ? '提案モード — クエストを追加してください' : '提案モード — 提案済みクエストを確認中'}
                 </span>
                 <button
                   onClick={() => setProposalMode(false)}
                   className="text-xs px-2 py-0.5 border-2 font-bold shrink-0"
                   style={{ color: '#2a1f0e', backgroundColor: '#C6C6C6', borderTopColor: 'white', borderLeftColor: 'white', borderBottomColor: '#555', borderRightColor: '#555' }}
                 >
-                  ✕ キャンセル
+                  ✕ 終了
                 </button>
-                <button
-                  onClick={submitProposals}
-                  disabled={submitting || proposalCount === 0}
-                  className="text-xs px-3 py-0.5 border-2 font-bold disabled:opacity-50 shrink-0"
-                  style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderTopColor: '#9BE09B', borderLeftColor: '#9BE09B', borderBottomColor: '#3B7B3B', borderRightColor: '#3B7B3B' }}
-                >
-                  {submitting ? '送信中...' : `📤 提案を送信する (${proposalCount})`}
-                </button>
+                {proposalCount > 0 && (
+                  <button
+                    onClick={submitProposals}
+                    disabled={submitting}
+                    className="text-xs px-3 py-0.5 border-2 font-bold disabled:opacity-50 shrink-0"
+                    style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderTopColor: '#9BE09B', borderLeftColor: '#9BE09B', borderBottomColor: '#3B7B3B', borderRightColor: '#3B7B3B' }}
+                  >
+                    {submitting ? '送信中...' : `📤 提案を送信する (${proposalCount})`}
+                  </button>
+                )}
               </>
             ) : (
               <button

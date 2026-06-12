@@ -15,9 +15,14 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     .from(questProposals)
     .orderBy(desc(questProposals.createdAt))
 
-  // 自分の投票状態を付加
-  const withVotes = await Promise.all(
+  // クエスト情報と投票状態を付加
+  const withDetails = await Promise.all(
     rows.map(async (p) => {
+      const quest = await db
+        .select()
+        .from(quests)
+        .where(eq(quests.id, p.questId))
+        .get()
       const myVote = await db
         .select()
         .from(proposalVotes)
@@ -28,11 +33,21 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
           ),
         )
         .get()
-      return { ...p, myVote: myVote?.voteType ?? null }
+      return {
+        ...p,
+        myVote: myVote?.voteType ?? null,
+        mapPosition: quest?.mapPosition ?? null,
+        questSnapshot: quest ? {
+          title: quest.title,
+          description: quest.description,
+          icon: quest.icon,
+          prerequisites: quest.prerequisites,
+        } : null,
+      }
     }),
   )
 
-  res.json(withVotes)
+  res.json(withDetails)
 })
 
 // POST /api/proposals — 提案作成
@@ -44,14 +59,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const questId = randomUUID()
   await db.insert(quests).values({
     id: questId,
-    title: body.title ?? 'New Quest',
+    title: body.title ?? '新規提案クエスト',
     description: body.description ?? null,
     icon: body.icon ?? null,
     category: body.category ?? null,
     prerequisites: body.prerequisites ?? [],
     conditions: body.conditions ?? [],
     rewards: body.rewards ?? [],
-    mapPosition: null,
+    mapPosition: body.mapPosition ?? null,
     customButtons: [],
     status: 'proposed',
     creatorUuid: req.playerUuid!,
