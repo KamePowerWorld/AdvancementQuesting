@@ -18,6 +18,12 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testMatch: /editor\.spec\.ts/,
+    },
+    {
+      name: 'mobile',
+      use: { ...devices['iPhone SE'], defaultBrowserType: 'chromium' },
+      testMatch: /mobile\.spec\.ts/,
     },
   ],
   webServer: [
