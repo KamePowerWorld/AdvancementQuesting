@@ -10,8 +10,10 @@ interface ProposalMeta {
   proposalId: number
   proposerName: string
   votesUp: number
-  onApprove: () => void
-  onReject: () => void
+  myVote?: 'up' | 'down' | null
+  onVote?: (type: 'up' | 'down') => void
+  onApprove?: () => void
+  onReject?: () => void
 }
 
 interface QuestEditorModalProps {
@@ -232,25 +234,44 @@ export function QuestEditorModal({
               <X size={24} />
             </button>
           </div>
-          {/* 承認/却下ボタン */}
+          {/* いいね・承認/却下ボタン */}
           {proposalMeta && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
               <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
-              <button
-                onClick={proposalMeta.onApprove}
-                className="text-xs px-3 py-1.5 border font-bold"
-                style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
-              >
-                ✓ 承認
-              </button>
-              <button
-                onClick={proposalMeta.onReject}
-                className="text-xs px-3 py-1.5 border font-bold"
-                style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
-              >
-                ✕ 却下
-              </button>
+              {proposalMeta.onVote && (
+                <button
+                  onClick={() => proposalMeta.onVote!('up')}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{
+                    color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
+                    backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
+                    borderColor: '#3B7B3B',
+                  }}
+                >
+                  👍 {proposalMeta.votesUp}
+                </button>
+              )}
+              {!proposalMeta.onVote && (
+                <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+              )}
+              {proposalMeta.onApprove && (
+                <button
+                  onClick={proposalMeta.onApprove}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+                >
+                  ✓ 承認
+                </button>
+              )}
+              {proposalMeta.onReject && (
+                <button
+                  onClick={proposalMeta.onReject}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                >
+                  ✕ 却下
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -330,25 +351,44 @@ export function QuestEditorModal({
               <X size={28} />
             </button>
           </div>
-          {/* 2行目: 承認/却下ボタン (proposalMeta がある場合のみ) */}
+          {/* 2行目: いいね・承認/却下ボタン (proposalMeta がある場合のみ) */}
           {proposalMeta && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
               <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
-              <button
-                onClick={proposalMeta.onApprove}
-                className="text-xs px-3 py-1.5 border font-bold"
-                style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
-              >
-                ✓ 承認
-              </button>
-              <button
-                onClick={proposalMeta.onReject}
-                className="text-xs px-3 py-1.5 border font-bold"
-                style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
-              >
-                ✕ 却下
-              </button>
+              {proposalMeta.onVote && (
+                <button
+                  onClick={() => proposalMeta.onVote!('up')}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{
+                    color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
+                    backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
+                    borderColor: '#3B7B3B',
+                  }}
+                >
+                  👍 {proposalMeta.votesUp}
+                </button>
+              )}
+              {!proposalMeta.onVote && (
+                <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+              )}
+              {proposalMeta.onApprove && (
+                <button
+                  onClick={proposalMeta.onApprove}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+                >
+                  ✓ 承認
+                </button>
+              )}
+              {proposalMeta.onReject && (
+                <button
+                  onClick={proposalMeta.onReject}
+                  className="text-xs px-3 py-1.5 border font-bold"
+                  style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                >
+                  ✕ 却下
+                </button>
+              )}
             </div>
           )}
         </div>

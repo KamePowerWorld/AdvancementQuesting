@@ -65,6 +65,7 @@ function questsToEdges(quests: Quest[]): EditorEdge[] {
 /** 提案ノード (EditorNode + 提案メタ情報) */
 interface ProposalNode extends EditorNode {
   proposalId?: number
+  proposerName?: string
   votesUp?: number
   myVote?: 'up' | 'down' | null
 }
@@ -208,12 +209,9 @@ export default function EditorPage() {
   // 未ログイン・プレイヤー通常: 読み取り専用で開ける
   // プレイヤー提案モード: ドラフトのみ編集可、既存は読み取り専用
   // 編集者: 常に編集可
-  const canOpenNode = useCallback((nodeId: string, isOtherProposal = false): boolean => {
-    if (isOtherProposal) return isEditor  // 他者の提案は編集者のみ
-    // 提案モード中は既存ノードは開かない (ドラフトのみ開ける)
-    if (proposalMode && !isProposalDraft(nodeId)) return false
-    return true  // 通常ノードは誰でも開ける (読み取り専用になる場合あり)
-  }, [isEditor, proposalMode, isProposalDraft])
+  const canOpenNode = useCallback((_nodeId: string, _isOtherProposal = false): boolean => {
+    return true  // 通常ノード・送信済み提案ノードは誰でも開ける (権限に応じて読み取り専用)
+  }, [])
 
   const isReadOnlyNode = useCallback((nodeId: string): boolean => {
     if (isEditor) return false
@@ -245,8 +243,8 @@ export default function EditorPage() {
     if (!proposalMode) {
       setProposalNodes([])
       setProposalEdges([])
-      changeMode('select')
     }
+    changeMode('select')
   }, [proposalMode, changeMode])
 
   // ---------------------------------------------------------------------------
@@ -504,7 +502,7 @@ export default function EditorPage() {
 
   const openNode = (nodeId: string, isOtherProposal: boolean) => {
     if (isOtherProposal) {
-      if (isEditor) setEditingProposalNodeId(nodeId)
+      setEditingProposalNodeId(nodeId)
       return
     }
     if (!canOpenNode(nodeId)) return
@@ -782,6 +780,11 @@ export default function EditorPage() {
   // 承認・却下
   // ---------------------------------------------------------------------------
 
+  const handleVote = async (proposalId: number, type: 'up' | 'down') => {
+    await proposalsApi.vote(proposalId, { type })
+    queryClient.invalidateQueries({ queryKey: ['proposals'] })
+  }
+
   const handleApprove = async (proposalId: number) => {
     await proposalsApi.approve(proposalId)
     queryClient.invalidateQueries({ queryKey: ['proposals'] })
@@ -813,6 +816,7 @@ export default function EditorPage() {
       tasks: p.questSnapshot?.tasks ?? [],
       rewards: p.questSnapshot?.rewards ?? [],
       proposalId: p.id,
+      proposerName: p.proposerName ?? '',
       votesUp: p.votesUp ?? 0,
       myVote: p.myVote ?? null,
     }))
@@ -1070,18 +1074,21 @@ export default function EditorPage() {
             close={() => setEditingProposalNodeId(null)}
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
-            proposalMeta={
-              isEditor && editingProposalNode.proposalId != null
-                ? {
-                    proposalId: editingProposalNode.proposalId,
-                    proposerName: (existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any)?.proposerName ?? '',
-                    votesUp: editingProposalNode.votesUp ?? 0,
-                    onApprove: () => handleApprove(editingProposalNode.proposalId!),
-                    onReject: () => handleReject(editingProposalNode.proposalId!),
-                  }
-                : undefined
-            }
-            readOnly={!isEditor}
+            proposalMeta={editingProposalNode.proposalId != null ? (() => {
+              const p = existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any
+              return {
+                proposalId: editingProposalNode.proposalId,
+                proposerName: p?.proposerName ?? '',
+                votesUp: editingProposalNode.votesUp ?? 0,
+                myVote: p?.myVote ?? null,
+                onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
+                ...(isEditor ? {
+                  onApprove: () => handleApprove(editingProposalNode.proposalId!),
+                  onReject: () => handleReject(editingProposalNode.proposalId!),
+                } : {}),
+              }
+            })() : undefined}
+            readOnly
           />
         )}
 
@@ -1187,7 +1194,7 @@ function OtherProposalNodeEl({ node, mode, isEditor: _isEditor, onMouseDown, onM
     <div
       data-node-id={node.id}
       className="absolute w-12 h-12 -ml-6 -mt-6 flex items-center justify-center cursor-pointer z-10"
-      style={{ left: node.x, top: node.y, opacity: 0.55 }}
+      style={{ left: node.x, top: node.y, opacity: 0.7 }}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
       onTouchStart={onTouchStart}
@@ -1203,9 +1210,23 @@ function OtherProposalNodeEl({ node, mode, isEditor: _isEditor, onMouseDown, onM
       <div className="relative pointer-events-none">
         <ItemIcon type={node.icon} size={28} />
       </div>
+      {/* いいね数バッジ */}
       {(node.votesUp ?? 0) > 0 && (
         <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[9px] font-bold px-1 rounded-full border border-white z-10 leading-4">
           👍{node.votesUp}
+        </div>
+      )}
+      {/* 提案者スキンアイコン */}
+      {node.proposerName && (
+        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full overflow-hidden border border-yellow-400 z-10 bg-black">
+          <img
+            src={`https://mc-heads.net/avatar/${node.proposerName}/20`}
+            alt={node.proposerName}
+            width={20}
+            height={20}
+            style={{ imageRendering: 'pixelated' }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
         </div>
       )}
     </div>
