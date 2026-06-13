@@ -518,7 +518,7 @@ export default function EditorPage() {
       const currentNodeIds = new Set(nodes.map((n) => n.id))
       await Promise.all(
         (questsData ?? [])
-          .filter((q) => !currentNodeIds.has(String(q.id)))
+          .filter((q) => q.status !== 'proposed' && !currentNodeIds.has(String(q.id)))
           .map((q) => questsApi.delete(q.id))
       )
       await Promise.all(nodes.map(async (node) => {
