@@ -1,13 +1,35 @@
 export type QuestStatus = 'draft' | 'proposed' | 'public' | 'hidden'
 
-export type ConditionType = 'advancement'
+export type ConditionType = 'advancement' | 'item' | 'checkmark' | 'stat'
 
-export interface Condition {
-  type: ConditionType
+export interface AdvancementCondition {
+  id?: string
+  type: 'advancement'
   advancementId: string
-  requiredCount: number
+  requiredCount?: number
   combineMode?: 'AND' | 'OR'
 }
+
+export interface ItemCondition {
+  id?: string
+  type: 'item'
+  itemType: string
+  count?: number
+}
+
+export interface CheckmarkCondition {
+  id?: string
+  type: 'checkmark'
+  label?: string
+}
+
+export interface StatCondition {
+  id?: string
+  type: 'stat'
+  value?: string
+}
+
+export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition
 
 export type RewardType = 'item' | 'command' | 'experience' | 'permission' | 'money'
 

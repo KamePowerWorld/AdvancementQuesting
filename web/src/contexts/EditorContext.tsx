@@ -1,6 +1,13 @@
 import { createContext, useContext } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 
+/** SSE で受信したクエスト完了通知 (マップ演出のトリガー用) */
+export interface QuestCompleteNotice {
+  questId: number
+  /** 同じクエストが連続達成されても再発火できるよう毎回ユニークな値を入れる */
+  nonce: number
+}
+
 interface EditorContextValue {
   proposalMode: boolean
   setProposalMode: (v: boolean) => void
@@ -17,6 +24,8 @@ interface EditorContextValue {
   saving: boolean
   setSaving: (v: boolean) => void
   queryClient: QueryClient | null
+  /** 直近のクエスト完了通知。EditorPage がこれを監視してマップ演出を出す */
+  lastQuestComplete: QuestCompleteNotice | null
 }
 
 export const EditorContext = createContext<EditorContextValue>({
@@ -33,6 +42,7 @@ export const EditorContext = createContext<EditorContextValue>({
   saving: false,
   setSaving: () => {},
   queryClient: null,
+  lastQuestComplete: null,
 })
 
 export function useEditor() {

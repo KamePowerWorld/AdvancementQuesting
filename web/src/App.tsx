@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import { AuthContext } from '@/contexts/AuthContext.js'
 import type { ViewMode } from '@/contexts/AuthContext.js'
 import { EditorContext } from '@/contexts/EditorContext.js'
+import type { QuestCompleteNotice } from '@/contexts/EditorContext.js'
 import EditorPage from '@/pages/Editor.js'
+import { useQuestNotifications } from '@/hooks/useQuestNotifications.js'
+import type { QuestCompleteEvent } from '@/hooks/useQuestNotifications.js'
+import { QuestCompleteOverlay } from '@/components/QuestCompleteOverlay.js'
 
 // ---------------------------------------------------------------------------
 // ナビバー
@@ -174,9 +178,28 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
 // App ルート: 提案状態をここで管理して Nav と EditorPage 両方に渡す
 // ---------------------------------------------------------------------------
 
-export default function App() {
+function AppInner() {
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
+  const [questCompleteEvent, setQuestCompleteEvent] = useState<QuestCompleteEvent | null>(null)
+  // マップ演出トリガー: 完了したクエストID + 毎回変わる nonce
+  const [lastQuestComplete, setLastQuestComplete] = useState<QuestCompleteNotice | null>(null)
+
+  const handleQuestComplete = useCallback((event: QuestCompleteEvent) => {
+    setQuestCompleteEvent(event)
+    setLastQuestComplete({ questId: event.questId, nonce: Date.now() })
+    // 進捗データを再取得してノードの達成済み表示を更新
+    queryClient.invalidateQueries({ queryKey: ['progress'] })
+  }, [queryClient])
+
+  // ログイン状態を監視 (ログイン後に SSE を張り直すため)
+  const { data: meForSse } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => authApi.me(),
+    retry: false,
+    enabled: !!localStorage.getItem('token'),
+  })
+  useQuestNotifications(handleQuestComplete, meForSse?.playerUuid ?? null)
 
   // URLに ?code=XXXXXX が含まれる場合は自動ログイン
   useEffect(() => {
@@ -221,6 +244,7 @@ export default function App() {
     saving,
     setSaving,
     queryClient,
+    lastQuestComplete,
   }
 
   return (
@@ -238,6 +262,14 @@ export default function App() {
           setViewMode={setViewMode}
         />
       </div>
+      <QuestCompleteOverlay
+        event={questCompleteEvent}
+        onDone={() => setQuestCompleteEvent(null)}
+      />
     </EditorContext.Provider>
   )
+}
+
+export default function App() {
+  return <AppInner />
 }

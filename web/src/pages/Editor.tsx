@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
@@ -15,9 +15,10 @@ import { useAuth } from '@/contexts/AuthContext.js'
 import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { questsApi } from '@/api/quests.js'
+import { progressApi } from '@/api/progress.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
-import type { Quest } from '@/types/quest.js'
+import type { Quest, Condition, Reward } from '@/types/quest.js' // Reward は rewards 変換で使用
 
 // ---------------------------------------------------------------------------
 // Quest API ↔ EditorNode 変換
@@ -36,7 +37,8 @@ function questToNode(q: Quest): EditorNode {
     tasks: (q.conditions ?? []).map((c, i) => ({
       id: `${sid}-t${i}`,
       type: c.type,
-      value: c.advancementId,
+      value: c.type === 'advancement' ? (c.advancementId ?? '') : ((c as any).label ?? (c as any).value ?? ''),
+      ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1 } : {}),
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
@@ -122,6 +124,7 @@ export default function EditorPage() {
     proposalMode, setProposalMode,
     setProposalCount, setSubmitting,
     setSaveQuests, saving, setSaving,
+    lastQuestComplete,
   } = useEditor()
 
   // ---- クエストデータをAPIから取得 ----
@@ -129,6 +132,34 @@ export default function EditorPage() {
     queryKey: ['quests'],
     queryFn: () => questsApi.list(),
   })
+
+  // ---- 自分の進捗 (達成済み表示用) ----
+  const { data: progressData } = useQuery({
+    queryKey: ['progress'],
+    queryFn: () => progressApi.list(),
+    enabled: !!me,
+  })
+
+  // 完了したクエストID集合 (questId は文字列で保持してノードIDと比較)
+  const completedQuestIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of progressData ?? []) {
+      if (p.completed) set.add(String(p.questId))
+    }
+    return set
+  }, [progressData])
+
+  // ---- マップ演出: 今キラキラ中のノードID ----
+  const [celebratingNodeId, setCelebratingNodeId] = useState<string | null>(null)
+
+  // SSE でクエスト完了通知が来たら該当ノードを一定時間キラキラさせる
+  useEffect(() => {
+    if (!lastQuestComplete) return
+    const nodeId = String(lastQuestComplete.questId)
+    setCelebratingNodeId(nodeId)
+    const timer = setTimeout(() => setCelebratingNodeId(null), 4000)
+    return () => clearTimeout(timer)
+  }, [lastQuestComplete])
 
   // ---- マップ状態 (APIデータがあればそちらを使い、なければフォールバック) ----
   const [nodes, setNodes] = useState<EditorNode[]>(INITIAL_NODES)
@@ -396,6 +427,22 @@ export default function EditorPage() {
       // API の quest.id は number なので比較時に変換する
       const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
       await Promise.all(nodes.map(async (node) => {
+        // EditorTask → API conditions
+        const conditions: Condition[] = (node.tasks ?? []).map((t) => {
+          const ta = t as any
+          if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
+          if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1 }
+          if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
+          if (t.type === 'stat') return { id: t.id, type: 'stat' as const, value: ta.statId ?? t.value ?? '' }
+          return { id: t.id, type: 'checkmark' as const, label: t.value }
+        })
+        // EditorReward → API rewards
+        const rewards: Reward[] = (node.rewards ?? []).map((r) => {
+          if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: 1 }
+          if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
+          if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
+          return { type: 'command' as const, command: '', opLevel: 0 }
+        })
         const body = {
           title: node.title,
           description: node.description,
@@ -406,12 +453,14 @@ export default function EditorPage() {
             .filter((e) => e.target === node.id)
             .map((e) => parseInt(e.source, 10))
             .filter((n) => !isNaN(n)),
+          conditions,
+          rewards,
           status: 'public' as const,
         }
         if (existingIds.has(node.id)) {
           await questsApi.update(parseInt(node.id, 10), body)
         } else {
-          await questsApi.create({ ...body, category: null, conditions: [], rewards: [], customButtons: [] })
+          await questsApi.create({ ...body, category: null, customButtons: [] })
         }
       }))
       queryClient.invalidateQueries({ queryKey: ['quests'] })
@@ -979,6 +1028,8 @@ export default function EditorPage() {
                 linkStartNode={linkStartNode}
                 linkHoverNode={linkHoverNode}
                 setHoveredNode={setHoveredNode}
+                completed={completedQuestIds.has(node.id)}
+                celebrating={celebratingNodeId === node.id}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
                 onMouseUp={handleNodeMouseUp}
                 onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
@@ -1133,6 +1184,10 @@ interface NodeElProps {
   linkHoverNode: string | null
   setHoveredNode: (n: EditorNode | null) => void
   isDraft?: boolean
+  /** クエスト達成済み (金枠 + チェックマーク表示) */
+  completed?: boolean
+  /** たった今達成した瞬間のキラキラ演出中 */
+  celebrating?: boolean
   onMouseDown: (e: React.MouseEvent) => void
   onMouseUp: (e: React.MouseEvent) => void
   onTouchStart: (e: React.TouchEvent) => void
@@ -1140,13 +1195,15 @@ interface NodeElProps {
   onTouchEnd: (e: React.TouchEvent) => void
 }
 
-function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
+function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, completed, celebrating, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
   return (
     <div
       data-node-id={node.id}
+      data-completed={completed ? 'true' : undefined}
+      data-celebrating={celebrating ? 'true' : undefined}
       className={`absolute w-12 h-12 -ml-6 -mt-6 flex items-center justify-center cursor-pointer z-10 transition-transform ${
         draggingNode === node.id ? 'scale-110 z-20' : ''
-      }`}
+      } ${celebrating ? 'z-30' : ''}`}
       style={{ left: node.x, top: node.y, opacity: isDraft ? 0.85 : 1 }}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -1156,6 +1213,41 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
+      {/* 達成済み: 金色の光輪 */}
+      {completed && (
+        <div
+          className="absolute -inset-1 rounded-full pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(255,215,0,0.45) 0%, rgba(255,215,0,0) 70%)',
+            animation: celebrating ? 'none' : 'aq-completed-glow 2.5s ease-in-out infinite',
+          }}
+        />
+      )}
+
+      {/* 達成した瞬間: キラキラ放射エフェクト */}
+      {celebrating && (
+        <div className="absolute inset-0 pointer-events-none z-20">
+          {/* 拡大する金色リング */}
+          <div className="absolute inset-0 rounded-full" style={{ animation: 'aq-celebrate-ring 1s ease-out 2', border: '3px solid #FFD700' }} />
+          {/* 放射する星 */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span
+              key={i}
+              className="absolute left-1/2 top-1/2 text-yellow-300"
+              style={{
+                fontSize: '14px',
+                marginLeft: '-7px',
+                marginTop: '-7px',
+                ['--r' as string]: `${i * 45}deg`,
+                animation: `aq-celebrate-spark 1.2s ease-out ${(i % 4) * 0.05}s`,
+              }}
+            >
+              ✦
+            </span>
+          ))}
+        </div>
+      )}
+
       <div
         className={[
           'absolute inset-0 rounded-full',
@@ -1164,14 +1256,27 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
           mode === 'delete' ? 'hover:ring-4 hover:ring-red-500' : '',
           mode === 'select' ? 'hover:ring-4 hover:ring-yellow-400' : '',
           isDraft ? 'ring-2 ring-blue-400 ring-dashed' : '',
+          completed ? 'ring-2 ring-yellow-400' : '',
         ].join(' ')}
       >
-        <div className="w-full h-full bg-black/50 border-2 border-[#839384] rounded-full shadow-inner flex items-center justify-center" />
+        <div className={`w-full h-full bg-black/50 border-2 rounded-full shadow-inner flex items-center justify-center ${completed ? 'border-yellow-400' : 'border-[#839384]'}`} />
       </div>
       {isDraft && (
         <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-400 rounded-full border border-white z-10" title="提案ドラフト" />
       )}
-      <div className="relative pointer-events-none">
+
+      {/* 達成済みチェックマーク (右下バッジ) */}
+      {completed && (
+        <div
+          className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-yellow-700 z-20 flex items-center justify-center"
+          style={{ backgroundColor: '#FFD700', fontSize: '10px', lineHeight: 1 }}
+          title="達成済み"
+        >
+          ✓
+        </div>
+      )}
+
+      <div className={`relative pointer-events-none ${celebrating ? 'animate-bounce' : ''}`}>
         <ItemIcon type={node.icon} size={28} />
       </div>
     </div>

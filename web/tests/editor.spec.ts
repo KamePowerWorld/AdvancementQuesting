@@ -577,3 +577,182 @@ test('提案ノード: マップ上に提案者スキンアイコンが表示さ
   const skinImg = proposalNode.locator('img[src*="mc-heads.net"]')
   await expect(skinImg).toBeVisible()
 })
+
+// 20. SSE クエスト完了通知: ブラウザにパーティクルオーバーレイが表示される
+test('SSE通知: クエスト完了でブラウザにオーバーレイが表示される (20)', async ({ page }) => {
+  // demo-editor-token でログイン (SSE接続のためのトークンが必要)
+  await loginAs(page, 'demo-editor-token')
+
+  // SSE ストリームを開く (EventSource はブラウザ側で自動接続されているはず)
+  // モックサーバーの /api/test/notify-quest-complete でイベントをプッシュ
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: {
+      token: 'demo-editor-token',
+      questId: 1,
+      questTitle: 'テストクエスト達成！',
+      playerName: 'Editor',
+    },
+  })
+
+  // オーバーレイが表示される
+  await expect(page.getByTestId('quest-complete-overlay')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText('クエスト完了！')).toBeVisible()
+  await expect(page.getByText('テストクエスト達成！')).toBeVisible()
+})
+
+// 21. タスク保存永続化: advancement 条件を追加して保存→リロード後も保持される
+test('タスク保存: advancement 条件を追加して保存するとリロード後も保持される (21)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  // ノード1 を data-node-id で直接クリック (前テストで位置が変わっていても大丈夫)
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const node1Box = await node1.boundingBox()!
+  await page.mouse.click(node1Box!.x + node1Box!.width / 2, node1Box!.y + node1Box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+
+  // タスク追加: タスクセクションヘッダー行の + ボタン (hover:bg-white/10 クラス)
+  await page.locator('button.hover\\:bg-white\\/10').first().click()
+  // メニューから「進捗」を選択 (🏆 アイコン付き行)
+  await page.locator('.px-3.py-2').filter({ hasText: '🏆' }).click()
+
+  // TaskRewardEditorModal が開く — advancement ID 入力欄
+  await expect(page.getByPlaceholder('minecraft:story/mine_wood')).toBeVisible({ timeout: 3000 })
+  await page.getByPlaceholder('minecraft:story/mine_wood').fill('minecraft:story/mine_stone')
+  // TaskRewardEditorModal の「完了」ボタンで閉じる
+  await page.getByRole('button', { name: '完了' }).click()
+
+  // クエストモーダルに戻る — タスクが1件増えている
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  // タスク行 (🏆アイコン付き) が少なくとも1件ある
+  await expect(page.getByText('🏆').first()).toBeVisible()
+  // QuestEditorModal の閉じるボタン
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+
+  // 保存
+  await page.getByText('💾 保存').click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+
+  // API で conditions が保存されているか直接確認
+  const questsRes = await page.request.get('http://localhost:3001/api/quests/1')
+  const quest = await questsRes.json()
+  expect(Array.isArray(quest.conditions)).toBe(true)
+  const advCond = quest.conditions.find((c: any) => c.type === 'advancement')
+  expect(advCond).toBeDefined()
+  expect(advCond.advancementId).toBe('minecraft:story/mine_stone')
+
+  // リロード後もタスクが表示される
+  await page.request.post('http://localhost:3001/api/auth/quick', { data: { token: 'demo-editor-token' } })
+  await page.reload()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  const node1After = page.locator('[data-node-id="1"]')
+  await expect(node1After).toBeVisible({ timeout: 5000 })
+  const node1AfterBox = await node1After.boundingBox()!
+  await page.mouse.click(node1AfterBox!.x + node1AfterBox!.width / 2, node1AfterBox!.y + node1AfterBox!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText('🏆').first()).toBeVisible()
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// 22. タスク保存永続化: item 条件を追加して保存→リロード後も itemType が保持される
+test('タスク保存: item 条件を追加して保存するとリロード後も itemType が保持される (22)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  // ノード1 を data-node-id で直接クリック
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const node1Box = await node1.boundingBox()!
+  await page.mouse.click(node1Box!.x + node1Box!.width / 2, node1Box!.y + node1Box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+
+  // タスク追加: タスクセクションヘッダー行の + ボタン → アイテム
+  await page.locator('button.hover\\:bg-white\\/10').first().click()
+  await page.locator('.px-3.py-2').filter({ hasText: '📦' }).first().click()
+
+  // TaskRewardEditorModal — デフォルト stone、数量を 5 に変更
+  await expect(page.locator('input[type="number"]').first()).toBeVisible({ timeout: 3000 })
+  await page.locator('input[type="number"]').first().fill('5')
+  // TaskRewardEditorModal の「完了」ボタンで閉じる
+  await page.getByRole('button', { name: '完了' }).click()
+
+  // クエストモーダルに戻る
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+
+  // 保存
+  await page.getByText('💾 保存').click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+
+  // API で conditions が保存されているか直接確認
+  const questsRes = await page.request.get('http://localhost:3001/api/quests/1')
+  const quest = await questsRes.json()
+  expect(Array.isArray(quest.conditions)).toBe(true)
+  const itemCond = quest.conditions.find((c: any) => c.type === 'item')
+  expect(itemCond).toBeDefined()
+  expect(itemCond.itemType).toBe('stone')
+  expect(itemCond.count).toBe(5)
+
+  // リロード後もタスクが表示される
+  await page.request.post('http://localhost:3001/api/auth/quick', { data: { token: 'demo-editor-token' } })
+  await page.reload()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  const node1r = page.locator('[data-node-id="1"]')
+  await expect(node1r).toBeVisible({ timeout: 5000 })
+  const node1rBox = await node1r.boundingBox()!
+  await page.mouse.click(node1rBox!.x + node1rBox!.width / 2, node1rBox!.y + node1rBox!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+  // item タスクアイコン (ItemIcon) が表示されている
+  const taskRow = page.locator('img[src*="stone"]').first()
+  await expect(taskRow).toBeVisible()
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+const EDITOR_UUID = 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff'
+
+// 23. 達成済み表示: 進捗が完了しているクエストノードに金色マーク (data-completed) が出る
+test('達成済み表示: 完了クエストノードに金枠+チェックが表示される (23)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  // ノード1 を完了状態にする
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true },
+  })
+
+  await loginAs(page, 'demo-editor-token')
+
+  // ノード1 が達成済み表示 (data-completed="true") になっている
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toHaveAttribute('data-completed', 'true', { timeout: 8000 })
+  // チェックマークバッジが見える
+  await expect(node1.getByTitle('達成済み')).toBeVisible()
+
+  // 未完了のノード2 には付かない
+  const node2 = page.locator('[data-node-id="2"]')
+  await expect(node2).not.toHaveAttribute('data-completed', 'true')
+})
+
+// 24. 達成演出: SSE通知でノードが一時的にキラキラ (data-celebrating) し、達成済みになる
+test('達成演出: SSE完了通知でノードがキラキラ→達成済みになる (24)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  // 最初は未達成
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).not.toHaveAttribute('data-completed', 'true')
+
+  // サーバー側で完了させてから SSE 通知を送る
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true },
+  })
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 1, questTitle: '基本', playerName: 'Editor' },
+  })
+
+  // キラキラ演出が一時的に出る (data-celebrating="true")
+  await expect(node1).toHaveAttribute('data-celebrating', 'true', { timeout: 5000 })
+  // オーバーレイも出る
+  await expect(page.getByTestId('quest-complete-overlay')).toBeVisible({ timeout: 5000 })
+
+  // 演出が終わると celebrating は消えるが completed は残る (progress再取得後)
+  await expect(node1).toHaveAttribute('data-completed', 'true', { timeout: 8000 })
+  await expect(node1).not.toHaveAttribute('data-celebrating', 'true', { timeout: 8000 })
+})
