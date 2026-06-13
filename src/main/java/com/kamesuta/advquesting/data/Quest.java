@@ -11,6 +11,7 @@ public class Quest {
 
     public int id;
     public String title;
+    public String subtitle;
     public String description;
     public String icon;
     public String category;

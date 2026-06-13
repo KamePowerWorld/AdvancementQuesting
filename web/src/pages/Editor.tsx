@@ -33,7 +33,7 @@ function questToNode(q: Quest): EditorNode {
     y: q.mapPosition?.y ?? 100,
     icon: q.icon ?? 'stone',
     title: q.title,
-    subtitle: '',
+    subtitle: (q as any).subtitle ?? '',
     description: q.description ?? '',
     tasks: (q.conditions ?? []).map((c, i) => ({
       id: `${sid}-t${i}`,
@@ -68,6 +68,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
   })
   return {
     title: node.title,
+    subtitle: node.subtitle,
     description: node.description,
     icon: node.icon,
     mapPosition: { x: node.x, y: node.y },
@@ -931,7 +932,7 @@ export default function EditorPage() {
       y: p.mapPosition?.y ?? 100,
       icon: snap.icon ?? 'stone',
       title: snap.title ?? '提案',
-      subtitle: '',
+      subtitle: snap.subtitle ?? '',
       description: snap.description ?? '',
       tasks,
       rewards,

@@ -54,6 +54,7 @@ public class ProposalRoutes {
                         map.put("mapPosition", quest.mapPosition);
                         Map<String, Object> snapshot = new HashMap<>();
                         snapshot.put("title", quest.title != null ? quest.title : "");
+                        snapshot.put("subtitle", quest.subtitle != null ? quest.subtitle : "");
                         snapshot.put("description", quest.description != null ? quest.description : "");
                         snapshot.put("icon", quest.icon != null ? quest.icon : "");
                         snapshot.put("prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of());
