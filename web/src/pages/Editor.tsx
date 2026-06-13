@@ -165,12 +165,19 @@ export default function EditorPage() {
   const [nodes, setNodes] = useState<EditorNode[]>(INITIAL_NODES)
   const [edges, setEdges] = useState<EditorEdge[]>(INITIAL_EDGES)
 
-  // APIデータが読み込まれたらノード/エッジを更新
+  // APIデータが読み込まれたらノード/エッジを更新し、最左上ノードにパンを合わせる
   useEffect(() => {
     if (!questsData) return
     const publicQuests = questsData.filter((q) => q.status === 'public' || (isEditor && q.status !== 'proposed'))
-    setNodes(publicQuests.length > 0 ? publicQuests.map(questToNode) : INITIAL_NODES)
+    const newNodes = publicQuests.length > 0 ? publicQuests.map(questToNode) : INITIAL_NODES
+    setNodes(newNodes)
     setEdges(publicQuests.length > 0 ? questsToEdges(publicQuests) : INITIAL_EDGES)
+    if (newNodes.length > 0) {
+      const minX = Math.min(...newNodes.map((n) => n.x))
+      const minY = Math.min(...newNodes.map((n) => n.y))
+      const PADDING = 80
+      setPan({ x: -minX + PADDING, y: -minY + PADDING })
+    }
   }, [questsData, isEditor])
 
   // ---- 提案ドラフト (ローカル) ----
