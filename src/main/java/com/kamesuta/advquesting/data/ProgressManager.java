@@ -2,8 +2,12 @@ package com.kamesuta.advquesting.data;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.db.ProgressDao;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -27,12 +31,17 @@ public class ProgressManager {
     private final QuestManager questManager;
     private final ProgressDao progressDao;
     private final Logger log;
+    private NotificationRoutes notificationRoutes;
 
     public ProgressManager(Plugin plugin, QuestManager questManager, ProgressDao progressDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
         this.log = plugin.getLogger();
+    }
+
+    public void setNotificationRoutes(NotificationRoutes notificationRoutes) {
+        this.notificationRoutes = notificationRoutes;
     }
 
     /**
@@ -183,15 +192,32 @@ public class ProgressManager {
     }
 
     private void notifyQuestComplete(String playerUuid, Quest quest) {
+        // SSE でブラウザに通知 (Javalin スレッドから呼べる)
+        if (notificationRoutes != null) {
+            notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
+                playerUuidToName(playerUuid));
+        }
+
         Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
         if (player == null) return;
         Bukkit.getScheduler().runTask(plugin, () -> {
+            // チャットメッセージ
             player.sendMessage(net.kyori.adventure.text.Component.text(
-                "§6クエスト完了: §f" + quest.title + " §7(§a/quest claim " + quest.id + "§7 で報酬受け取り)"
+                "§6✨ クエスト完了: §f§l" + quest.title + "\n§7報酬を受け取るには §a/quest claim " + quest.id + " §7を実行"
             ));
-            player.playSound(player.getLocation(),
-                org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            // サウンド
+            player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            // パーティクル (プレイヤー周囲に花火)
+            Location loc = player.getLocation().add(0, 1, 0);
+            player.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, loc, 60, 0.5, 0.7, 0.5, 0.1);
+            player.getWorld().spawnParticle(Particle.FIREWORK, loc, 30, 0.3, 0.5, 0.3, 0.05);
         });
+    }
+
+    private String playerUuidToName(String playerUuid) {
+        Player online = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
+        if (online != null) return online.getName();
+        return playerUuid;
     }
 
     private void giveRewards(Player player, List<Map<String, Object>> rewards) {

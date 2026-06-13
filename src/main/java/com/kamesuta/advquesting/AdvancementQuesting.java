@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting;
 
 import com.kamesuta.advquesting.api.AuthRoutes;
+import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
@@ -62,10 +63,13 @@ public final class AdvancementQuesting extends JavaPlugin {
         });
 
         // API ルート登録
+        NotificationRoutes notificationRoutes = new NotificationRoutes(sessionDao);
+        progressManager.setNotificationRoutes(notificationRoutes);
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
+        notificationRoutes.register(app);
 
         // SPA フォールバック: /api 以外の未知パスは index.html を返す
         app.error(404, ctx -> {

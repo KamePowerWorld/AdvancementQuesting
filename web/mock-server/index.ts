@@ -8,7 +8,7 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
-import { playerSessions, authCodes, questProposals, proposalVotes, quests } from './db/schema.js'
+import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 
 config()
@@ -30,6 +30,46 @@ app.use('/api/proposals', proposalRoutes)
 // ヘルスチェック
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// SSE: クエスト完了通知ストリーム (token認証)
+const sseClients = new Map<string, express.Response[]>()
+
+app.get('/api/notifications/stream', (req, res) => {
+  let token = req.headers.authorization?.replace('Bearer ', '') ?? null
+  if (!token) token = req.query.token as string ?? null
+
+  if (!token) { res.status(401).json({ error: 'Unauthorized' }); return }
+
+  // モックでは token をそのまま playerUuid として使う (簡易)
+  const playerUuid = token
+  if (!sseClients.has(playerUuid)) sseClients.set(playerUuid, [])
+  sseClients.get(playerUuid)!.push(res)
+
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+  res.write('event: connected\ndata: {"ok":true}\n\n')
+
+  req.on('close', () => {
+    const list = sseClients.get(playerUuid) ?? []
+    const idx = list.indexOf(res)
+    if (idx !== -1) list.splice(idx, 1)
+  })
+})
+
+// テスト用: 指定トークン(playerUuid)へ quest_complete イベントを送信
+app.post('/api/test/notify-quest-complete', express.json(), (req, res) => {
+  const { token, questId, questTitle, playerName } = req.body as {
+    token: string; questId: number; questTitle: string; playerName: string
+  }
+  const targets = sseClients.get(token) ?? []
+  const payload = JSON.stringify({ questId, questTitle, playerUuid: token, playerName })
+  for (const client of [...targets]) {
+    client.write(`event: quest_complete\ndata: ${payload}\n\n`)
+  }
+  res.json({ sent: targets.length })
 })
 
 // テスト用: デモセッションを復元する (本番では無効)
@@ -63,6 +103,26 @@ app.post('/api/test/reset-proposals', async (_req, res) => {
   await db.delete(proposalVotes)
   await db.delete(questProposals)
   await db.delete(quests).where(eq(quests.status, 'proposed'))
+  res.json({ ok: true })
+})
+
+// テスト用: 指定プレイヤー・クエストの進捗を完了状態にする
+app.post('/api/test/set-progress', express.json(), async (req, res) => {
+  const { playerUuid, questId, completed } = req.body as {
+    playerUuid: string; questId: number; completed: boolean
+  }
+  await db.insert(playerProgress).values({
+    playerUuid, questId, progress: [], completed: !!completed, rewardClaimed: false,
+  }).onConflictDoUpdate({
+    target: [playerProgress.playerUuid, playerProgress.questId],
+    set: { completed: !!completed },
+  })
+  res.json({ ok: true })
+})
+
+// テスト用: 進捗をすべて削除
+app.post('/api/test/reset-progress', async (_req, res) => {
+  await db.delete(playerProgress)
   res.json({ ok: true })
 })
 
