@@ -40,11 +40,11 @@ function questToNode(q: Quest): EditorNode {
       id: `${sid}-t${i}`,
       type: c.type,
       value: c.type === 'advancement' ? (c.advancementId ?? '') : ((c as any).label ?? (c as any).value ?? ''),
-      ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1 } : {}),
+      ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
-      if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1 }
+      if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
       if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
       if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
       return { ...base, type: r.type }
@@ -56,13 +56,13 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
   const conditions: Condition[] = (node.tasks ?? []).map((t) => {
     const ta = t as any
     if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
-    if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1 }
+    if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
     if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
     if (t.type === 'stat') return { id: t.id, type: 'stat' as const, value: ta.statId ?? t.value ?? '' }
     return { id: t.id, type: 'checkmark' as const, label: t.value }
   })
   const rewards: Reward[] = (node.rewards ?? []).map((r) => {
-    if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1 }
+    if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
     if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
     if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
     return { type: 'command' as const, command: '', opLevel: 0 }
@@ -926,11 +926,11 @@ export default function EditorPage() {
         id: `${sid}-t${i}`,
         type: c.type,
         value: c.type === 'advancement' ? (c.advancementId ?? '') : (c.label ?? c.value ?? ''),
-        ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1 } : {}),
+        ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
       }))
       const rewards = (snap.rewards ?? []).map((r: any, i: number) => {
         const base = { id: `${sid}-r${i}`, value: '' }
-        if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1 }
+        if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
         if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
         return { ...base, type: r.type }
       })

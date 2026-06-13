@@ -22,18 +22,23 @@ export interface Vec2 {
 /** タスク (クエストの達成条件) のエディタ内表現 */
 export interface EditorTask {
   id: string
-  type: string      // TASK_TYPES の id
-  value: string     // 表示テキスト / コマンド文字列など
-  itemType?: string // type === 'item' の場合のアイテム種別
+  type: string        // TASK_TYPES の id
+  value: string       // 表示テキスト / コマンド文字列など
+  itemType?: string   // type === 'item' の場合のアイテム種別
+  count?: number
+  nbt?: string        // NBT文字列 (特殊アイテム用)
+  displayName?: string // カスタム表示名
 }
 
 /** 報酬のエディタ内表現 */
 export interface EditorReward {
   id: string
-  type: string      // REWARD_TYPES の id
+  type: string        // REWARD_TYPES の id
   value: string
   itemType?: string
-  count?: number    // type === 'item' の場合の個数
+  count?: number      // type === 'item' の場合の個数
+  nbt?: string        // NBT文字列 (特殊アイテム用)
+  displayName?: string // カスタム表示名
 }
 
 /** マップ上に配置する1つのクエストノード */

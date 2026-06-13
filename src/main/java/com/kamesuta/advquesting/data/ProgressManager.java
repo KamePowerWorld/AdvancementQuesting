@@ -247,10 +247,28 @@ public class ProgressManager {
             if ("item".equals(type)) {
                 String itemType = (String) reward.getOrDefault("itemType", reward.get("itemId"));
                 int count = ((Number) reward.getOrDefault("count", 1)).intValue();
+                String nbt = (String) reward.get("nbt");
                 try {
-                    org.bukkit.Material mat = org.bukkit.Material.matchMaterial(itemType.toUpperCase());
-                    if (mat != null) {
-                        player.getInventory().addItem(new org.bukkit.inventory.ItemStack(mat, count));
+                    org.bukkit.inventory.ItemStack itemStack = null;
+                    if (nbt != null && !nbt.isEmpty()) {
+                        // NBTからアイテムを復元
+                        try {
+                            itemStack = org.bukkit.Bukkit.getItemFactory().createItemStack(itemType + nbt);
+                            itemStack.setAmount(count);
+                        } catch (Exception e) {
+                            log.warning("Failed to parse NBT, falling back to plain item: " + e.getMessage());
+                        }
+                    }
+                    if (itemStack == null) {
+                        org.bukkit.Material mat = org.bukkit.Material.matchMaterial(
+                            itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase() : itemType.toUpperCase()
+                        );
+                        if (mat != null) {
+                            itemStack = new org.bukkit.inventory.ItemStack(mat, count);
+                        }
+                    }
+                    if (itemStack != null) {
+                        player.getInventory().addItem(itemStack);
                     }
                 } catch (Exception e) {
                     log.warning("Failed to give item reward: " + itemType);

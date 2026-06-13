@@ -5,6 +5,7 @@ import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcItems, getItemName } from '@/hooks/useMcData.js'
+import { playerApi } from '@/api/player.js'
 
 interface TaskRewardEditorModalProps {
   node: EditorNode
@@ -73,6 +74,8 @@ export function TaskRewardEditorModal({
   const { lang } = useMcItems()
   const advancements = useAdvancements()
   const [advSearch, setAdvSearch] = useState('')
+  const [fetchingHeld, setFetchingHeld] = useState(false)
+  const [heldError, setHeldError] = useState<string | null>(null)
 
   if (!item) return null
 
@@ -89,6 +92,29 @@ export function TaskRewardEditorModal({
       ...iconUpdate,
       [category === 'task' ? 'tasks' : 'rewards']: newItems,
     })
+  }
+
+  const handleFetchHeldItem = async () => {
+    setFetchingHeld(true)
+    setHeldError(null)
+    try {
+      const held = await playerApi.getHeldItem()
+      // itemId は "minecraft:diamond_sword" 形式 → itemType に使う
+      const changes: Partial<EditorTask & EditorReward> = {
+        itemType: held.itemId,
+        count: held.count,
+        nbt: held.nbt ?? undefined,
+        displayName: held.displayName ?? undefined,
+      }
+      // タスクならアイコンも同期
+      const iconUpdate = category === 'task' ? { icon: held.itemId } : {}
+      const newItems = items.map((i) => (i.id === itemId ? { ...i, ...changes } : i))
+      updateNode({ ...node, ...iconUpdate, [category === 'task' ? 'tasks' : 'rewards']: newItems })
+    } catch {
+      setHeldError('手持ちアイテムを取得できませんでした。ゲームにログインしているか確認してください。')
+    } finally {
+      setFetchingHeld(false)
+    }
   }
 
   const handleOpenItemSelector = () => {
@@ -112,6 +138,9 @@ export function TaskRewardEditorModal({
 
   const taskSpecificField = (() => {
     if (item.type === 'item') {
+      const itemWithExtra = item as EditorTask & EditorReward
+      const hasNbt = !!itemWithExtra.nbt
+      const hasDisplayName = !!itemWithExtra.displayName
       return (
         <div className="flex flex-col gap-2">
           <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">アイテム</label>
@@ -124,25 +153,55 @@ export function TaskRewardEditorModal({
               <ItemIcon type={currentItemId} size={36} />
             </div>
             <div className="flex flex-col gap-1 flex-1 min-w-0">
+              {hasDisplayName && (
+                <span className="text-sm text-yellow-300 font-bold truncate">{itemWithExtra.displayName}</span>
+              )}
               <span className="text-sm text-white font-bold truncate">{currentItemName}</span>
               <span className="text-xs text-gray-400 truncate">{currentItemId}</span>
-              <button
-                onClick={handleOpenItemSelector}
-                className="text-xs text-blue-400 hover:text-blue-300 text-left mt-1"
-              >
-                変更する →
-              </button>
+              {hasNbt && (
+                <span className="text-xs text-purple-400 truncate" title={itemWithExtra.nbt}>NBT付き ✦</span>
+              )}
+              <div className="flex gap-3 mt-1">
+                <button
+                  onClick={handleOpenItemSelector}
+                  className="text-xs text-blue-400 hover:text-blue-300 text-left"
+                >
+                  ＋ 選択する
+                </button>
+                <button
+                  onClick={handleFetchHeldItem}
+                  disabled={fetchingHeld}
+                  className="text-xs text-green-400 hover:text-green-300 text-left disabled:opacity-50"
+                  title="ゲームで手に持っているアイテムをそのまま登録（エンチャント・NBT含む）"
+                >
+                  {fetchingHeld ? '取得中...' : '🎮 手持ちを登録'}
+                </button>
+              </div>
+              {heldError && (
+                <span className="text-xs text-red-400 mt-1">{heldError}</span>
+              )}
             </div>
           </div>
-          <div className="flex flex-col gap-1 mt-1">
-            <label className="text-xs text-gray-400">数量</label>
-            <input
-              type="number"
-              min={1}
-              value={(item as EditorTask & { count?: number }).count ?? 1}
-              onChange={(e) => handleChange({ count: Number(e.target.value) } as any)}
-              className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-24 outline-none focus:border-blue-500"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">数量</label>
+              <input
+                type="number"
+                min={1}
+                value={itemWithExtra.count ?? 1}
+                onChange={(e) => handleChange({ count: Number(e.target.value) } as any)}
+                className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-24 outline-none focus:border-blue-500"
+              />
+            </div>
+            {hasNbt && (
+              <button
+                onClick={() => handleChange({ nbt: undefined, displayName: undefined } as any)}
+                className="text-xs text-red-400 hover:text-red-300 mt-4"
+                title="NBTと表示名をクリアしてノーマルアイテムに戻す"
+              >
+                ✕ NBTをクリア
+              </button>
+            )}
           </div>
         </div>
       )

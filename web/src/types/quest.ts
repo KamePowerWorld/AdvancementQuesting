@@ -15,6 +15,8 @@ export interface ItemCondition {
   type: 'item'
   itemType: string
   count?: number
+  nbt?: string
+  displayName?: string
 }
 
 export interface CheckmarkCondition {
@@ -38,6 +40,7 @@ export interface ItemReward {
   itemId: string
   count: number
   nbt?: string
+  displayName?: string
 }
 
 export interface CommandReward {
