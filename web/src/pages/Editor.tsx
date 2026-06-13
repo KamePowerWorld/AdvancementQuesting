@@ -883,7 +883,7 @@ export default function EditorPage() {
               }}
             >
               <img
-                src={`https://crafatar.com/avatars/${me.playerUuid}?size=40&overlay`}
+                src={`https://mc-heads.net/avatar/${me.playerUuid}/40`}
                 alt={me.playerName}
                 width={40}
                 height={40}
