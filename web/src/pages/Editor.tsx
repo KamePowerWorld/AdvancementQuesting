@@ -883,7 +883,7 @@ export default function EditorPage() {
               }}
             >
               <img
-                src={`https://mc-heads.net/avatar/${me.playerUuid}/40`}
+                src={`https://mc-heads.net/avatar/${me.playerName}/40`}
                 alt={me.playerName}
                 width={40}
                 height={40}
