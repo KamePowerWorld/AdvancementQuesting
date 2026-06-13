@@ -6,13 +6,18 @@ authors: [ Kamesuta ]
 
 commands:
   quest:
-    description: AdvancementQuesting メインコマンド
-    usage: /quest [code]
+    description: AdvancementQuesting プレイヤー用コマンド
+    usage: /quest [code|progress|claim <id>]
+    permission: aq.player
+  quest_edit:
+    description: AdvancementQuesting 編集・管理コマンド
+    usage: /quest_edit <complete|uncomplete> <player|@a> <id>
+    permission: aq.editor
 
 permissions:
+  aq.player:
+    description: クエストの閲覧・プレイ権限 (/quest コマンド)
+    default: true
   aq.editor:
-    description: クエスト編集権限
-    default: op
-  aq.admin:
-    description: クエスト管理権限
+    description: Web エディタでの編集権限・/quest_edit コマンド
     default: op

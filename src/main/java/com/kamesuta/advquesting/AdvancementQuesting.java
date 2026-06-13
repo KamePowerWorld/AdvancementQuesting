@@ -6,6 +6,7 @@ import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
+import com.kamesuta.advquesting.command.QuestEditCommand;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.db.AuthCodeDao;
@@ -92,6 +93,10 @@ public final class AdvancementQuesting extends JavaPlugin {
         QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);
         Objects.requireNonNull(getCommand("quest")).setExecutor(questCommand);
         Objects.requireNonNull(getCommand("quest")).setTabCompleter(questCommand);
+
+        QuestEditCommand questEditCommand = new QuestEditCommand(progressManager, questManager);
+        Objects.requireNonNull(getCommand("quest_edit")).setExecutor(questEditCommand);
+        Objects.requireNonNull(getCommand("quest_edit")).setTabCompleter(questEditCommand);
     }
 
     @Override

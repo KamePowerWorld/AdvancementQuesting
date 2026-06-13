@@ -71,64 +71,10 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             case "code" -> handleCode(sender);
             case "progress" -> handleProgress(sender);
             case "claim" -> handleClaim(sender, args);
-            case "complete" -> handleSetCompleted(sender, args, true);
-            case "uncomplete" -> handleSetCompleted(sender, args, false);
             default -> sender.sendMessage(Component.text(
-                "使い方: /quest [code|progress|claim <id>|complete <player> <id>|uncomplete <player> <id>]",
-                NamedTextColor.RED));
+                "使い方: /quest [code|progress|claim <id>]", NamedTextColor.RED));
         }
         return true;
-    }
-
-    /** /quest complete|uncomplete <player> <questId> — OP限定で達成状態を強制設定 */
-    private void handleSetCompleted(CommandSender sender, String[] args, boolean completed) {
-        if (!sender.isOp() && !sender.hasPermission("aq.admin")) {
-            sender.sendMessage(Component.text("このコマンドには権限が必要です。", NamedTextColor.RED));
-            return;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(Component.text(
-                "使い方: /quest " + (completed ? "complete" : "uncomplete") + " <プレイヤー名> <クエストID>",
-                NamedTextColor.RED));
-            return;
-        }
-        String targetName = args[1];
-        int questId;
-        try {
-            questId = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            sender.sendMessage(Component.text("クエストIDは数字で指定してください。", NamedTextColor.RED));
-            return;
-        }
-
-        // 対象プレイヤーの UUID を解決（オンライン優先、なければオフライン）
-        Player online = org.bukkit.Bukkit.getPlayerExact(targetName);
-        String targetUuid;
-        if (online != null) {
-            targetUuid = online.getUniqueId().toString();
-        } else {
-            org.bukkit.OfflinePlayer offline = org.bukkit.Bukkit.getOfflinePlayer(targetName);
-            // 過去にプレイ実績がないプレイヤーは誤入力の可能性が高いので弾く
-            if (!offline.hasPlayedBefore()) {
-                sender.sendMessage(Component.text(
-                    "プレイヤーが見つかりません（未プレイ）: " + targetName, NamedTextColor.RED));
-                return;
-            }
-            targetUuid = offline.getUniqueId().toString();
-        }
-
-        try {
-            boolean ok = progressManager.setQuestCompleted(targetUuid, questId, completed);
-            if (!ok) {
-                sender.sendMessage(Component.text("クエストが見つかりません: #" + questId, NamedTextColor.RED));
-                return;
-            }
-            sender.sendMessage(Component.text(
-                targetName + " のクエスト #" + questId + " を" + (completed ? "達成済み" : "未達成") + "にしました。",
-                NamedTextColor.GREEN));
-        } catch (SQLException e) {
-            sender.sendMessage(Component.text("達成状態の更新に失敗しました。", NamedTextColor.RED));
-        }
     }
 
     private void handleCode(CommandSender sender) {
@@ -209,22 +155,17 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
     }
 
     private String determineRole(Player player) {
-        if (player.isOp() || player.hasPermission("aq.editor")) return "editor";
+        if (player.hasPermission("aq.editor")) return "editor";
         return "player";
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
-        boolean admin = sender.isOp() || sender.hasPermission("aq.admin");
         if (args.length == 1) {
-            List<String> subs = new java.util.ArrayList<>(List.of("code", "progress", "claim"));
-            if (admin) { subs.add("complete"); subs.add("uncomplete"); }
-            return subs;
-        }
-        // complete/uncomplete <player> のプレイヤー名補完
-        if (args.length == 2 && admin
-                && (args[0].equalsIgnoreCase("complete") || args[0].equalsIgnoreCase("uncomplete"))) {
-            return org.bukkit.Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
+            String prefix = args[0].toLowerCase();
+            return java.util.stream.Stream.of("code", "progress", "claim")
+                .filter(s -> s.startsWith(prefix))
+                .toList();
         }
         return List.of();
     }
