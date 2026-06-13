@@ -220,41 +220,45 @@ export default function EditorPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
 
   // ---- URL ハッシュ同期 (#quest-<id>) ----
-  // クエストモーダルを開くと URL に #quest-<id> を反映し、共有・ブラウザ履歴に対応する。
-  // 開いた状態を URL に書き出す
+  // 共有・ブラウザ履歴に対応する。state(editingNodeId) と URL hash を双方向同期する。
+
+  const hashSyncMountedRef = useRef(false) // マウント完了フラグ (初回の state→hash 書き出しを抑止)
+
+  // (A) editingNodeId → URL hash の書き出し
+  //  初回マウント時はスキップする。これをしないと、共有URL #quest-3 を開いた瞬間
+  //  (editingNodeId はまだ null) に「自分のハッシュ」と誤認して消してしまうため。
   useEffect(() => {
+    if (!hashSyncMountedRef.current) return // 初回は (B) のハッシュ読み取りに任せる
     const base = window.location.pathname + window.location.search
     const desiredHash = editingNodeId ? `#quest-${editingNodeId}` : ''
     if (window.location.hash === desiredHash) return
-    if (editingNodeId) {
-      window.history.replaceState(null, '', base + `#quest-${editingNodeId}`)
-    } else if (window.location.hash.startsWith('#quest-')) {
-      // 自分が付けたハッシュのときだけ消す (他のハッシュは触らない)
-      window.history.replaceState(null, '', base)
-    }
+    window.history.replaceState(null, '', base + desiredHash)
   }, [editingNodeId])
 
-  // URL ハッシュ → モーダルを開く
-  // - 初回ロード / nodes 読込後: ハッシュがあれば開く (共有URL対応)。無くても閉じない
-  //   (ユーザーがクリックで開いた直後に消さないため)
-  // - 戻る/進む (hashchange): ハッシュに完全に追従して開閉する
+  // (B) URL hash → editingNodeId
+  //  - マウント時 / nodes 読込後: ハッシュに該当ノードがあれば開く (共有URL・別タブ対応)
+  //  - hashchange (戻る/進む): ハッシュに完全追従して開閉する
   useEffect(() => {
-    const openFromHash = () => {
+    const idFromHash = () => {
       const m = window.location.hash.match(/^#quest-(.+)$/)
-      const id = m ? decodeURIComponent(m[1]) : null
-      if (id && nodes.some((n) => n.id === id)) setEditingNodeId(id)
+      return m ? decodeURIComponent(m[1]) : null
     }
-    openFromHash()
+
+    // 共有URLで開いた場合に対応 (該当ノードが揃ってから開く)
+    const id = idFromHash()
+    if (id && nodes.some((n) => n.id === id)) setEditingNodeId(id)
 
     const onHashChange = () => {
-      const m = window.location.hash.match(/^#quest-(.+)$/)
-      const id = m ? decodeURIComponent(m[1]) : null
-      if (id && nodes.some((n) => n.id === id)) setEditingNodeId(id)
+      const hid = idFromHash()
+      if (hid && nodes.some((n) => n.id === hid)) setEditingNodeId(hid)
       else setEditingNodeId(null)
     }
     window.addEventListener('hashchange', onHashChange)
+
+    // 初回の (A) スキップを解除 (マウント完了後は state→hash 書き出しを有効化)
+    hashSyncMountedRef.current = true
+
     return () => window.removeEventListener('hashchange', onHashChange)
-    // nodes が変わる (API読込後) たびに再評価して、ロード直後の共有URLにも対応する
   }, [nodes])
 
   // ---- トースト ----
