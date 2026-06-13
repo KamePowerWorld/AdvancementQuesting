@@ -19,6 +19,7 @@ import { progressApi } from '@/api/progress.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import type { Quest, Condition, Reward } from '@/types/quest.js' // Reward は rewards 変換で使用
+import { useMcLang } from '@/hooks/useMcData.js'
 
 // ---------------------------------------------------------------------------
 // Quest API ↔ EditorNode 変換
@@ -148,6 +149,8 @@ export default function EditorPage() {
     }
     return set
   }, [progressData])
+
+  const { data: lang } = useMcLang()
 
   // ---- マップ演出: 今キラキラ中のノードID ----
   const [celebratingNodeId, setCelebratingNodeId] = useState<string | null>(null)
@@ -1141,7 +1144,7 @@ export default function EditorPage() {
                     <span className="text-gray-500">
                       {TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}
                     </span>
-                    {getDisplayText(task, 'task')}
+                    {getDisplayText(task, 'task', lang)}
                   </div>
                 ))}
                 {(!hoveredNode.tasks || hoveredNode.tasks.length === 0) && (

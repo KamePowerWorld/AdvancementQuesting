@@ -1,9 +1,11 @@
 import type { EditorTask, EditorReward } from './types.js'
 import { TASK_TYPES, REWARD_TYPES } from './constants.js'
+import { getItemName } from '@/hooks/useMcData.js'
 
 export function getDisplayText(
   item: EditorTask | EditorReward,
   category: 'task' | 'reward',
+  lang?: { ja: Record<string, string>; en: Record<string, string> },
 ): string {
   const types = category === 'task' ? TASK_TYPES : REWARD_TYPES
   const def = types.find((t) => t.id === item.type)
@@ -11,7 +13,8 @@ export function getDisplayText(
 
   let detail: string
   if (item.type === 'item') {
-    detail = item.value || (item.itemType ?? '未設定')
+    const itemId = item.itemType ?? 'stone'
+    detail = item.value || getItemName(lang, itemId)
   } else if (item.type === 'advancement') {
     detail = item.value || ((item as EditorTask & { advancementId?: string }).advancementId ?? '未設定')
   } else if (item.value) {

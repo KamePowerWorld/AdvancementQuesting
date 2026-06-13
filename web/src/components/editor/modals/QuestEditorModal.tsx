@@ -5,6 +5,7 @@ import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { getDisplayText } from '../utils.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
+import { useMcLang } from '@/hooks/useMcData.js'
 
 interface ProposalMeta {
   proposalId: number
@@ -50,6 +51,7 @@ export function QuestEditorModal({
   const [activeTab, setActiveTab] = useState<'task' | 'reward'>('task')
 
   const isMobile = useIsMobile()
+  const { data: lang } = useMcLang()
 
   const addTask = (type: string) => {
     const newTask = {
@@ -131,7 +133,7 @@ export function QuestEditorModal({
               )}
             </div>
             <div className="flex-1 text-sm text-gray-200 truncate font-semibold">
-              {getDisplayText(task, 'task')}
+              {getDisplayText(task, 'task', lang)}
             </div>
             {!readOnly && (
               <button
@@ -192,7 +194,7 @@ export function QuestEditorModal({
               )}
             </div>
             <div className="flex-1 text-sm text-gray-200 truncate font-semibold">
-              {getDisplayText(reward, 'reward')}
+              {getDisplayText(reward, 'reward', lang)}
             </div>
             {!readOnly && (
               <button
