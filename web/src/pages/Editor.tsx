@@ -890,13 +890,6 @@ export default function EditorPage() {
                 style={{ imageRendering: 'pixelated', display: 'block' }}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
               />
-              {/* editor 装飾: 右上に✏️バッジ */}
-              {isEditorRole && (
-                <div className="absolute top-0 right-0 text-[9px] leading-none px-0.5 font-bold"
-                  style={{ backgroundColor: '#7BC67B', color: '#0a1f0a' }}>
-                  ✏
-                </div>
-              )}
             </button>
           ) : (
             <button
