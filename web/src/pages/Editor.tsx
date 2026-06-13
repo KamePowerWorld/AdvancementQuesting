@@ -937,8 +937,7 @@ export default function EditorPage() {
   }
 
   const handleReject = async (proposalId: number) => {
-    const reason = prompt('却下理由を入力してください (省略可)')
-    await proposalsApi.reject(proposalId, { reason: reason ?? '' })
+    await proposalsApi.reject(proposalId, { reason: '' })
     queryClient.invalidateQueries({ queryKey: ['proposals'] })
     setEditingProposalNodeId(null)
   }
