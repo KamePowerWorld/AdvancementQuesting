@@ -789,3 +789,48 @@ test('進捗更新通知: progress_updateで達成→未達成が演出なしで
   // 達成済み表示が消える
   await expect(node1).not.toHaveAttribute('data-completed', 'true', { timeout: 5000 })
 })
+
+// 26. URLハッシュ同期: ノードを開くと #quest-<id> が付き、閉じると消える
+test('URLハッシュ: クエストを開くと #quest-<id> が付き閉じると消える (26)', async ({ page }) => {
+  // 未ログインでも閲覧できる。ノード1 を開く
+  const node1 = page.locator('[data-node-id="1"]')
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  // URL ハッシュが #quest-1 になる
+  await expect.poll(() => new URL(page.url()).hash, { timeout: 3000 }).toBe('#quest-1')
+
+  // 閉じるとハッシュが消える
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+  await expect(page.getByPlaceholder('クエストのタイトル')).not.toBeVisible()
+  await expect.poll(() => new URL(page.url()).hash, { timeout: 3000 }).toBe('')
+})
+
+// 27. URLハッシュ共有: #quest-<id> 付きでアクセスするとモーダルが自動で開く
+test('URLハッシュ: #quest-<id> 付きアクセスでモーダルが自動オープン (27)', async ({ page }) => {
+  await page.goto('/#quest-3')
+  await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
+
+  // モーダルが自動で開き、該当クエストが表示される
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+  // seed の id=3 は「ダイヤの輝き」
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('ダイヤの輝き')
+})
+
+// 28. URLハッシュ: ブラウザの戻る/進むでモーダルが開閉する
+test('URLハッシュ: 戻る/進むでモーダルが開閉する (28)', async ({ page }) => {
+  // ノード1 を開く (履歴に #quest-1 が残る形にするため pushState 相当の操作)
+  const node1 = page.locator('[data-node-id="1"]')
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  // ハッシュを直接書き換えて hashchange を発火 (戻る/進む相当)
+  await page.evaluate(() => { window.location.hash = '' })
+  await expect(page.getByPlaceholder('クエストのタイトル')).not.toBeVisible({ timeout: 3000 })
+
+  await page.evaluate(() => { window.location.hash = '#quest-2' })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('石器時代')
+})

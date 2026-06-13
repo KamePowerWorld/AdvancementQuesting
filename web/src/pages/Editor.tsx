@@ -219,6 +219,44 @@ export default function EditorPage() {
   const [editingTaskReward, setEditingTaskReward] = useState<EditingTaskReward | null>(null)
   const [showLoginModal, setShowLoginModal] = useState(false)
 
+  // ---- URL ハッシュ同期 (#quest-<id>) ----
+  // クエストモーダルを開くと URL に #quest-<id> を反映し、共有・ブラウザ履歴に対応する。
+  // 開いた状態を URL に書き出す
+  useEffect(() => {
+    const base = window.location.pathname + window.location.search
+    const desiredHash = editingNodeId ? `#quest-${editingNodeId}` : ''
+    if (window.location.hash === desiredHash) return
+    if (editingNodeId) {
+      window.history.replaceState(null, '', base + `#quest-${editingNodeId}`)
+    } else if (window.location.hash.startsWith('#quest-')) {
+      // 自分が付けたハッシュのときだけ消す (他のハッシュは触らない)
+      window.history.replaceState(null, '', base)
+    }
+  }, [editingNodeId])
+
+  // URL ハッシュ → モーダルを開く
+  // - 初回ロード / nodes 読込後: ハッシュがあれば開く (共有URL対応)。無くても閉じない
+  //   (ユーザーがクリックで開いた直後に消さないため)
+  // - 戻る/進む (hashchange): ハッシュに完全に追従して開閉する
+  useEffect(() => {
+    const openFromHash = () => {
+      const m = window.location.hash.match(/^#quest-(.+)$/)
+      const id = m ? decodeURIComponent(m[1]) : null
+      if (id && nodes.some((n) => n.id === id)) setEditingNodeId(id)
+    }
+    openFromHash()
+
+    const onHashChange = () => {
+      const m = window.location.hash.match(/^#quest-(.+)$/)
+      const id = m ? decodeURIComponent(m[1]) : null
+      if (id && nodes.some((n) => n.id === id)) setEditingNodeId(id)
+      else setEditingNodeId(null)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+    // nodes が変わる (API読込後) たびに再評価して、ロード直後の共有URLにも対応する
+  }, [nodes])
+
   // ---- トースト ----
   const [toastVisible, setToastVisible] = useState(false)
   const [toastLabel, setToastLabel] = useState('')
