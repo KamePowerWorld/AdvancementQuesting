@@ -201,13 +201,18 @@ function AppInner() {
     queryClient.invalidateQueries({ queryKey: ['progress'] })
   }, [queryClient])
 
-  // ログイン状態を監視 (ログイン後に SSE を張り直すため)
+  // ログイン状態を監視 (ログイン後に SSE を張り直すため / 編集者ログイン時の viewMode 自動切替)
   const { data: meForSse } = useQuery({
     queryKey: ['me'],
     queryFn: () => authApi.me(),
     retry: false,
     enabled: !!localStorage.getItem('token'),
   })
+  // 編集者としてログインしたら自動で編集モード、ログアウトしたらプレイモードに戻す
+  useEffect(() => {
+    if (meForSse?.role === 'editor') setViewMode('edit')
+    else if (!meForSse) setViewMode('play')
+  }, [meForSse?.role])
   useQuestNotifications(
     { onQuestComplete: handleQuestComplete, onProgressUpdate: handleProgressUpdate },
     meForSse?.playerUuid ?? null,

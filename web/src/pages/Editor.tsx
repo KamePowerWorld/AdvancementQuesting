@@ -372,10 +372,10 @@ export default function EditorPage() {
   // ---------------------------------------------------------------------------
 
   const canMoveNode = useCallback((nodeId: string): boolean => {
-    if (proposalMode) return isProposalDraft(nodeId) || (isEditor && nodeId.startsWith('existing-proposal-'))
+    if (proposalMode) return isProposalDraft(nodeId) || (isEditorRole && nodeId.startsWith('existing-proposal-'))
     if (isEditor) return true
     return false
-  }, [isEditor, proposalMode, isProposalDraft])
+  }, [isEditor, isEditorRole, proposalMode, isProposalDraft])
 
   const canDeleteNode = useCallback((nodeId: string): boolean => {
     if (proposalMode) return isProposalDraft(nodeId)  // 提案モード中はドラフトのみ削除可
@@ -750,13 +750,23 @@ export default function EditorPage() {
     mouseDownNodeId.current = { nodeId, isProposal: isOtherProposal }
 
     if (mode === 'move' && canMoveNode(nodeId)) {
-      const node = [...nodes, ...proposalNodes].find((n) => n.id === nodeId)!
+      const node = [...nodes, ...proposalNodes, ...otherProposalNodes].find((n) => n.id === nodeId)!
       const rect = canvasRef.current!.getBoundingClientRect()
       const wx = e.clientX - rect.left - pan.x
       const wy = e.clientY - rect.top - pan.y
       setDragOffset({ x: wx - node.x, y: wy - node.y })
       setDraggingNode(nodeId)
       setIsPanning(false)
+      // 提案ノードのドラッグ開始時にローカル編集状態を初期化しておく
+      if (nodeId.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
+        setMyProposalEdits((prev) => {
+          if (prev.has(proposalId)) return prev
+          const next = new Map(prev)
+          next.set(proposalId, node)
+          return next
+        })
+      }
     } else if (mode === 'add_link') {
       if (!linkStartNode) {
         setLinkStartNode(nodeId)
@@ -795,13 +805,22 @@ export default function EditorPage() {
     mouseDownNodeId.current = { nodeId, isProposal: isOtherProposal }
 
     if (mode === 'move' && canMoveNode(nodeId)) {
-      const node = [...nodesRef.current, ...proposalNodesRef.current].find((n) => n.id === nodeId)!
+      const node = [...nodesRef.current, ...proposalNodesRef.current, ...otherProposalNodes].find((n) => n.id === nodeId)!
       const rect = canvasRef.current!.getBoundingClientRect()
       const wx = t.clientX - rect.left - panRef.current.x
       const wy = t.clientY - rect.top - panRef.current.y
       setDragOffset({ x: wx - node.x, y: wy - node.y })
       setDraggingNode(nodeId)
       setIsPanning(false)
+      if (nodeId.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
+        setMyProposalEdits((prev) => {
+          if (prev.has(proposalId)) return prev
+          const next = new Map(prev)
+          next.set(proposalId, node)
+          return next
+        })
+      }
     } else if (mode === 'add_link') {
       const rect = canvasRef.current!.getBoundingClientRect()
       setMousePos({

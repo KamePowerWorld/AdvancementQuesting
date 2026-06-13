@@ -38,6 +38,11 @@ async function loginAs(page: Page, token: 'demo-editor-token' | 'demo-player-tok
   await page.reload()
   // スキンアイコン (ログアウトボタン) が表示されるまで待つ
   await expect(page.locator('button[title*="クリックでログアウト"]')).toBeVisible({ timeout: 8000 })
+  // 編集者トークンの場合は編集モードに切り替える
+  if (token === 'demo-editor-token') {
+    const editBtn = page.getByTitle('編集モード')
+    if (await editBtn.isVisible()) await editBtn.click()
+  }
 }
 
 /** ログイン済みかを確認するセレクタ */
@@ -104,8 +109,8 @@ test('編集者ログイン: 保存ボタン表示・ノードクリックでモ
   // 保存ボタン
   await expect(page.getByText('💾 保存')).toBeVisible()
 
-  // 提案ボタンは出ない
-  await expect(page.getByText('クエスト追加を提案する')).not.toBeVisible()
+  // 編集者にも提案ボタンは出る (編集者も提案モードに入れるため)
+  await expect(page.getByText('クエスト追加を提案する')).toBeVisible()
 
   // ツールバーに移動・追加・リンク・削除ボタンがある
   await expect(page.getByTitle('移動')).toBeVisible()
@@ -881,6 +886,67 @@ test('URLハッシュ: #quest-<id> 付きアクセスでモーダルが自動オ
 
   // 共有ハッシュが初回マウントで消されていないこと (state↔hash 同期のレース防止)
   await expect.poll(() => new URL(page.url()).hash, { timeout: 2000 }).toBe('#quest-3')
+})
+
+// 29. 編集者が提案ノードを移動して保存できる
+test('提案ノード移動: 編集者が提案モードで提案ノードをドラッグ → 保存で位置がAPIに反映される (29)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-proposals')
+
+  // ---- プレイヤーが提案を送信 ----
+  await loginAs(page, 'demo-player-token')
+  await page.getByText('クエスト追加を提案する').click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  await canvas.click({ position: { x: 500, y: 300 } })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+  await loggedInBtn(page).click()
+  await expect(loggedInBtn(page)).not.toBeVisible({ timeout: 5000 })
+
+  // ---- 編集者でログイン → 提案ノードが表示される ----
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('✏️ 編集者としてログイン').click()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+
+  // ---- 提案モードに切り替え → 提案ノードが表示される ----
+  await page.getByText('クエスト追加を提案する').click()
+  await expect(page.getByText(/提案モード/)).toBeVisible()
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  await expect(proposalNode).toBeVisible({ timeout: 8000 })
+
+  // 提案ノードの初期位置を取得
+  const boxBefore = await proposalNode.boundingBox()
+  const cx = boxBefore!.x + boxBefore!.width / 2
+  const cy = boxBefore!.y + boxBefore!.height / 2
+  await page.getByTitle('移動').click()
+
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + 100, cy + 80, { steps: 10 })
+  await page.mouse.up()
+  await page.waitForTimeout(200)
+
+  // ノードの位置が変わっていること
+  const boxAfter = await proposalNode.boundingBox()
+  expect(Math.abs(boxAfter!.x - boxBefore!.x)).toBeGreaterThan(20)
+
+  // ---- 送信ボタンで保存 ----
+  await expect(page.locator('nav button', { hasText: '📤' })).toBeVisible({ timeout: 3000 })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // ---- API で mapPosition が更新されていることを確認 ----
+  const proposalsRes = await page.request.get('http://localhost:3001/api/proposals', {
+    headers: { Authorization: 'Bearer demo-editor-token' },
+  })
+  const proposals = await proposalsRes.json()
+  expect(Array.isArray(proposals)).toBe(true)
+  expect(proposals.length).toBeGreaterThan(0)
+  const pos = proposals[0].mapPosition
+  expect(pos).toBeDefined()
+  // ドラッグで 100px 移動したので元の位置から離れているはず
+  expect(Math.abs(pos.x - 500)).toBeGreaterThan(20)
 })
 
 // 28. URLハッシュ: ブラウザの戻る/進むでモーダルが開閉する
