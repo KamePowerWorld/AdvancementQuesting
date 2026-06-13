@@ -14,7 +14,9 @@ export function getDisplayText(
   let detail: string
   if (item.type === 'item') {
     const itemId = item.itemType ?? 'stone'
-    detail = item.value || getItemName(lang, itemId)
+    const count = (item as any).count ?? 1
+    const name = item.value || getItemName(lang, itemId)
+    detail = count > 1 ? `${name} ×${count}` : name
   } else if (item.type === 'advancement') {
     detail = item.value || ((item as EditorTask & { advancementId?: string }).advancementId ?? '未設定')
   } else if (item.value) {

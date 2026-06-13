@@ -869,7 +869,7 @@ export default function EditorPage() {
     const updater = (prev: EditorNode[]) => prev.map((n) => {
       if (n.id !== config.nodeId) return n
       if (config.type === 'quest_icon') return { ...n, icon: itemType }
-      if (config.type === 'task_item') return { ...n, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
+      if (config.type === 'task_item') return { ...n, icon: itemType, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
       return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
     })
     setProposalNodes(updater)

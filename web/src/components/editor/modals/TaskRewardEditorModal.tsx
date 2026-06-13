@@ -81,8 +81,12 @@ export function TaskRewardEditorModal({
 
   const handleChange = (changes: Partial<EditorTask> | Partial<EditorReward>) => {
     const newItems = items.map((i) => (i.id === itemId ? { ...i, ...changes } : i))
+    const iconUpdate = category === 'task' && 'itemType' in changes && changes.itemType
+      ? { icon: changes.itemType as string }
+      : {}
     updateNode({
       ...node,
+      ...iconUpdate,
       [category === 'task' ? 'tasks' : 'rewards']: newItems,
     })
   }
