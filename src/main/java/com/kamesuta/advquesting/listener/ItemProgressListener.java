@@ -26,7 +26,7 @@ public class ItemProgressListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack item = event.getItem().getItemStack();
-        String type = item.getType().getKey().getKey(); // "oak_log" 形式
+        String type = item.getType().getKey().toString(); // "minecraft:oak_log" 形式
         progressManager.onItemPickup(player.getUniqueId().toString(), type, item.getAmount());
     }
 
@@ -41,14 +41,14 @@ public class ItemProgressListener implements Listener {
             // 最大クラフト回数を概算 (上限64スタック分)
             amount = Math.min(amount * 64, 64);
         }
-        String type = result.getType().getKey().getKey();
+        String type = result.getType().getKey().toString(); // "minecraft:oak_log" 形式
         progressManager.onItemPickup(player.getUniqueId().toString(), type, amount);
     }
 
     /** かまどから取り出したとき */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onFurnaceExtract(FurnaceExtractEvent event) {
-        String type = event.getItemType().getKey().getKey();
+        String type = event.getItemType().getKey().toString(); // "minecraft:oak_log" 形式
         progressManager.onItemPickup(event.getPlayer().getUniqueId().toString(), type, event.getItemAmount());
     }
 }

@@ -73,14 +73,16 @@ public class ProgressDao {
 
     /**
      * クエストの完了状態を強制的に設定する（管理コマンド用）。
-     * 進捗レコードがなければ作成する。未完了に戻す場合は報酬受取フラグもリセットする。
+     * 進捗レコードがなければ作成する。未完了に戻す場合は条件進捗・報酬受取フラグもリセットする。
+     * @param progressJson complete時に全条件完了にするJSON、uncomplete時は '[]'
      */
-    public void setCompleted(String playerUuid, int questId, boolean completed) throws SQLException {
+    public void setCompleted(String playerUuid, int questId, boolean completed, String progressJson) throws SQLException {
         String completedAt = completed ? Instant.now().toString() : null;
         String sql = """
             INSERT INTO player_progress (player_uuid, quest_id, progress, completed, completed_at, started_at, reward_claimed)
-            VALUES (?, ?, '[]', ?, ?, ?, 0)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
             ON CONFLICT(player_uuid, quest_id) DO UPDATE SET
+                progress = excluded.progress,
                 completed = excluded.completed,
                 completed_at = excluded.completed_at,
                 reward_claimed = CASE WHEN excluded.completed = 0 THEN 0 ELSE player_progress.reward_claimed END
@@ -88,9 +90,10 @@ public class ProgressDao {
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
             ps.setString(1, playerUuid);
             ps.setInt(2, questId);
-            ps.setInt(3, completed ? 1 : 0);
-            ps.setString(4, completedAt);
-            ps.setString(5, Instant.now().toString());
+            ps.setString(3, progressJson);
+            ps.setInt(4, completed ? 1 : 0);
+            ps.setString(5, completedAt);
+            ps.setString(6, Instant.now().toString());
             ps.executeUpdate();
         }
     }

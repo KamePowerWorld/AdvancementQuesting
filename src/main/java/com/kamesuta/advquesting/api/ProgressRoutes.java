@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.api;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.SessionDao;
@@ -9,10 +11,14 @@ import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class ProgressRoutes {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final ProgressDao progressDao;
     private final ProgressManager progressManager;
@@ -65,11 +71,17 @@ public class ProgressRoutes {
     }
 
     private Map<String, Object> toMap(ProgressDao.ProgressRecord r) {
+        List<Map<String, Object>> progressList;
+        try {
+            progressList = MAPPER.readValue(r.progress(), LIST_MAP_TYPE);
+        } catch (Exception e) {
+            progressList = Collections.emptyList();
+        }
         return Map.of(
             "id", r.id(),
             "playerUuid", r.playerUuid(),
             "questId", r.questId(),
-            "progress", r.progress(),
+            "progress", progressList,
             "completed", r.completed(),
             "rewardClaimed", r.rewardClaimed(),
             "startedAt", r.startedAt(),

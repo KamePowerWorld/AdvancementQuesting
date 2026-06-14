@@ -115,7 +115,30 @@ public class ProgressManager {
         Quest quest = questManager.findById(questId);
         if (quest == null) return false;
 
-        progressDao.setCompleted(playerUuid, questId, completed);
+        String progressJson;
+        try {
+            if (completed && quest.conditions != null && !quest.conditions.isEmpty()) {
+                // 全条件を完了状態にするJSONを生成
+                List<Map<String, Object>> allDone = new ArrayList<>();
+                for (Map<String, Object> cond : quest.conditions) {
+                    String condId = (String) cond.get("id");
+                    if (condId == null) continue;
+                    if ("item".equals(cond.get("type"))) {
+                        int required = ((Number) cond.getOrDefault("count", 1)).intValue();
+                        allDone.add(Map.of("conditionId", condId, "current", required, "required", required, "completed", true));
+                    } else {
+                        allDone.add(Map.of("conditionId", condId, "completed", true));
+                    }
+                }
+                progressJson = MAPPER.writeValueAsString(allDone);
+            } else {
+                progressJson = "[]";
+            }
+        } catch (Exception e) {
+            progressJson = "[]";
+        }
+
+        progressDao.setCompleted(playerUuid, questId, completed, progressJson);
 
         if (completed) {
             // 達成演出付きで通知（チャット・サウンド・パーティクル・SSE）
