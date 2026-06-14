@@ -37,7 +37,7 @@ function questToNode(q: Quest): EditorNode {
     description: q.description ?? '',
     creatorName: q.creatorName ?? null,
     tasks: (q.conditions ?? []).map((c, i) => ({
-      id: `${sid}-t${i}`,
+      id: c.id ?? `${sid}-t${i}`,
       type: c.type,
       value: c.type === 'advancement' ? (c.advancementId ?? '') : ((c as any).label ?? (c as any).value ?? ''),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
