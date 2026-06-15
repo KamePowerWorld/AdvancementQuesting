@@ -33,7 +33,7 @@ export interface StatCondition {
 
 export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition
 
-export type RewardType = 'item' | 'command' | 'experience' | 'permission' | 'money'
+export type RewardType = 'item' | 'command' | 'experience' | 'permission' | 'money' | 'point'
 
 export interface ItemReward {
   type: 'item'
@@ -65,7 +65,12 @@ export interface MoneyReward {
   amount: number
 }
 
-export type Reward = ItemReward | CommandReward | ExperienceReward | PermissionReward | MoneyReward
+export interface PointReward {
+  type: 'point'
+  amount: number
+}
+
+export type Reward = ItemReward | CommandReward | ExperienceReward | PermissionReward | MoneyReward | PointReward
 
 export interface MapPosition {
   x: number

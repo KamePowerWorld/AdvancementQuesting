@@ -10,7 +10,7 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.SQLException;
 import java.time.Instant;
@@ -28,13 +28,13 @@ public class ProgressManager {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
-    private final Plugin plugin;
+    private final JavaPlugin plugin;
     private final QuestManager questManager;
     private final ProgressDao progressDao;
     private final Logger log;
     private NotificationRoutes notificationRoutes;
 
-    public ProgressManager(Plugin plugin, QuestManager questManager, ProgressDao progressDao) {
+    public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
@@ -314,6 +314,16 @@ public class ProgressManager {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
                         cmd.replace("{player}", player.getName()));
                 }
+            } else if ("point".equals(type)) {
+                int amount = ((Number) reward.getOrDefault("amount", 0)).intValue();
+                // config.yml の point-command テンプレートを使ってポイントを付与する
+                // {player} → プレイヤー名、{amount} → 付与ポイント数 に置換
+                String template = plugin.getConfig().getString(
+                    "point-command", "scoreboard players add {player} point {amount}");
+                String cmd = template
+                    .replace("{player}", player.getName())
+                    .replace("{amount}", String.valueOf(amount));
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
             }
         }
         player.sendMessage("§a報酬を受け取りました！");

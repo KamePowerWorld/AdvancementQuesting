@@ -19,6 +19,9 @@ export function getDisplayText(
     detail = count > 1 ? `${name} ×${count}` : name
   } else if (item.type === 'advancement') {
     detail = item.value || ((item as EditorTask & { advancementId?: string }).advancementId ?? '未設定')
+  } else if (item.type === 'point') {
+    const amount = (item as any).amount ?? 0
+    detail = `${amount} pt`
   } else if (item.value) {
     detail = item.value
   } else {

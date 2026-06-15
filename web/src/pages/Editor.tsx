@@ -47,6 +47,7 @@ function questToNode(q: Quest): EditorNode {
       if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
       if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
       if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
+      if (r.type === 'point') return { ...base, type: 'point', amount: r.amount }
       return { ...base, type: r.type }
     }),
   }
@@ -65,6 +66,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
     if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
     if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
+    if (r.type === 'point') return { type: 'point' as const, amount: (r as any).amount ?? 0 }
     return { type: 'command' as const, command: '', opLevel: 0 }
   })
   return {

@@ -5,3 +5,7 @@ web-port: 8080
 
 # チャットに表示する Web UI の URL（プロキシ経由の場合はここを変更する）
 web-url: "http://localhost:8080"
+
+# ポイント報酬を付与する際に実行するコンソールコマンド
+# {player} はプレイヤー名、{amount} は付与するポイント数に置換される
+point-command: "scoreboard players add {player} point {amount}"

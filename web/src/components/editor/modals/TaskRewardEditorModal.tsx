@@ -341,6 +341,25 @@ export function TaskRewardEditorModal({
       )
     }
 
+    if (item.type === 'point') {
+      return (
+        <div className="flex flex-col gap-2">
+          <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">ポイント数</label>
+          <input
+            type="number"
+            min={1}
+            value={(item as EditorReward & { amount?: number }).amount ?? 0}
+            onChange={(e) => handleChange({ amount: Number(e.target.value) } as any)}
+            className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
+            placeholder="100"
+          />
+          <div className="text-xs text-gray-500">
+            付与コマンドは config.yml の <code className="text-gray-300">point-command</code> で設定できます
+          </div>
+        </div>
+      )
+    }
+
     if (item.type === 'loot') {
       return (
         <div className="flex flex-col gap-2">
