@@ -87,8 +87,8 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           </div>
         )}
 
-        {/* player または editor: 提案モードバー */}
-        {me && (
+        {/* player または editor(編集モード限定): 提案モードバー */}
+        {me && (!isEditor || viewMode === 'edit') && (
           <div className="flex-1 flex items-center justify-end gap-2 px-2 min-w-0">
             {proposalMode ? (
               <>

@@ -4,7 +4,9 @@ import type { EditorNode, EditorEdge } from './types.js'
 // タスク種別 — クエストの達成条件として選べる種類
 // ---------------------------------------------------------------------------
 export const TASK_TYPES = [
+  { id: 'advancement', label: '進捗',           icon: '🏆' },
   { id: 'item',        label: 'アイテム',       icon: '📦' },
+  { id: 'checkmark',   label: 'チェック',       icon: '✅' },
 ] as const
 
 // ---------------------------------------------------------------------------

@@ -949,6 +949,196 @@ test('提案ノード移動: 編集者が提案モードで提案ノードをド
   expect(Math.abs(pos.x - 500)).toBeGreaterThan(20)
 })
 
+// W-A-1. 条件チェックマーク: progress_update受信でモーダル内の条件にチェックが付く
+test('条件チェックマーク: progress_update受信でモーダル内の条件にチェックが付く (WA1)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  // クエスト1 (advancement条件のみ) のモーダルを開く
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  // 最初は達成チェックマークなし
+  await expect(page.getByTitle('達成済み')).not.toBeVisible()
+
+  // サーバー側で条件完了状態にセット (conditionId は seed で設定した cond-1-adv)
+  await page.request.post('http://localhost:3001/api/test/set-condition-progress', {
+    data: {
+      playerUuid: EDITOR_UUID,
+      questId: 1,
+      progress: [{ conditionId: 'cond-1-adv', completed: true }],
+      completed: true,
+    },
+  })
+  // progress_update SSE を送信 (モーダルが開いたまま受信する)
+  await page.request.post('http://localhost:3001/api/test/notify-progress-update', {
+    data: { token: 'demo-editor-token', questId: 1, completed: true },
+  })
+
+  // モーダル内の条件に金色チェックマークが表示される
+  // ノードバッジは [data-node-id] の子要素なので除外し、モーダル内のチェックを待つ
+  await expect(page.locator(':not([data-node-id]) > [title="達成済み"]')).toBeVisible({ timeout: 5000 })
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-A-2. アイテム条件部分達成: progress_update受信でプログレスバーと数値が表示される
+test('アイテム条件部分達成: progress_updateでモーダルにプログレスバーが表示される (WA2)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  // クエスト2 (advancement + item 2条件) のモーダルを開く
+  const node2 = page.locator('[data-node-id="2"]')
+  await expect(node2).toBeVisible({ timeout: 5000 })
+  const box = await node2.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('石器時代')
+
+  // サーバー側でアイテム条件を部分達成 (1/3 取得済み)
+  await page.request.post('http://localhost:3001/api/test/set-condition-progress', {
+    data: {
+      playerUuid: EDITOR_UUID,
+      questId: 2,
+      progress: [{ conditionId: 'cond-2-item', current: 1, required: 3, completed: false }],
+      completed: false,
+    },
+  })
+  await page.request.post('http://localhost:3001/api/test/notify-progress-update', {
+    data: { token: 'demo-editor-token', questId: 2, completed: false },
+  })
+
+  // プログレスバーが表示される (1/3 の表示)
+  await expect(page.getByText('1/3')).toBeVisible({ timeout: 5000 })
+  // まだ金色チェックマークは出ない
+  await expect(page.getByTitle('達成済み')).not.toBeVisible()
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-A-3. 全条件達成: progress_update受信後に報酬受取ボタンが表示される
+test('全条件達成後: progress_update後に報酬受取ボタンが表示される (WA3)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  // クエスト1のモーダルを開く
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  // 最初は報酬ボタンなし
+  await expect(page.getByText('★ 報酬を受け取る')).not.toBeVisible()
+
+  // 完了状態にして progress_update
+  await page.request.post('http://localhost:3001/api/test/set-condition-progress', {
+    data: {
+      playerUuid: EDITOR_UUID,
+      questId: 1,
+      progress: [{ conditionId: 'cond-1-adv', completed: true }],
+      completed: true,
+      rewardClaimed: false,
+    },
+  })
+  await page.request.post('http://localhost:3001/api/test/notify-progress-update', {
+    data: { token: 'demo-editor-token', questId: 1, completed: true },
+  })
+
+  // 報酬受取ボタンが表示される
+  await expect(page.getByText('★ 報酬を受け取る')).toBeVisible({ timeout: 5000 })
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-B-1. 未完了クエスト: モーダルに報酬受取ボタンが出ない
+test('未完了クエスト: モーダルに報酬受取ボタンが表示されない (WB1)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  await expect(page.getByText('★ 報酬を受け取る')).not.toBeVisible()
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-B-2. 完了済み・未受取: モーダルに報酬受取ボタンが表示される
+test('完了済み未受取: モーダルに報酬受取ボタンが表示される (WB2)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true, rewardClaimed: false },
+  })
+  await loginAs(page, 'demo-editor-token')
+
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  await expect(page.getByText('★ 報酬を受け取る')).toBeVisible({ timeout: 3000 })
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-B-3. 完了済み・受取済み: モーダルに報酬受取ボタンが出ない
+test('完了済み受取済み: モーダルに報酬受取ボタンが表示されない (WB3)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true, rewardClaimed: true },
+  })
+  await loginAs(page, 'demo-editor-token')
+
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  await expect(page.getByText('★ 報酬を受け取る')).not.toBeVisible()
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-B-4. 報酬受取ボタンを押すとAPIが呼ばれ、ボタンが消える
+test('報酬受取: ボタンを押すとAPI呼び出し後ボタンが消える (WB4)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true, rewardClaimed: false },
+  })
+  await loginAs(page, 'demo-editor-token')
+
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  const claimBtn = page.getByText('★ 報酬を受け取る')
+  await expect(claimBtn).toBeVisible({ timeout: 3000 })
+  await claimBtn.click()
+
+  // ボタンが消える (rewardClaimed=true になりUI更新)
+  await expect(claimBtn).not.toBeVisible({ timeout: 5000 })
+
+  // API側でも rewardClaimed が true になっている
+  const progressRes = await page.request.get('http://localhost:3001/api/progress/1', {
+    headers: { Authorization: 'Bearer demo-editor-token' },
+  })
+  const progress = await progressRes.json()
+  expect(progress.rewardClaimed).toBe(true)
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
 // 28. URLハッシュ: ブラウザの戻る/進むでモーダルが開閉する
 test('URLハッシュ: 戻る/進むでモーダルが開閉する (28)', async ({ page }) => {
   // ノード1 を開く (履歴に #quest-1 が残る形にするため pushState 相当の操作)

@@ -1298,7 +1298,8 @@ export default function EditorPage() {
 
         {editingProposalNode && (() => {
           const p = existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any
-          const canEdit = isEditor || p?.proposerUuid === me?.playerUuid
+          // 提案は編集者のみ編集可能。提案者は読み取り専用 (削除・いいねは可能)
+          const canEdit = isEditor
           return (
             <QuestEditorModal
               node={editingProposalNode}

@@ -121,14 +121,32 @@ app.post('/api/test/reset-proposals', async (_req, res) => {
 
 // テスト用: 指定プレイヤー・クエストの進捗を完了状態にする
 app.post('/api/test/set-progress', express.json(), async (req, res) => {
-  const { playerUuid, questId, completed } = req.body as {
-    playerUuid: string; questId: number; completed: boolean
+  const { playerUuid, questId, completed, rewardClaimed } = req.body as {
+    playerUuid: string; questId: number; completed: boolean; rewardClaimed?: boolean
   }
   await db.insert(playerProgress).values({
-    playerUuid, questId, progress: [], completed: !!completed, rewardClaimed: false,
+    playerUuid, questId, progress: [], completed: !!completed, rewardClaimed: !!rewardClaimed,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
-    set: { completed: !!completed },
+    set: { completed: !!completed, rewardClaimed: !!rewardClaimed },
+  })
+  res.json({ ok: true })
+})
+
+// テスト用: 指定プレイヤー・クエストの条件進捗を細かく設定する
+app.post('/api/test/set-condition-progress', express.json(), async (req, res) => {
+  const { playerUuid, questId, progress, completed, rewardClaimed } = req.body as {
+    playerUuid: string
+    questId: number
+    progress: object[]
+    completed?: boolean
+    rewardClaimed?: boolean
+  }
+  await db.insert(playerProgress).values({
+    playerUuid, questId, progress, completed: !!completed, rewardClaimed: !!rewardClaimed,
+  }).onConflictDoUpdate({
+    target: [playerProgress.playerUuid, playerProgress.questId],
+    set: { progress, completed: !!completed, rewardClaimed: !!rewardClaimed },
   })
   res.json({ ok: true })
 })
