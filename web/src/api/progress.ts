@@ -8,4 +8,7 @@ export const progressApi = {
 
   claim: (questId: string) =>
     api.post<{ claimed: boolean; rewards: unknown[] }>(`/progress/${questId}/claim`),
+
+  completeCondition: (questId: string, conditionId: string) =>
+    api.post<{ status: string }>(`/progress/${questId}/condition/${conditionId}/complete`),
 }

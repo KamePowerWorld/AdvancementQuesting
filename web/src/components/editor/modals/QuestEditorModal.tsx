@@ -31,6 +31,8 @@ interface QuestEditorModalProps {
   conditionProgress?: ConditionProgress[]
   /** クエスト完了済みで未受取の場合に渡す。呼び出すと報酬受取APIを実行する */
   claimReward?: () => Promise<void>
+  /** プレイモードでチェックマーク条件を完了する。conditionId を渡す */
+  onCheckmarkComplete?: (conditionId: string) => Promise<void>
 }
 
 /**
@@ -48,10 +50,12 @@ export function QuestEditorModal({
   readOnly = false,
   conditionProgress,
   claimReward,
+  onCheckmarkComplete,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
   const [claiming, setClaiming] = useState(false)
+  const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
   // スマホ用: タスク/報酬どちらのタブを表示するか
   const [activeTab, setActiveTab] = useState<'task' | 'reward'>('task')
 
@@ -157,8 +161,8 @@ export function QuestEditorModal({
                   </div>
                 )}
               </div>
-              {/* 達成チェックマーク */}
-              {isDone && (
+              {/* 達成チェックマーク / プレイモードのチェックボタン */}
+              {isDone ? (
                 <div
                   className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
                   style={{ backgroundColor: '#FFD700', fontSize: '13px', color: '#5a4000' }}
@@ -166,6 +170,27 @@ export function QuestEditorModal({
                 >
                   ✓
                 </div>
+              ) : (readOnly && task.type === 'checkmark' && onCheckmarkComplete) && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    setCheckingConditionId(task.id)
+                    try { await onCheckmarkComplete(task.id) } finally { setCheckingConditionId(null) }
+                  }}
+                  disabled={checkingConditionId === task.id}
+                  className="shrink-0 px-3 py-1 text-xs font-bold border-2 active:translate-y-px"
+                  style={{
+                    color: '#0a1f0a',
+                    backgroundColor: checkingConditionId === task.id ? '#5B9B5B' : '#7BC67B',
+                    borderTopColor: '#A0E0A0',
+                    borderLeftColor: '#A0E0A0',
+                    borderBottomColor: '#3B7B3B',
+                    borderRightColor: '#3B7B3B',
+                    cursor: checkingConditionId === task.id ? 'wait' : 'pointer',
+                  }}
+                >
+                  {checkingConditionId === task.id ? '処理中...' : '了解'}
+                </button>
               )}
               {!readOnly && (
                 <button

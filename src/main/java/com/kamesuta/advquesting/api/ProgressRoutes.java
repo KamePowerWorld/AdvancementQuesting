@@ -56,6 +56,20 @@ public class ProgressRoutes {
             }
         });
 
+        // POST /api/progress/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
+        app.post("/api/progress/{questId}/condition/{conditionId}/complete", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            int questId = parseId(ctx.pathParam("questId"));
+            String conditionId = ctx.pathParam("conditionId");
+            try {
+                boolean ok = progressManager.completeCheckmarkCondition(session.playerUuid(), questId, conditionId);
+                if (!ok) throw new ForbiddenResponse("Condition not found, not a checkmark, or already completed");
+                ctx.json(Map.of("status", "completed"));
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         // POST /api/progress/:questId/claim — 報酬受け取り
         app.post("/api/progress/{questId}/claim", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);

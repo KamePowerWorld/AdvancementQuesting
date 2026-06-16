@@ -120,6 +120,55 @@ public class ProgressManager {
     }
 
     /**
+     * チェックマーク条件をWebUIから手動で完了する。
+     * conditionId が checkmark 型の条件と一致する場合のみ処理する。
+     * @return true: 完了に成功、false: 条件が存在しないか既に完了済み
+     */
+    public boolean completeCheckmarkCondition(String playerUuid, int questId, String conditionId) throws SQLException {
+        Quest quest = questManager.findById(questId);
+        if (quest == null || quest.conditions == null) return false;
+
+        // checkmark 型かどうか確認
+        boolean isCheckmark = quest.conditions.stream().anyMatch(c ->
+            "checkmark".equals(c.get("type")) && conditionId.equals(c.get("id"))
+        );
+        if (!isCheckmark) return false;
+
+        try {
+            ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, questId);
+            List<Map<String, Object>> progress = record == null
+                ? new ArrayList<>()
+                : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
+
+            // 既に完了済みなら何もしない
+            boolean alreadyDone = progress.stream()
+                .anyMatch(p -> conditionId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            if (alreadyDone) return false;
+
+            progress.removeIf(p -> conditionId.equals(p.get("conditionId")));
+            progress.add(Map.of("conditionId", conditionId, "completed", true));
+
+            boolean allDone = isAllConditionsMet(quest, progress);
+            // checkmark を含む全条件達成チェック (checkmark は手動なので skip せずに確認する)
+            if (!allDone) {
+                allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
+            }
+            String completedAt = allDone ? java.time.Instant.now().toString() : null;
+            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+
+            if (allDone) {
+                notifyQuestComplete(playerUuid, quest);
+            } else if (notificationRoutes != null) {
+                notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+            }
+            return true;
+        } catch (Exception e) {
+            log.warning("completeCheckmarkCondition error: " + e.getMessage());
+            throw new SQLException(e);
+        }
+    }
+
+    /**
      * 報酬を受け取る。
      * @return true: 受け取り成功、false: 未完了または受け取り済み
      */
@@ -309,6 +358,18 @@ public class ProgressManager {
         for (Map<String, Object> cond : quest.conditions) {
             // checkmark 型は手動確認なので自動達成しない
             if ("checkmark".equals(cond.get("type"))) continue;
+            String condId = (String) cond.get("id");
+            boolean done = progress.stream()
+                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            if (!done) return false;
+        }
+        return true;
+    }
+
+    /** checkmark を含む全条件が完了しているか確認する (checkmark 手動完了時に使用) */
+    private boolean isAllConditionsMetIncludingCheckmarks(Quest quest, List<Map<String, Object>> progress) {
+        if (quest.conditions == null || quest.conditions.isEmpty()) return false;
+        for (Map<String, Object> cond : quest.conditions) {
             String condId = (String) cond.get("id");
             boolean done = progress.stream()
                 .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));

@@ -938,7 +938,8 @@ export default function EditorPage() {
       if (n.id !== config.nodeId) return n
       if (config.type === 'quest_icon') return { ...n, icon: itemType }
       if (config.type === 'task_item') return { ...n, icon: itemType, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
-      return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
+      if (config.type === 'reward_item') return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
+      return n
     }
     setNodes((prev) => prev.map(apply))
     setProposalNodes((prev) => prev.map(apply))
@@ -1297,6 +1298,10 @@ export default function EditorPage() {
                 showToast('報酬を受け取りました！')
               }
             })()}
+            onCheckmarkComplete={isReadOnlyNode(editingNodeId!) && me ? async (conditionId) => {
+              await progressApi.completeCondition(editingNodeId!, conditionId)
+              await queryClient.invalidateQueries({ queryKey: ['progress'] })
+            } : undefined}
           />
         )}
 
