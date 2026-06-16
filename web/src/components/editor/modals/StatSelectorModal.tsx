@@ -167,9 +167,9 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
     </div>
   )
 
-  const isItemBased = selectedCategory?.itemBased && selectedCategory.id !== 'minecraft:custom'
   const isKillStat = selectedCategory?.id === 'minecraft:killed' || selectedCategory?.id === 'minecraft:killed_by'
   const isCustom = selectedCategory?.id === 'minecraft:custom'
+  const isItemBased = !!selectedCategory?.itemBased && !isCustom
 
   const inner = (
     <>

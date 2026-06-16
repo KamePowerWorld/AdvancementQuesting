@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 認証関連テスト
  *  1. 未ログイン状態の表示
  *  2. ログインモーダルの開閉
@@ -44,7 +44,7 @@ test('編集者ログイン: 保存ボタン表示・ノードクリックでモ
 
   await expect(page.getByText('💾 保存')).toBeVisible()
   await expect(page.getByText('クエスト追加を提案する')).toBeVisible()
-  await expect(page.getByTitle('移動')).toBeVisible()
+  await expect(page.getByTitle('選択')).toBeVisible()
   await expect(page.getByTitle('クエストを追加')).toBeVisible()
 
   const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
@@ -69,7 +69,6 @@ test('プレイヤーログイン: 提案ボタン表示・保存ボタン非表
   await loginAs(page, 'demo-player-token')
   await expect(page.getByText('💾 保存')).not.toBeVisible()
   await expect(page.getByText('クエスト追加を提案する')).toBeVisible()
-  await expect(page.getByTitle('移動')).not.toBeVisible()
   await expect(page.getByTitle('クエストを追加')).not.toBeVisible()
 })
 

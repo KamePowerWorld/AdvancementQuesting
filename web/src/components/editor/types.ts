@@ -11,7 +11,7 @@
  * add_link: ノード→ノードで依存エッジを引く
  * delete  : ノードクリックで削除。editor=全ノード / player提案中=提案ドラフトのみ
  */
-export type ToolMode = 'select' | 'move' | 'add_node' | 'add_link' | 'delete'
+export type ToolMode = 'select' | 'add_node' | 'add_link' | 'delete'
 
 /** 2D座標 */
 export interface Vec2 {
@@ -52,6 +52,7 @@ export interface EditorNode {
   x: number
   y: number
   icon: string
+  category?: string | null
   title: string
   subtitle: string
   description: string

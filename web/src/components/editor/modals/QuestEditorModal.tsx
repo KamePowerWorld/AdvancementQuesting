@@ -25,6 +25,7 @@ interface QuestEditorModalProps {
   close: () => void
   openItemSelector: (config: ItemSelectorConfig) => void
   openTaskRewardEditor: (config: EditingTaskReward) => void
+  availableTabs?: string[]
   proposalMeta?: ProposalMeta
   readOnly?: boolean
   /** 各条件の達成進捗 (ログイン中のみ) */
@@ -44,6 +45,7 @@ export function QuestEditorModal({
   close,
   openItemSelector,
   openTaskRewardEditor,
+  availableTabs = [],
   proposalMeta,
   readOnly = false,
   conditionProgress,
@@ -371,18 +373,32 @@ export function QuestEditorModal({
           {activeTab === 'reward' && <RewardList />}
           {(activeTab as string) === 'detail' && (
             <div className="flex flex-col gap-3 flex-1">
-              <input
-                type="text"
-                value={node.subtitle}
-                onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
-                readOnly={readOnly}
+          <input
+            type="text"
+            value={node.subtitle}
+            onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
+            readOnly={readOnly}
                 className={`w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 placeholder-gray-600 pb-1 ${readOnly ? 'cursor-default' : 'focus:border-gray-400'}`}
                 placeholder="補足説明 (例: 掘って、切って、壊して！)"
-              />
-              <textarea
-                value={node.description}
-                onChange={(e) => updateNode({ ...node, description: e.target.value })}
-                readOnly={readOnly}
+          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">タブ</label>
+            <select
+              value={node.category ?? ''}
+              onChange={(e) => updateNode({ ...node, category: e.target.value || null })}
+              disabled={readOnly}
+              className="bg-black/30 border border-gray-700 p-2 text-sm text-gray-200 outline-none disabled:opacity-60"
+            >
+              <option value="">未分類</option>
+              {availableTabs.map((tab) => (
+                <option key={tab} value={tab}>{tab}</option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            value={node.description}
+            onChange={(e) => updateNode({ ...node, description: e.target.value })}
+            readOnly={readOnly}
                 className={`w-full flex-1 bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none rounded-sm leading-relaxed ${readOnly ? 'cursor-default' : 'focus:border-blue-500'}`}
                 placeholder="クエストの詳細な説明..."
               />
@@ -510,12 +526,28 @@ export function QuestEditorModal({
             type="text"
             value={node.subtitle}
             onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
+            readOnly={readOnly}
             className="w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-transparent focus:border-gray-600 placeholder-gray-600"
             placeholder="補足説明を入力 (例: 掘って、切って、壊して！)"
           />
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-gray-400 shrink-0">タブ</label>
+            <select
+              value={node.category ?? ''}
+              onChange={(e) => updateNode({ ...node, category: e.target.value || null })}
+              disabled={readOnly}
+              className="bg-black/30 border border-gray-700 px-3 py-2 text-sm text-gray-200 outline-none disabled:opacity-60"
+            >
+              <option value="">未分類</option>
+              {availableTabs.map((tab) => (
+                <option key={tab} value={tab}>{tab}</option>
+              ))}
+            </select>
+          </div>
           <textarea
             value={node.description}
             onChange={(e) => updateNode({ ...node, description: e.target.value })}
+            readOnly={readOnly}
             className="w-full flex-1 min-h-[150px] bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none focus:border-blue-500 rounded-sm leading-relaxed"
             placeholder="クエストの詳細な説明を入力してください..."
           />

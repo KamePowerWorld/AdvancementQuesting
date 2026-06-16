@@ -6,6 +6,7 @@ interface ToolButtonProps {
   active: boolean
   onClick: () => void
   tooltip: string
+  className?: string
 }
 
 /**
@@ -13,14 +14,15 @@ interface ToolButtonProps {
  * active 時はMinecraft風の「押し込まれた」ベベルスタイルを適用する
  * ホバー時にフローティングツールチップを表示する
  */
-export const ToolButton: FC<ToolButtonProps> = ({ icon: Icon, active, onClick, tooltip }) => (
+export const ToolButton: FC<ToolButtonProps> = ({ icon: Icon, active, onClick, tooltip, className = '' }) => (
   <div className="relative group">
     <button
       onClick={onClick}
       title={tooltip}
       aria-label={tooltip}
       className={[
-        'w-10 h-10 flex items-center justify-center mb-2 border-2',
+        'w-10 h-10 flex items-center justify-center border-2',
+        className,
         active
           // 押し込まれた状態: 暗い上・左ボーダー、明るい下・右ボーダー
           ? 'bg-[#7B7B7B] border-t-[#3B3B3B] border-l-[#3B3B3B] border-b-[#C6C6C6] border-r-[#C6C6C6]'

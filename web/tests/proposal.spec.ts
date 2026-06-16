@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 提案モード・承認関連テスト
  *  6. 提案モード ON
  *  7. 提案ドラフトノード追加
@@ -27,7 +27,7 @@ test('提案モード ON: ツールバー拡張・ナビバーに提案バー', 
 
   await expect(page.getByText(/提案モード/)).toBeVisible()
   await expect(page.locator('nav button', { hasText: '✕' })).toBeVisible()
-  await expect(page.getByTitle('移動')).toBeVisible()
+  await expect(page.getByTitle('選択')).toBeVisible()
   await expect(page.getByTitle('クエストを追加')).toBeVisible()
   await expect(page.getByTitle('依存関係を追加')).toBeVisible()
   await expect(page.getByTitle('削除')).toBeVisible()
@@ -260,9 +260,9 @@ test('提案ノード移動: 編集者が提案モードで提案ノードをド
   const before = await proposalNode.boundingBox()
   const cx = before!.x + before!.width / 2
   const cy = before!.y + before!.height / 2
-  await page.getByTitle('移動').click()
   await page.mouse.move(cx, cy)
   await page.mouse.down()
+  await page.waitForTimeout(220)
   await page.mouse.move(cx + 100, cy + 80, { steps: 10 })
   await page.mouse.up()
   await page.waitForTimeout(200)

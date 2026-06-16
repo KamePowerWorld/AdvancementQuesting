@@ -1,6 +1,6 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { db } from './client.js'
-import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes } from './schema.js'
+import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes, questTabs } from './schema.js'
 
 const DEMO_PLAYER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const DEMO_PLAYER_NAME = 'Steve'
@@ -32,6 +32,7 @@ async function seed() {
   await db.delete(playerProgress)
   await db.delete(authCodes)
   await db.delete(playerSessions)
+  await db.delete(questTabs)
   await db.delete(quests)
 
   // クエストデータ — id を明示して連番を強制（AUTOINCREMENT だが seed 時は上書き）
@@ -122,6 +123,14 @@ async function seed() {
       },
     })
   }
+
+  await db.insert(questTabs).values([
+    { name: '序盤', sortOrder: 0 },
+    { name: '中盤', sortOrder: 1 },
+  ]).onConflictDoUpdate({
+    target: questTabs.name,
+    set: { updatedAt: new Date() },
+  })
 
   // デモ用セッショントークン (7日間有効)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)

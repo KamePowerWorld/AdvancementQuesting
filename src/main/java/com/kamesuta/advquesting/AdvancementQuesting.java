@@ -6,10 +6,12 @@ import com.kamesuta.advquesting.api.PlayerRoutes;
 import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
+import com.kamesuta.advquesting.api.TabRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.TabManager;
 import com.kamesuta.advquesting.db.AuthCodeDao;
 import com.kamesuta.advquesting.db.DatabaseManager;
 import com.kamesuta.advquesting.db.ProgressDao;
@@ -48,6 +50,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         ProgressDao progressDao = new ProgressDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
+        TabManager tabManager = new TabManager(getDataFolder(), questManager);
         ProgressManager progressManager = new ProgressManager(this, questManager, progressDao);
 
         int port = getConfig().getInt("web-port", 8080);
@@ -70,6 +73,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         progressManager.setNotificationRoutes(notificationRoutes);
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
+        new TabRoutes(tabManager, questManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
         new PlayerRoutes(this, sessionDao).register(app);

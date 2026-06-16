@@ -1,4 +1,4 @@
-/**
+﻿/**
  * スマホサイズ (375×667 / iPhone SE) での E2E テスト
  *
  * ナビバーが狭い環境でボタンが正しく表示・操作できるかを検証する。
@@ -173,15 +173,15 @@ test('スマホ: ログアウト→再ログインを繰り返しても正常に
 test('スマホ: editor — 編集/プレイモードを切り替えるとツールバーが変わる', async ({ page }) => {
   await loginAs(page, 'demo-editor-token')
 
-  // 編集モード: 保存・移動・追加ツールがある
+  // 編集モード: 保存・選択・追加ツールがある
   await expect(page.getByText('💾 保存')).toBeVisible()
-  await expect(page.getByTitle('移動')).toBeVisible()
+  await expect(page.getByTitle('選択')).toBeVisible()
   await expect(page.getByTitle('クエストを追加')).toBeVisible()
 
   // プレイモードへ切り替え
   await page.locator('nav button[title="プレイモード"]').click()
   await expect(page.getByText('💾 保存')).not.toBeVisible()
-  await expect(page.getByTitle('移動')).not.toBeVisible()
+  await expect(page.getByTitle('選択')).toBeVisible()
   await expect(page.getByTitle('クエストを追加')).not.toBeVisible()
 
   // プレイモードでノードをクリック → 読み取り専用モーダルが開く
@@ -342,4 +342,43 @@ test('スマホ: 完了済み未受取クエストで報酬受取ボタンが表
   await expect(claimBtn).not.toBeVisible({ timeout: 5000 })
 
   await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+test('スマホ: editor がタブを追加・並び替え・削除できる (M-TAB-1)', async ({ page }) => {
+  await page.request.post(`${MOCK}/api/test/reset-proposals`)
+  await loginAs(page, 'demo-editor-token')
+
+  page.once('dialog', (dialog) => dialog.accept('探索'))
+  await page.getByTitle('タブを追加').click()
+  await expect(page.getByRole('button', { name: '探索' })).toBeVisible({ timeout: 3000 })
+
+  await page.getByRole('button', { name: 'すべて' }).click()
+  const node1 = page.locator('[data-node-id="1"]')
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await page.getByRole('button', { name: '詳細' }).click()
+  await page.locator('select').first().selectOption('探索')
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+
+  await page.getByText('💾 保存').click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+
+  const quest = await (await page.request.get(`${MOCK}/api/quests/1`)).json()
+  expect(quest.category).toBe('探索')
+
+  await page.getByRole('button', { name: '探索' }).click()
+  await expect(page.locator('[data-node-id="1"]')).toBeVisible()
+  await expect(page.locator('[data-node-id="2"]')).toHaveCount(0)
+
+  await page.getByTitle('左へ移動').click()
+  const tabs = await (await page.request.get(`${MOCK}/api/tabs`)).json()
+  expect(tabs.map((tab: { name: string }) => tab.name)).toEqual(['序盤', '探索', '中盤'])
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByTitle('タブを削除').click()
+  await expect(page.getByRole('button', { name: '探索' })).toHaveCount(0)
+
+  const questAfterDelete = await (await page.request.get(`${MOCK}/api/quests/1`)).json()
+  expect(questAfterDelete.category).toBeNull()
 })

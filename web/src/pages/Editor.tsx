@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User } from 'lucide-react'
+﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { MousePointer2, Plus, ArrowRight, Trash2, List, Settings, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -16,10 +16,12 @@ import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { questsApi } from '@/api/quests.js'
 import { progressApi } from '@/api/progress.js'
+import { tabsApi } from '@/api/tabs.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import type { Quest, Condition, Reward } from '@/types/quest.js' // Reward は rewards 変換で使用
 import { useMcLang } from '@/hooks/useMcData.js'
+import { useIsMobile } from '@/hooks/useIsMobile.js'
 
 // ---------------------------------------------------------------------------
 // Quest API ↔ EditorNode 変換
@@ -32,6 +34,7 @@ function questToNode(q: Quest): EditorNode {
     x: q.mapPosition?.x ?? 100,
     y: q.mapPosition?.y ?? 100,
     icon: q.icon ?? 'stone',
+    category: q.category ?? null,
     title: q.title,
     subtitle: (q as any).subtitle ?? '',
     description: q.description ?? '',
@@ -76,6 +79,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     subtitle: node.subtitle,
     description: node.description,
     icon: node.icon,
+    category: node.category ?? null,
     mapPosition: { x: node.x, y: node.y },
     prerequisites: edgeList
       .filter((e) => e.target === node.id)
@@ -108,6 +112,8 @@ interface ProposalNode extends EditorNode {
   myVote?: 'up' | 'down' | null
 }
 
+type TabFilter = '__all__' | '__uncategorized__' | string
+
 // ---------------------------------------------------------------------------
 // サブコンポーネント
 // ---------------------------------------------------------------------------
@@ -139,7 +145,6 @@ function ModeToast({ label, visible }: { label: string; visible: boolean }) {
 
 const modeLabel: Record<ToolMode, string> = {
   select:   '選択',
-  move:     '移動',
   add_node: 'クエスト追加',
   add_link: '依存関係の作成',
   delete:   '削除モード',
@@ -147,6 +152,8 @@ const modeLabel: Record<ToolMode, string> = {
 
 /** クリックと判定する最大移動距離 (px) */
 const CLICK_MAX_DIST = 5
+const HOLD_TO_DRAG_MS = 180
+const DRAG_START_DIST = 8
 
 // ---------------------------------------------------------------------------
 // メインコンポーネント
@@ -155,6 +162,7 @@ const CLICK_MAX_DIST = 5
 export default function EditorPage() {
   const { isEditor: isEditorRole, viewMode, me } = useAuth()
   const isEditor = isEditorRole && viewMode === 'edit'
+  const isMobile = useIsMobile()
   const queryClient = useQueryClient()
   const {
     proposalMode, setProposalMode,
@@ -167,6 +175,11 @@ export default function EditorPage() {
   const { data: questsData } = useQuery({
     queryKey: ['quests'],
     queryFn: () => questsApi.list(),
+  })
+
+  const { data: tabsData } = useQuery({
+    queryKey: ['tabs'],
+    queryFn: () => tabsApi.list(),
   })
 
   // ---- 自分の進捗 (達成済み表示用) ----
@@ -221,6 +234,7 @@ export default function EditorPage() {
   // ---- 提案ドラフト (ローカル) ----
   const [proposalNodes, setProposalNodes] = useState<EditorNode[]>([])
   const [proposalEdges, setProposalEdges] = useState<EditorEdge[]>([])
+  const [selectedTab, setSelectedTab] = useState<TabFilter>('__all__')
 
   // ---- 既存提案のローカル編集状態 (proposalId -> 編集済みノード) ----
   const [myProposalEdits, setMyProposalEdits] = useState<Map<number, EditorNode>>(new Map())
@@ -260,6 +274,7 @@ export default function EditorPage() {
   // ---- select クリック判定: mouseDown 時の座標を記録し mouseUp で距離チェック ----
   const mouseDownPos = useRef<Vec2 | null>(null)
   const mouseDownNodeId = useRef<{ nodeId: string; isProposal: boolean } | null>(null)
+  const pendingNodeDrag = useRef<{ nodeId: string; startedAt: number } | null>(null)
 
   // ---- モーダル ----
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
@@ -387,6 +402,47 @@ export default function EditorPage() {
     return false
   }, [isEditor, proposalMode, isProposalDraft])
 
+  const beginNodeDrag = useCallback((nodeId: string, clientX: number, clientY: number) => {
+    if (!canvasRef.current || !canMoveNode(nodeId)) return
+    const node = [...nodesRef.current, ...proposalNodesRef.current].find((n) => n.id === nodeId)
+      ?? (() => {
+        if (!nodeId.startsWith('existing-proposal-')) return null
+        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
+        const proposal = (existingProposals ?? []).find((p: any) => p.id === proposalId) as any
+        const snap = proposal?.questSnapshot ?? {}
+        if (!proposal) return null
+        return {
+          id: nodeId,
+          x: proposal.mapPosition?.x ?? 100,
+          y: proposal.mapPosition?.y ?? 100,
+          icon: snap.icon ?? 'stone',
+          category: snap.category ?? null,
+          title: snap.title ?? '提案',
+          subtitle: snap.subtitle ?? '',
+          description: snap.description ?? '',
+          tasks: [],
+          rewards: [],
+        } as EditorNode
+      })()
+    if (!node) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const wx = clientX - rect.left - panRef.current.x
+    const wy = clientY - rect.top - panRef.current.y
+    setDragOffset({ x: wx - node.x, y: wy - node.y })
+    setDraggingNode(nodeId)
+    setIsPanning(false)
+    pendingNodeDrag.current = null
+    if (nodeId.startsWith('existing-proposal-')) {
+      const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
+      setMyProposalEdits((prev) => {
+        if (prev.has(proposalId)) return prev
+        const next = new Map(prev)
+        next.set(proposalId, node)
+        return next
+      })
+    }
+  }, [canMoveNode, existingProposals])
+
   // ---------------------------------------------------------------------------
   // エッジ操作
   // ---------------------------------------------------------------------------
@@ -442,11 +498,12 @@ export default function EditorPage() {
     const newNode: EditorNode = {
       id: `proposal-${Date.now()}`,
       x: wx, y: wy,
+      category: selectedTab === '__all__' || selectedTab === '__uncategorized__' ? null : selectedTab,
       icon: 'stone', title: '新規提案クエスト', subtitle: '', description: '',
       tasks: [], rewards: [],
     }
     setProposalNodes((prev) => [...prev, newNode])
-  }, [])
+  }, [selectedTab])
 
   // ---------------------------------------------------------------------------
   // 提案送信 (App側のコンテキストに登録)
@@ -463,7 +520,7 @@ export default function EditorPage() {
         await proposalsApi.create({
           ...nodeToApiBody(node, proposalEdges),
           status: 'proposed',
-          category: null,
+          category: node.category ?? null,
           customButtons: [],
         } as any)
       }
@@ -530,7 +587,7 @@ export default function EditorPage() {
         if (existingIds.has(node.id)) {
           await questsApi.update(parseInt(node.id, 10), body)
         } else {
-          await questsApi.create({ ...body, category: null, customButtons: [] })
+          await questsApi.create({ ...body, category: node.category ?? null, customButtons: [] })
         }
       }))
       // 既存提案の編集を保存
@@ -570,7 +627,7 @@ export default function EditorPage() {
     }
     mouseDownNodeId.current = null
     mouseDownPos.current = { x: e.clientX, y: e.clientY }
-    if (mode === 'select' || mode === 'move') {
+    if (mode === 'select') {
       setIsPanning(true)
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
     } else if (mode === 'add_node') {
@@ -582,7 +639,9 @@ export default function EditorPage() {
       } else if (isEditor) {
         setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
-          icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+          icon: 'stone',
+          category: selectedTab === '__all__' || selectedTab === '__uncategorized__' ? null : selectedTab,
+          title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
       }
@@ -594,11 +653,19 @@ export default function EditorPage() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
+    if (pendingNodeDrag.current && mode === 'select' && !draggingNode && mouseDownPos.current) {
+      const dx = e.clientX - mouseDownPos.current.x
+      const dy = e.clientY - mouseDownPos.current.y
+      const heldLongEnough = Date.now() - pendingNodeDrag.current.startedAt >= HOLD_TO_DRAG_MS
+      if (heldLongEnough && dx * dx + dy * dy >= DRAG_START_DIST * DRAG_START_DIST) {
+        beginNodeDrag(pendingNodeDrag.current.nodeId, e.clientX, e.clientY)
+      }
+    }
     if (isPanning && !draggingNode) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
     const wx = e.clientX - rect.left - pan.x
     const wy = e.clientY - rect.top - pan.y
     setMousePos({ x: wx, y: wy })
-    if (draggingNode && mode === 'move') {
+    if (draggingNode) {
       const tx = wx - dragOffset.x
       const ty = wy - dragOffset.y
       if (proposalMode && isProposalDraft(draggingNode)) {
@@ -622,7 +689,13 @@ export default function EditorPage() {
 
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isPanning) setIsPanning(false)
-    if (draggingNode) { setDraggingNode(null); return }
+    if (draggingNode) {
+      setDraggingNode(null)
+      pendingNodeDrag.current = null
+      mouseDownPos.current = null
+      mouseDownNodeId.current = null
+      return
+    }
 
     // select モード: クリック判定 (キャンバス背景クリックでは無視)
     if (mode === 'select' && mouseDownNodeId.current && mouseDownPos.current) {
@@ -633,6 +706,7 @@ export default function EditorPage() {
         openNode(nodeId, isProposal)
       }
     }
+    pendingNodeDrag.current = null
     mouseDownPos.current = null
     mouseDownNodeId.current = null
   }
@@ -656,7 +730,7 @@ export default function EditorPage() {
     const t = e.touches[0]
     mouseDownNodeId.current = null
     mouseDownPos.current = { x: t.clientX, y: t.clientY }
-    if (mode === 'select' || mode === 'move') {
+    if (mode === 'select') {
       const newStart = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y }
       panStartRef.current = newStart
       setPanStart(newStart)
@@ -671,7 +745,9 @@ export default function EditorPage() {
       } else if (isEditor) {
         setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
-          icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+          icon: 'stone',
+          category: selectedTab === '__all__' || selectedTab === '__uncategorized__' ? null : selectedTab,
+          title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
       }
@@ -683,7 +759,16 @@ export default function EditorPage() {
     const t = e.touches[0]
     e.preventDefault()
 
-    if ((mode === 'select' || mode === 'move') && isPanning && !draggingNode) {
+    if (pendingNodeDrag.current && mode === 'select' && !draggingNode && mouseDownPos.current) {
+      const dx = t.clientX - mouseDownPos.current.x
+      const dy = t.clientY - mouseDownPos.current.y
+      const heldLongEnough = Date.now() - pendingNodeDrag.current.startedAt >= HOLD_TO_DRAG_MS
+      if (heldLongEnough && dx * dx + dy * dy >= DRAG_START_DIST * DRAG_START_DIST) {
+        beginNodeDrag(pendingNodeDrag.current.nodeId, t.clientX, t.clientY)
+      }
+    }
+
+    if (mode === 'select' && isPanning && !draggingNode) {
       setPan({ x: t.clientX - panStartRef.current.x, y: t.clientY - panStartRef.current.y })
     }
 
@@ -697,7 +782,7 @@ export default function EditorPage() {
       setLinkHoverNode(hoverId)
     }
 
-    if (mode === 'move' && draggingNode) {
+    if (draggingNode) {
       const rect = canvasRef.current.getBoundingClientRect()
       const wx = t.clientX - rect.left - panRef.current.x
       const wy = t.clientY - rect.top - panRef.current.y
@@ -726,7 +811,13 @@ export default function EditorPage() {
     setIsPanning(false)
     setLinkHoverNode(null)
 
-    if (draggingNode) { setDraggingNode(null); return }
+    if (draggingNode) {
+      setDraggingNode(null)
+      pendingNodeDrag.current = null
+      mouseDownPos.current = null
+      mouseDownNodeId.current = null
+      return
+    }
 
     // select タッチクリック判定
     if (modeRef.current === 'select' && mouseDownNodeId.current && mouseDownPos.current) {
@@ -738,6 +829,7 @@ export default function EditorPage() {
         openNode(nodeId, isProposal)
       }
     }
+    pendingNodeDrag.current = null
     mouseDownPos.current = null
     mouseDownNodeId.current = null
   }
@@ -753,24 +845,9 @@ export default function EditorPage() {
     mouseDownPos.current = { x: e.clientX, y: e.clientY }
     mouseDownNodeId.current = { nodeId, isProposal: isOtherProposal }
 
-    if (mode === 'move' && canMoveNode(nodeId)) {
-      const node = [...nodes, ...proposalNodes, ...otherProposalNodes].find((n) => n.id === nodeId)!
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - pan.x
-      const wy = e.clientY - rect.top - pan.y
-      setDragOffset({ x: wx - node.x, y: wy - node.y })
-      setDraggingNode(nodeId)
+    if (mode === 'select' && canMoveNode(nodeId)) {
+      pendingNodeDrag.current = { nodeId, startedAt: Date.now() }
       setIsPanning(false)
-      // 提案ノードのドラッグ開始時にローカル編集状態を初期化しておく
-      if (nodeId.startsWith('existing-proposal-')) {
-        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
-        setMyProposalEdits((prev) => {
-          if (prev.has(proposalId)) return prev
-          const next = new Map(prev)
-          next.set(proposalId, node)
-          return next
-        })
-      }
     } else if (mode === 'add_link') {
       if (!linkStartNode) {
         setLinkStartNode(nodeId)
@@ -793,7 +870,7 @@ export default function EditorPage() {
 
   const handleNodeMouseUp = (e: React.MouseEvent) => {
     // stopPropagation しない — キャンバスの handleMouseUp にクリック判定を委譲
-    if (draggingNode) { e.stopPropagation(); setDraggingNode(null) }
+    if (draggingNode) { e.stopPropagation(); setDraggingNode(null); pendingNodeDrag.current = null }
   }
 
   // ---------------------------------------------------------------------------
@@ -808,23 +885,9 @@ export default function EditorPage() {
     mouseDownPos.current = { x: t.clientX, y: t.clientY }
     mouseDownNodeId.current = { nodeId, isProposal: isOtherProposal }
 
-    if (mode === 'move' && canMoveNode(nodeId)) {
-      const node = [...nodesRef.current, ...proposalNodesRef.current, ...otherProposalNodes].find((n) => n.id === nodeId)!
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const wx = t.clientX - rect.left - panRef.current.x
-      const wy = t.clientY - rect.top - panRef.current.y
-      setDragOffset({ x: wx - node.x, y: wy - node.y })
-      setDraggingNode(nodeId)
+    if (mode === 'select' && canMoveNode(nodeId)) {
+      pendingNodeDrag.current = { nodeId, startedAt: Date.now() }
       setIsPanning(false)
-      if (nodeId.startsWith('existing-proposal-')) {
-        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
-        setMyProposalEdits((prev) => {
-          if (prev.has(proposalId)) return prev
-          const next = new Map(prev)
-          next.set(proposalId, node)
-          return next
-        })
-      }
     } else if (mode === 'add_link') {
       const rect = canvasRef.current!.getBoundingClientRect()
       setMousePos({
@@ -841,7 +904,7 @@ export default function EditorPage() {
     const t = e.touches[0]
     e.preventDefault()
 
-    if (mode === 'move' && draggingNode === nodeId && canMoveNode(nodeId)) {
+    if (draggingNode === nodeId && canMoveNode(nodeId)) {
       const rect = canvasRef.current.getBoundingClientRect()
       const wx = t.clientX - rect.left - panRef.current.x
       const wy = t.clientY - rect.top - panRef.current.y
@@ -877,8 +940,9 @@ export default function EditorPage() {
   const handleNodeTouchEnd = (e: React.TouchEvent, nodeId: string, isOtherProposal = false) => {
     e.stopPropagation()
 
-    if (mode === 'move') {
+    if (draggingNode === nodeId) {
       setDraggingNode(null)
+      pendingNodeDrag.current = null
       mouseDownPos.current = null
       mouseDownNodeId.current = null
       return
@@ -895,6 +959,7 @@ export default function EditorPage() {
       } else {
         setLinkStartNode(null)
       }
+      pendingNodeDrag.current = null
       mouseDownPos.current = null
       mouseDownNodeId.current = null
       return
@@ -923,6 +988,7 @@ export default function EditorPage() {
         openNode(nodeId, isOtherProposal)
       }
     }
+    pendingNodeDrag.current = null
     mouseDownPos.current = null
     mouseDownNodeId.current = null
   }
@@ -938,6 +1004,7 @@ export default function EditorPage() {
       if (n.id !== config.nodeId) return n
       if (config.type === 'quest_icon') return { ...n, icon: itemType }
       if (config.type === 'task_item') return { ...n, icon: itemType, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
+      if (config.type === 'task_stat_item') return { ...n, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, statId: `minecraft:${itemType}` } : t) }
       return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
     }
     setNodes((prev) => prev.map(apply))
@@ -1025,6 +1092,7 @@ export default function EditorPage() {
         x: p.mapPosition?.x ?? 100,
         y: p.mapPosition?.y ?? 100,
         icon: snap.icon ?? 'stone',
+        category: snap.category ?? null,
         title: snap.title ?? '提案',
         subtitle: snap.subtitle ?? '',
         description: snap.description ?? '',
@@ -1064,10 +1132,83 @@ export default function EditorPage() {
 
   const showAddNode    = isEditor || proposalMode
   const showAddLink    = isEditor || proposalMode
-  const showMove       = isEditor || proposalMode
   const showDelete     = isEditor || proposalMode
   const showRewardTable = false
   const showSettings   = isEditor
+
+  const tabNames = useMemo(() => (tabsData ?? []).map((tab) => tab.name), [tabsData])
+  const hasUncategorizedNodes = useMemo(
+    () => [...nodes, ...proposalNodes, ...otherProposalNodes].some((node) => !node.category),
+    [nodes, proposalNodes, otherProposalNodes],
+  )
+  const visibleTabItems = useMemo(() => {
+    const base = [{ key: '__all__', label: 'すべて' }] as Array<{ key: TabFilter; label: string }>
+    const named = tabNames.map((name) => ({ key: name as TabFilter, label: name }))
+    const uncategorized = hasUncategorizedNodes ? [{ key: '__uncategorized__' as TabFilter, label: '未分類' }] : []
+    return [...base, ...named, ...uncategorized]
+  }, [hasUncategorizedNodes, tabNames])
+
+  const matchesTab = useCallback((node: EditorNode) => {
+    if (selectedTab === '__all__') return true
+    if (selectedTab === '__uncategorized__') return !node.category
+    return node.category === selectedTab
+  }, [selectedTab])
+
+  const visibleNodes = useMemo(() => nodes.filter(matchesTab), [nodes, matchesTab])
+  const visibleProposalNodes = useMemo(() => proposalNodes.filter(matchesTab), [proposalNodes, matchesTab])
+  const visibleOtherProposalNodes = useMemo(() => otherProposalNodes.filter(matchesTab), [otherProposalNodes, matchesTab])
+  const visibleNodeIds = useMemo(() => new Set([
+    ...visibleNodes.map((n) => n.id),
+    ...visibleProposalNodes.map((n) => n.id),
+    ...visibleOtherProposalNodes.map((n) => n.id),
+  ]), [visibleNodes, visibleProposalNodes, visibleOtherProposalNodes])
+  const visibleEdges = useMemo(
+    () => edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)),
+    [edges, visibleNodeIds],
+  )
+  const visibleProposalEdges = useMemo(
+    () => proposalEdges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)),
+    [proposalEdges, visibleNodeIds],
+  )
+
+  const createTab = useCallback(async () => {
+    const tabName = window.prompt('新しいタブ名')
+    const trimmed = tabName?.trim()
+    if (!trimmed) return
+    await tabsApi.create(trimmed)
+    await queryClient.invalidateQueries({ queryKey: ['tabs'] })
+    setSelectedTab(trimmed)
+    showToast(`タブ「${trimmed}」を追加しました`)
+  }, [queryClient, showToast])
+
+  const moveTab = useCallback(async (tabName: string, delta: -1 | 1) => {
+    const current = [...(tabsData ?? [])]
+    const index = current.findIndex((tab) => tab.name === tabName)
+    const nextIndex = index + delta
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return
+    const [moved] = current.splice(index, 1)
+    current.splice(nextIndex, 0, moved)
+    await tabsApi.reorder(current.map((tab) => tab.name))
+    await queryClient.invalidateQueries({ queryKey: ['tabs'] })
+  }, [queryClient, tabsData])
+
+  const deleteTab = useCallback(async (tabName: string) => {
+    if (!window.confirm(`タブ「${tabName}」を削除しますか？`)) return
+    await tabsApi.delete(tabName)
+    setNodes((prev) => prev.map((node) => node.category === tabName ? { ...node, category: null } : node))
+    setProposalNodes((prev) => prev.map((node) => node.category === tabName ? { ...node, category: null } : node))
+    setMyProposalEdits((prev) => {
+      const next = new Map(prev)
+      for (const [proposalId, node] of next) {
+        if (node.category === tabName) next.set(proposalId, { ...node, category: null })
+      }
+      return next
+    })
+    if (selectedTab === tabName) setSelectedTab('__all__')
+    await queryClient.invalidateQueries({ queryKey: ['tabs'] })
+    await queryClient.invalidateQueries({ queryKey: ['quests'] })
+    await queryClient.invalidateQueries({ queryKey: ['proposals'] })
+  }, [queryClient, selectedTab])
 
   // ---------------------------------------------------------------------------
   // レンダリング
@@ -1078,20 +1219,42 @@ export default function EditorPage() {
         className="flex-1 relative flex overflow-hidden select-none min-h-0"
         style={{ fontFamily: '"Minecraftia", "Courier New", Courier, monospace' }}
       >
-        {/* ===== 左サイドバー: ツールバー ===== */}
+        {/* ===== 左サイドバー ===== */}
         <div className="w-16 bg-[#8B8B8B] border-r-4 border-black p-2 flex flex-col items-center shrink-0 z-20 shadow-[inset_-2px_0_0_rgba(0,0,0,0.2)]">
-          <ToolButton icon={MousePointer2} active={mode === 'select'} onClick={() => changeMode('select')} tooltip="選択" />
-          {showMove     && <ToolButton icon={Move}       active={mode === 'move'}     onClick={() => changeMode('move')}     tooltip="移動" />}
-          {showAddNode  && <ToolButton icon={Plus}       active={mode === 'add_node'} onClick={() => changeMode('add_node')} tooltip="クエストを追加" />}
-          {showAddLink  && <ToolButton icon={ArrowRight} active={mode === 'add_link'} onClick={() => changeMode('add_link')} tooltip="依存関係を追加" />}
-          {showDelete   && <ToolButton icon={Trash2}     active={mode === 'delete'}   onClick={() => changeMode('delete')}   tooltip="削除" />}
+          {isMobile ? (
+            <div className="flex flex-col items-center w-full gap-2">
+              {visibleTabItems.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelectedTab(tab.key)}
+                  className="w-12 min-h-10 px-1 py-1 text-[10px] leading-tight border-2 font-bold break-words"
+                  style={{
+                    color: selectedTab === tab.key ? '#0a1f0a' : '#2a1f0e',
+                    backgroundColor: selectedTab === tab.key ? '#7BC67B' : '#C6C6C6',
+                    borderTopColor: selectedTab === tab.key ? '#3B7B3B' : 'white',
+                    borderLeftColor: selectedTab === tab.key ? '#3B7B3B' : 'white',
+                    borderBottomColor: selectedTab === tab.key ? '#9BE09B' : '#555555',
+                    borderRightColor: selectedTab === tab.key ? '#9BE09B' : '#555555',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <ToolButton icon={MousePointer2} active={mode === 'select'} onClick={() => changeMode('select')} tooltip="選択" className="mb-2" />
+              {showAddNode  && <ToolButton icon={Plus}       active={mode === 'add_node'} onClick={() => changeMode('add_node')} tooltip="クエストを追加" className="mb-2" />}
+              {showAddLink  && <ToolButton icon={ArrowRight} active={mode === 'add_link'} onClick={() => changeMode('add_link')} tooltip="依存関係を追加" className="mb-2" />}
+              {showDelete   && <ToolButton icon={Trash2}     active={mode === 'delete'}   onClick={() => changeMode('delete')}   tooltip="削除" className="mb-2" />}
+            </>
+          )}
 
           <div className="flex-grow" />
 
-          {showRewardTable && <ToolButton icon={List}     active={showRewardTableModal} onClick={() => setShowRewardTableModal(true)} tooltip="報酬テーブル" />}
-          {showSettings    && <ToolButton icon={Settings} active={false}               onClick={() => {}}                          tooltip="設定" />}
+          {!isMobile && showRewardTable && <ToolButton icon={List} active={showRewardTableModal} onClick={() => setShowRewardTableModal(true)} tooltip="報酬テーブル" className="mb-2" />}
+          {!isMobile && showSettings && <ToolButton icon={Settings} active={false} onClick={() => {}} tooltip="設定" className="mb-2" />}
 
-          {/* ユーザーアイコン */}
           {me ? (
             <button
               onClick={handleLogout}
@@ -1134,147 +1297,247 @@ export default function EditorPage() {
           )}
         </div>
 
-        {/* ===== キャンバスエリア ===== */}
-        <div
-          ref={canvasRef}
-          className={`flex-grow relative overflow-hidden ${
-            mode === 'move' && !draggingNode ? 'cursor-grab'
-            : draggingNode ? 'cursor-grabbing'
-            : mode === 'add_node' ? 'cursor-crosshair'
-            : 'cursor-default'
-          }`}
-          style={{
-            backgroundColor: '#5d6b5e',
-            backgroundImage: `
-              linear-gradient(rgba(0,0,0,0.15) 2px, transparent 2px),
-              linear-gradient(90deg, rgba(0,0,0,0.15) 2px, transparent 2px)
-            `,
-            backgroundSize: '40px 40px',
-            backgroundPosition: `${pan.x}px ${pan.y}px`,
-            boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)',
-            touchAction: 'none',
-          }}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onContextMenu={(e) => e.preventDefault()}
-          onTouchStart={handleCanvasTouchStart}
-          onTouchMove={handleCanvasTouchMove}
-          onTouchEnd={handleCanvasTouchEnd}
-        >
-          <div
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px)`, transformOrigin: '0 0' }}
-            className="absolute inset-0 w-full h-full"
-          >
-            {/* エッジ */}
-            <svg className="absolute inset-0 overflow-visible pointer-events-none z-0">
-              {edges.map((edge) => {
-                const src = nodes.find((n) => n.id === edge.source)
-                const tgt = nodes.find((n) => n.id === edge.target)
-                if (!src || !tgt) return null
-                return <EdgePattern key={edge.id} source={src} target={tgt} />
-              })}
-              {proposalEdges.map((edge) => {
-                const allNodes = [...nodes, ...proposalNodes]
-                const src = allNodes.find((n) => n.id === edge.source)
-                const tgt = allNodes.find((n) => n.id === edge.target)
-                if (!src || !tgt) return null
-                return <EdgePattern key={edge.id} source={src} target={tgt} />
-              })}
-              {mode === 'add_link' && linkStartNode && (() => {
-                const allNodes = [...nodes, ...proposalNodes]
-                const startNode = allNodes.find((n) => n.id === linkStartNode)
-                if (!startNode) return null
-                return <EdgePattern source={startNode} isPreview targetPos={mousePos} />
-              })()}
-            </svg>
-
-            {/* 通常ノード */}
-            {nodes.map((node) => (
-              <NodeEl
-                key={node.id}
-                node={node}
-                mode={mode}
-                draggingNode={draggingNode}
-                linkStartNode={linkStartNode}
-                linkHoverNode={linkHoverNode}
-                setHoveredNode={setHoveredNode}
-                completed={completedQuestIds.has(node.id)}
-                celebrating={celebratingNodeId === node.id}
-                onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
-                onMouseUp={handleNodeMouseUp}
-                onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
-                onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
-                onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, false)}
-              />
-            ))}
-
-            {/* 提案ドラフトノード */}
-            {proposalNodes.map((node) => (
-              <NodeEl
-                key={node.id}
-                node={node}
-                mode={mode}
-                draggingNode={draggingNode}
-                linkStartNode={linkStartNode}
-                linkHoverNode={linkHoverNode}
-                setHoveredNode={setHoveredNode}
-                isDraft
-                onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
-                onMouseUp={handleNodeMouseUp}
-                onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
-                onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
-                onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, false)}
-              />
-            ))}
-
-            {/* 他者の提案ノード (半透明) */}
-            {(proposalMode || isEditor) && otherProposalNodes.map((node) => (
-              <OtherProposalNodeEl
-                key={node.id}
-                node={node}
-                mode={mode}
-                isEditor={isEditor}
-                onMouseDown={(e) => handleNodeMouseDown(e, node.id, true)}
-                onMouseUp={handleNodeMouseUp}
-                onTouchStart={(e) => handleNodeTouchStart(e, node.id, true)}
-                onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
-                onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, true)}
-              />
-            ))}
-          </div>
-
-          {/* ツールチップ */}
-          {hoveredNode && !draggingNode && !isPanning && !editingNodeId && !itemSelectorConfig && !editingTaskReward && (
-            <div
-              className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs hidden sm:block"
-              style={{
-                left: Math.min(mousePos.x + pan.x + 20, (canvasRef.current?.offsetWidth ?? 0) - 200),
-                top: Math.min(mousePos.y + pan.y + 20, (canvasRef.current?.offsetHeight ?? 0) - 100),
-              }}
-            >
-              <div className="font-bold text-blue-300 text-lg mb-1">{hoveredNode.title}</div>
-              {hoveredNode.subtitle && (
-                <div className="text-gray-400 text-xs italic mb-2">{hoveredNode.subtitle}</div>
+        <div className="flex-grow min-w-0 flex flex-col bg-[#4d5a4d]">
+          {!isMobile && (
+            <div className="h-11 shrink-0 flex items-center gap-2 overflow-x-auto px-3 border-b-2 border-black bg-[#7f7f7f]">
+              {visibleTabItems.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelectedTab(tab.key)}
+                  className="shrink-0 px-3 py-1 text-xs border-2 font-bold"
+                  style={{
+                    color: selectedTab === tab.key ? '#0a1f0a' : '#2a1f0e',
+                    backgroundColor: selectedTab === tab.key ? '#7BC67B' : '#C6C6C6',
+                    borderTopColor: selectedTab === tab.key ? '#3B7B3B' : 'white',
+                    borderLeftColor: selectedTab === tab.key ? '#3B7B3B' : 'white',
+                    borderBottomColor: selectedTab === tab.key ? '#9BE09B' : '#555555',
+                    borderRightColor: selectedTab === tab.key ? '#9BE09B' : '#555555',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              {isEditor && (
+                <div className="ml-auto flex items-center gap-1 shrink-0">
+                  {selectedTab !== '__all__' && selectedTab !== '__uncategorized__' && (
+                    <>
+                      <button
+                        onClick={() => moveTab(selectedTab, -1)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                        title="左へ移動"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        onClick={() => moveTab(selectedTab, 1)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                        title="右へ移動"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteTab(selectedTab)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C67B7B] border-t-[#E0A0A0] border-l-[#E0A0A0] border-b-[#7B3B3B] border-r-[#7B3B3B]"
+                        title="タブを削除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={createTab}
+                    className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                    title="タブを追加"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               )}
-              <div className="text-sm space-y-1">
-                {hoveredNode.tasks?.map((task) => (
-                  <div key={task.id} className="text-gray-300 flex items-center gap-1">
-                    <span className="text-gray-500">
-                      {TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}
-                    </span>
-                    {getDisplayText(task, 'task', lang)}
-                  </div>
-                ))}
-                {(!hoveredNode.tasks || hoveredNode.tasks.length === 0) && (
-                  <div className="text-gray-500 text-xs">タスクがありません</div>
-                )}
-              </div>
             </div>
           )}
 
-          <ModeToast label={toastLabel} visible={toastVisible} />
+          <div
+            ref={canvasRef}
+            className={`flex-grow relative overflow-hidden ${
+              draggingNode ? 'cursor-grabbing'
+              : mode === 'add_node' ? 'cursor-crosshair'
+              : 'cursor-default'
+            }`}
+            style={{
+              backgroundColor: '#5d6b5e',
+              backgroundImage: `
+                linear-gradient(rgba(0,0,0,0.15) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0,0,0,0.15) 2px, transparent 2px)
+              `,
+              backgroundSize: '40px 40px',
+              backgroundPosition: `${pan.x}px ${pan.y}px`,
+              boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)',
+              touchAction: 'none',
+            }}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onContextMenu={(e) => e.preventDefault()}
+            onTouchStart={handleCanvasTouchStart}
+            onTouchMove={handleCanvasTouchMove}
+            onTouchEnd={handleCanvasTouchEnd}
+          >
+            <div
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px)`, transformOrigin: '0 0' }}
+              className="absolute inset-0 w-full h-full"
+            >
+              <svg className="absolute inset-0 overflow-visible pointer-events-none z-0">
+                {visibleEdges.map((edge) => {
+                  const src = visibleNodes.find((n) => n.id === edge.source)
+                  const tgt = visibleNodes.find((n) => n.id === edge.target)
+                  if (!src || !tgt) return null
+                  return <EdgePattern key={edge.id} source={src} target={tgt} />
+                })}
+                {visibleProposalEdges.map((edge) => {
+                  const allNodes = [...visibleNodes, ...visibleProposalNodes]
+                  const src = allNodes.find((n) => n.id === edge.source)
+                  const tgt = allNodes.find((n) => n.id === edge.target)
+                  if (!src || !tgt) return null
+                  return <EdgePattern key={edge.id} source={src} target={tgt} />
+                })}
+                {mode === 'add_link' && linkStartNode && (() => {
+                  const allNodes = [...visibleNodes, ...visibleProposalNodes]
+                  const startNode = allNodes.find((n) => n.id === linkStartNode)
+                  if (!startNode) return null
+                  return <EdgePattern source={startNode} isPreview targetPos={mousePos} />
+                })()}
+              </svg>
+
+              {visibleNodes.map((node) => (
+                <NodeEl
+                  key={node.id}
+                  node={node}
+                  mode={mode}
+                  draggingNode={draggingNode}
+                  linkStartNode={linkStartNode}
+                  linkHoverNode={linkHoverNode}
+                  setHoveredNode={setHoveredNode}
+                  completed={completedQuestIds.has(node.id)}
+                  celebrating={celebratingNodeId === node.id}
+                  onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
+                  onMouseUp={handleNodeMouseUp}
+                  onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
+                  onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
+                  onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, false)}
+                />
+              ))}
+
+              {visibleProposalNodes.map((node) => (
+                <NodeEl
+                  key={node.id}
+                  node={node}
+                  mode={mode}
+                  draggingNode={draggingNode}
+                  linkStartNode={linkStartNode}
+                  linkHoverNode={linkHoverNode}
+                  setHoveredNode={setHoveredNode}
+                  isDraft
+                  onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
+                  onMouseUp={handleNodeMouseUp}
+                  onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
+                  onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
+                  onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, false)}
+                />
+              ))}
+
+              {(proposalMode || isEditor) && visibleOtherProposalNodes.map((node) => (
+                <OtherProposalNodeEl
+                  key={node.id}
+                  node={node}
+                  mode={mode}
+                  isEditor={isEditor}
+                  onMouseDown={(e) => handleNodeMouseDown(e, node.id, true)}
+                  onMouseUp={handleNodeMouseUp}
+                  onTouchStart={(e) => handleNodeTouchStart(e, node.id, true)}
+                  onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
+                  onTouchEnd={(e) => handleNodeTouchEnd(e, node.id, true)}
+                />
+              ))}
+            </div>
+
+            {hoveredNode && !draggingNode && !isPanning && !editingNodeId && !itemSelectorConfig && !editingTaskReward && (
+              <div
+                className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs hidden sm:block"
+                style={{
+                  left: Math.min(mousePos.x + pan.x + 20, (canvasRef.current?.offsetWidth ?? 0) - 200),
+                  top: Math.min(mousePos.y + pan.y + 20, (canvasRef.current?.offsetHeight ?? 0) - 100),
+                }}
+              >
+                <div className="font-bold text-blue-300 text-lg mb-1">{hoveredNode.title}</div>
+                {hoveredNode.subtitle && (
+                  <div className="text-gray-400 text-xs italic mb-2">{hoveredNode.subtitle}</div>
+                )}
+                <div className="text-sm space-y-1">
+                  {hoveredNode.tasks?.map((task) => (
+                    <div key={task.id} className="text-gray-300 flex items-center gap-1">
+                      <span className="text-gray-500">
+                        {TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}
+                      </span>
+                      {getDisplayText(task, 'task', lang)}
+                    </div>
+                  ))}
+                  {(!hoveredNode.tasks || hoveredNode.tasks.length === 0) && (
+                    <div className="text-gray-500 text-xs">タスクがありません</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <ModeToast label={toastLabel} visible={toastVisible} />
+          </div>
+
+          {isMobile && (
+            <div className="shrink-0 h-16 border-t-4 border-black bg-[#8B8B8B] px-2 flex items-center gap-2 overflow-x-auto">
+              <ToolButton icon={MousePointer2} active={mode === 'select'} onClick={() => changeMode('select')} tooltip="選択" />
+              {showAddNode  && <ToolButton icon={Plus}       active={mode === 'add_node'} onClick={() => changeMode('add_node')} tooltip="クエストを追加" />}
+              {showAddLink  && <ToolButton icon={ArrowRight} active={mode === 'add_link'} onClick={() => changeMode('add_link')} tooltip="依存関係を追加" />}
+              {showDelete   && <ToolButton icon={Trash2}     active={mode === 'delete'}   onClick={() => changeMode('delete')}   tooltip="削除" />}
+              {showRewardTable && <ToolButton icon={List} active={showRewardTableModal} onClick={() => setShowRewardTableModal(true)} tooltip="報酬テーブル" />}
+              {showSettings && <ToolButton icon={Settings} active={false} onClick={() => {}} tooltip="設定" />}
+              {isEditor && (
+                <div className="ml-auto flex items-center gap-1">
+                  {selectedTab !== '__all__' && selectedTab !== '__uncategorized__' && (
+                    <>
+                      <button
+                        onClick={() => moveTab(selectedTab, -1)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                        title="左へ移動"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        onClick={() => moveTab(selectedTab, 1)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                        title="右へ移動"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteTab(selectedTab)}
+                        className="w-8 h-8 flex items-center justify-center border-2 bg-[#C67B7B] border-t-[#E0A0A0] border-l-[#E0A0A0] border-b-[#7B3B3B] border-r-[#7B3B3B]"
+                        title="タブを削除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={createTab}
+                    className="w-8 h-8 flex items-center justify-center border-2 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555]"
+                    title="タブを追加"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ===== モーダル群 ===== */}
@@ -1286,6 +1549,7 @@ export default function EditorPage() {
             close={() => setEditingNodeId(null)}
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
+            availableTabs={tabNames}
             readOnly={isReadOnlyNode(editingNodeId!)}
             conditionProgress={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.progress}
             claimReward={(() => {
@@ -1311,6 +1575,7 @@ export default function EditorPage() {
               close={() => setEditingProposalNodeId(null)}
               openItemSelector={setItemSelectorConfig}
               openTaskRewardEditor={setEditingTaskReward}
+              availableTabs={tabNames}
               proposalMeta={editingProposalNode.proposalId != null ? {
                 proposalId: editingProposalNode.proposalId,
                 proposerName: p?.proposerName ?? '',

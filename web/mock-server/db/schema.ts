@@ -1,5 +1,12 @@
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+export const questTabs = sqliteTable('quest_tabs', {
+  name: text('name').primaryKey(),
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 export const quests = sqliteTable('quests', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   title: text('title').notNull(),

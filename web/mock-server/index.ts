@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
+import tabRoutes from './routes/tabs.js'
 import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 
@@ -26,6 +27,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/quests', questRoutes)
 app.use('/api/progress', progressRoutes)
 app.use('/api/proposals', proposalRoutes)
+app.use('/api/tabs', tabRoutes)
 
 // ヘルスチェック
 app.get('/api/health', (_req, res) => {
