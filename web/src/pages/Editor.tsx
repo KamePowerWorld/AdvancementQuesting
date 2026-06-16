@@ -503,6 +503,7 @@ export default function EditorPage() {
       tasks: [], rewards: [],
     }
     setProposalNodes((prev) => [...prev, newNode])
+    setEditingNodeId(newNode.id)
   }, [selectedTab])
 
   // ---------------------------------------------------------------------------
@@ -637,13 +638,15 @@ export default function EditorPage() {
       if (proposalMode) {
         addProposalNode(wx, wy)
       } else if (isEditor) {
+        const nodeId = `node-${Date.now()}`
         setNodes((prev) => [...prev, {
-          id: `node-${Date.now()}`, x: wx, y: wy,
+          id: nodeId, x: wx, y: wy,
           icon: 'stone',
           category: selectedTab === '__all__' || selectedTab === '__uncategorized__' ? null : selectedTab,
           title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
+        setEditingNodeId(nodeId)
       }
     } else if (mode === 'add_link') {
       setLinkStartNode(null)
@@ -743,13 +746,15 @@ export default function EditorPage() {
       if (proposalMode) {
         addProposalNode(wx, wy)
       } else if (isEditor) {
+        const nodeId = `node-${Date.now()}`
         setNodes((prev) => [...prev, {
-          id: `node-${Date.now()}`, x: wx, y: wy,
+          id: nodeId, x: wx, y: wy,
           icon: 'stone',
           category: selectedTab === '__all__' || selectedTab === '__uncategorized__' ? null : selectedTab,
           title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
+        setEditingNodeId(nodeId)
       }
     }
   }

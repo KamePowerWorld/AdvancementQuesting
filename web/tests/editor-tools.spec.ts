@@ -81,6 +81,19 @@ test('保存永続化: 編集者がノード移動後に保存するとリロー
   expect(styleAfter).not.toContain('left: 100px')
 })
 
+test('編集者: 作成モードで追加した直後に編集モーダルが開く', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  await page.getByTitle('クエストを追加').click()
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  const before = await page.locator('[data-node-id]').count()
+  await canvas.click({ position: { x: 260, y: 220 } })
+
+  await expect(page.locator('[data-node-id]')).toHaveCount(before + 1, { timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('新規クエスト')
+})
+
 // 21
 test('タスク保存: advancement 条件を追加して保存するとリロード後も保持される', async ({ page }) => {
   await loginAs(page, 'demo-editor-token')

@@ -197,6 +197,19 @@ test('スマホ: editor — 編集/プレイモードを切り替えるとツー
   await expect(page.getByText('💾 保存')).toBeVisible()
 })
 
+test('スマホ: editor — 作成モードで追加した直後に編集モーダルが開く', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  await page.getByTitle('クエストを追加').click()
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  const before = await page.locator('[data-node-id]').count()
+  await canvas.click({ position: { x: 180, y: 260 } })
+
+  await expect(page.locator('[data-node-id]')).toHaveCount(before + 1, { timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('新規クエスト')
+})
+
 // M-9. プレイヤー: 提案送信フル
 test('スマホ: プレイヤー — 提案モードON→ドラフト追加→送信→終了', async ({ page }) => {
   // 提案をリセットして安定したノード数を確保
