@@ -33,6 +33,12 @@ export interface EditorTask {
   // type === 'stat' の場合
   statType?: string   // "minecraft:mined" など
   statId?: string     // "minecraft:diamond" など (カスタム統計は statType 自体に含む)
+  // type === 'location' の場合
+  locX?: number
+  locY?: number
+  locZ?: number
+  dimension?: string  // "overworld" / "nether" / "end"
+  radius?: number
 }
 
 /** 報酬のエディタ内表現 */

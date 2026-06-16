@@ -1,6 +1,6 @@
 export type QuestStatus = 'draft' | 'proposed' | 'public' | 'hidden'
 
-export type ConditionType = 'advancement' | 'item' | 'checkmark' | 'stat'
+export type ConditionType = 'advancement' | 'item' | 'checkmark' | 'stat' | 'location'
 
 export interface AdvancementCondition {
   id?: string
@@ -36,7 +36,17 @@ export interface StatCondition {
   count: number
 }
 
-export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition
+export interface LocationCondition {
+  id?: string
+  type: 'location'
+  x: number
+  y: number
+  z: number
+  dimension: string
+  radius: number
+}
+
+export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition | LocationCondition
 
 export type RewardType = 'item' | 'command' | 'experience' | 'permission' | 'money' | 'point'
 

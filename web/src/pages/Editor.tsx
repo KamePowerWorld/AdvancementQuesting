@@ -43,6 +43,7 @@ function questToNode(q: Quest): EditorNode {
       ...(c.type === 'advancement' ? { advancementId: c.advancementId ?? '' } : {}),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
       ...(c.type === 'stat' ? { statType: (c as any).statType ?? '', statId: (c as any).statId ?? '', count: (c as any).count ?? 1 } : {}),
+      ...(c.type === 'location' ? { locX: (c as any).x ?? 0, locY: (c as any).y ?? 0, locZ: (c as any).z ?? 0, dimension: (c as any).dimension ?? 'overworld', radius: (c as any).radius ?? 10 } : {}),
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
@@ -62,6 +63,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
     if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
     if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: ta.statType ?? '', statId: ta.statId ?? '', count: ta.count ?? 1 }
+    if (t.type === 'location') return { id: t.id, type: 'location' as const, x: ta.locX ?? 0, y: ta.locY ?? 0, z: ta.locZ ?? 0, dimension: ta.dimension ?? 'overworld', radius: ta.radius ?? 10 }
     return { id: t.id, type: 'checkmark' as const, label: t.value }
   })
   const rewards: Reward[] = (node.rewards ?? []).map((r) => {

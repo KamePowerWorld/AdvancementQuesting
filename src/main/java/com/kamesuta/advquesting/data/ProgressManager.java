@@ -120,6 +120,28 @@ public class ProgressManager {
     }
 
     /**
+     * プレイヤーが移動したとき呼ぶ。
+     * location 条件を持つクエストを確認し、座標が半径内に入っていれば達成とする。
+     * @param dimension "overworld" / "nether" / "end"
+     */
+    public void onPlayerMove(String playerUuid, int x, int y, int z, String dimension) {
+        try {
+            for (Quest quest : questManager.loadAll()) {
+                if (!"public".equals(quest.status)) continue;
+                if (quest.conditions == null) continue;
+                boolean hasMatch = quest.conditions.stream().anyMatch(c ->
+                    "location".equals(c.get("type")) && dimension.equals(c.get("dimension"))
+                );
+                if (hasMatch) {
+                    updateLocationProgress(playerUuid, quest, x, y, z, dimension);
+                }
+            }
+        } catch (Exception e) {
+            log.warning("onPlayerMove error: " + e.getMessage());
+        }
+    }
+
+    /**
      * チェックマーク条件をWebUIから手動で完了する。
      * conditionId が checkmark 型の条件と一致する場合のみ処理する。
      * @return true: 完了に成功、false: 条件が存在しないか既に完了済み
@@ -364,6 +386,50 @@ public class ProgressManager {
             if (!done) return false;
         }
         return true;
+    }
+
+    /** location 条件の進捗を確認し、半径内に入っていれば達成とする。 */
+    private void updateLocationProgress(String playerUuid, Quest quest, int px, int py, int pz, String dimension)
+            throws Exception {
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        List<Map<String, Object>> progress = record == null
+            ? new ArrayList<>()
+            : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
+
+        boolean changed = false;
+        for (Map<String, Object> cond : quest.conditions) {
+            if (!"location".equals(cond.get("type"))) continue;
+            if (!dimension.equals(cond.get("dimension"))) continue;
+            String condId = (String) cond.get("id");
+            int cx = ((Number) cond.getOrDefault("x", 0)).intValue();
+            int cz = ((Number) cond.getOrDefault("z", 0)).intValue();
+            int radius = ((Number) cond.getOrDefault("radius", 10)).intValue();
+
+            boolean alreadyDone = progress.stream()
+                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            if (alreadyDone) continue;
+
+            // 水平距離のみ (Y軸は無視して地表・高さ変化に寛容にする)
+            int dx = px - cx, dz = pz - cz;
+            boolean inRange = (dx * dx + dz * dz) <= (radius * radius);
+            if (!inRange) continue;
+
+            progress.removeIf(p -> condId.equals(p.get("conditionId")));
+            progress.add(Map.of("conditionId", condId, "completed", true));
+            changed = true;
+        }
+        if (!changed) return;
+
+        boolean allDone = isAllConditionsMet(quest, progress);
+        if (!allDone) allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
+        String completedAt = allDone ? java.time.Instant.now().toString() : null;
+        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+
+        if (allDone) {
+            notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+        }
     }
 
     /** checkmark を含む全条件が完了しているか確認する (checkmark 手動完了時に使用) */

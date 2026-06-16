@@ -5,7 +5,7 @@ import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcItems, getItemName, useMcAdvancements, getCustomStatName } from '@/hooks/useMcData.js'
-import { playerApi } from '@/api/player.js'
+import { playerApi, type PlayerLocation } from '@/api/player.js'
 import { AdvancementSelectorModal } from './AdvancementSelectorModal.js'
 import { StatSelectorModal } from './StatSelectorModal.js'
 import type { StatSelection } from './StatSelectorModal.js'
@@ -47,6 +47,8 @@ export function TaskRewardEditorModal({
   const { advancements } = useMcAdvancements()
   const [fetchingHeld, setFetchingHeld] = useState(false)
   const [heldError, setHeldError] = useState<string | null>(null)
+  const [fetchingLoc, setFetchingLoc] = useState(false)
+  const [locError, setLocError] = useState<string | null>(null)
   // サブモーダル表示フラグ
   const [showAdvSelector, setShowAdvSelector] = useState(false)
   const [showStatSelector, setShowStatSelector] = useState(false)
@@ -288,6 +290,88 @@ export function TaskRewardEditorModal({
       )
     }
 
+    // ----- 座標 -----
+    if (item.type === 'location') {
+      const t = item as EditorTask
+      const DIMENSIONS = [
+        { id: 'overworld', label: '地上 (Overworld)' },
+        { id: 'nether',    label: 'ネザー (Nether)' },
+        { id: 'end',       label: 'エンド (The End)' },
+      ]
+      const handleFetchLocation = async () => {
+        setFetchingLoc(true)
+        setLocError(null)
+        try {
+          const loc: PlayerLocation = await playerApi.getLocation()
+          handleChange({ locX: loc.x, locY: loc.y, locZ: loc.z, dimension: loc.dimension } as any)
+        } catch {
+          setLocError('座標を取得できませんでした。ゲームにログインしているか確認してください。')
+        } finally {
+          setFetchingLoc(false)
+        }
+      }
+      return (
+        <div className="flex flex-col gap-3">
+          <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">座標</label>
+
+          {/* 現在地ボタン */}
+          <button
+            onClick={handleFetchLocation}
+            disabled={fetchingLoc}
+            className="self-start text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
+            title="ゲームでの現在座標を自動入力"
+          >
+            {fetchingLoc ? '取得中...' : '🎮 現在の位置を入力'}
+          </button>
+          {locError && <span className="text-xs text-red-400">{locError}</span>}
+
+          {/* XYZ */}
+          <div className="flex gap-2">
+            {(['X', 'Y', 'Z'] as const).map((axis) => {
+              const key = `loc${axis}` as 'locX' | 'locY' | 'locZ'
+              return (
+                <div key={axis} className="flex flex-col gap-1 flex-1">
+                  <label className="text-xs text-gray-400">{axis}</label>
+                  <input
+                    type="number"
+                    value={t[key] ?? 0}
+                    onChange={(e) => handleChange({ [key]: Number(e.target.value) } as any)}
+                    className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-full outline-none focus:border-blue-500"
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ディメンション */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">ディメンション</label>
+            <select
+              value={t.dimension ?? 'overworld'}
+              onChange={(e) => handleChange({ dimension: e.target.value } as any)}
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
+            >
+              {DIMENSIONS.map((d) => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 半径 */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">半径 (ブロック)</label>
+            <input
+              type="number"
+              min={1}
+              value={t.radius ?? 10}
+              onChange={(e) => handleChange({ radius: Number(e.target.value) } as any)}
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      )
+    }
+
     // ----- チェックマーク -----
     if (item.type === 'checkmark') {
       return (
@@ -386,7 +470,7 @@ export function TaskRewardEditorModal({
   })()
 
   // 表示名フィールドが不要なタイプ
-  const noDisplayName = item.type === 'point' || item.type === 'advancement' || item.type === 'stat' || item.type === 'checkmark'
+  const noDisplayName = item.type === 'point' || item.type === 'advancement' || item.type === 'stat' || item.type === 'checkmark' || item.type === 'location'
 
   const inner = (
     <>

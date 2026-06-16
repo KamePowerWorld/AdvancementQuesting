@@ -21,6 +21,8 @@ const QUEST_ID_1 = 1
 const QUEST_ID_2 = 2
 const QUEST_ID_3 = 3
 const QUEST_ID_4 = 4
+const QUEST_ID_5 = 5
+const QUEST_ID_6 = 6
 
 async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
@@ -77,6 +79,39 @@ async function seed() {
       conditions: [{ id: 'cond-3-adv', type: 'advancement', advancementId: 'minecraft:story/mine_diamond', requiredCount: 1 }],
       rewards: [{ type: 'item', itemId: 'diamond_pickaxe', count: 1 }, { type: 'money', amount: 1000 }],
       mapPosition: { x: 400, y: 100 },
+      customButtons: [] as object[],
+      status: 'public' as const,
+      creatorUuid: null,
+    },
+    {
+      id: QUEST_ID_5,
+      title: 'チェックテスト',
+      description: 'チェックマーク条件のテスト用クエスト。',
+      icon: 'paper',
+      category: 'テスト',
+      prerequisites: [] as number[],
+      conditions: [
+        { id: 'cond-5-check1', type: 'checkmark', label: '確認する' },
+        { id: 'cond-5-check2', type: 'checkmark', label: '同意する' },
+      ],
+      rewards: [],
+      mapPosition: { x: 600, y: 100 },
+      customButtons: [] as object[],
+      status: 'public' as const,
+      creatorUuid: null,
+    },
+    {
+      id: QUEST_ID_6,
+      title: '座標テスト',
+      description: '座標条件のテスト用クエスト。',
+      icon: 'compass',
+      category: 'テスト',
+      prerequisites: [] as number[],
+      conditions: [
+        { id: 'cond-6-loc', type: 'location', x: 100, y: 64, z: 200, dimension: 'overworld', radius: 10 },
+      ],
+      rewards: [],
+      mapPosition: { x: 600, y: 250 },
       customButtons: [] as object[],
       status: 'public' as const,
       creatorUuid: null,

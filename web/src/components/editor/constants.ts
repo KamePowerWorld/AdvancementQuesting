@@ -8,6 +8,7 @@ export const TASK_TYPES = [
   { id: 'item',        label: 'アイテム', icon: '📦' },
   { id: 'stat',        label: '統計',     icon: '📊' },
   { id: 'checkmark',   label: 'チェック', icon: '✅' },
+  { id: 'location',    label: '座標',     icon: '📍' },
 ] as const
 
 // ---------------------------------------------------------------------------

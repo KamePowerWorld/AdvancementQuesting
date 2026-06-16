@@ -32,6 +32,11 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// GET /api/player/location — テスト用固定座標を返す
+app.get('/api/player/location', (_req, res) => {
+  res.json({ x: 100, y: 64, z: 200, dimension: 'overworld' })
+})
+
 // SSE: クエスト完了通知ストリーム (token認証)
 const sseClients = new Map<string, express.Response[]>()
 

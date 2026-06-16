@@ -27,6 +27,45 @@ public class PlayerRoutes {
 
     public void register(Javalin app) {
 
+        // GET /api/player/location — ログイン中プレイヤーの現在座標・ディメンションを返す
+        app.get("/api/player/location", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+
+            CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                try {
+                    Player player = Bukkit.getPlayer(UUID.fromString(session.playerUuid()));
+                    if (player == null) {
+                        future.completeExceptionally(new NotFoundResponse("プレイヤーがオンラインではありません"));
+                        return;
+                    }
+                    org.bukkit.Location loc = player.getLocation();
+                    // ディメンション名を "overworld" / "nether" / "end" に正規化する
+                    String key = player.getWorld().getKey().getKey(); // "overworld", "the_nether", "the_end"
+                    String dimension = switch (key) {
+                        case "the_nether" -> "nether";
+                        case "the_end"    -> "end";
+                        default           -> "overworld";
+                    };
+                    future.complete(Map.of(
+                        "x", (int) loc.getX(),
+                        "y", (int) loc.getY(),
+                        "z", (int) loc.getZ(),
+                        "dimension", dimension
+                    ));
+                } catch (Exception e) {
+                    future.completeExceptionally(e);
+                }
+            });
+
+            try {
+                ctx.json(future.get());
+            } catch (java.util.concurrent.ExecutionException e) {
+                if (e.getCause() instanceof NotFoundResponse nf) throw nf;
+                throw new RuntimeException(e.getCause());
+            }
+        });
+
         // GET /api/player/held-item — ログイン中プレイヤーの手持ちアイテムを返す
         app.get("/api/player/held-item", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);

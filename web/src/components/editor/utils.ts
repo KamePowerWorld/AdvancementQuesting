@@ -44,6 +44,14 @@ export function getDisplayText(
   } else if (item.type === 'point') {
     const amount = (item as any).amount ?? 0
     detail = `${amount} pt`
+  } else if (item.type === 'location') {
+    const t = item as EditorTask
+    const dim = { overworld: '地上', nether: 'ネザー', end: 'エンド' }[t.dimension ?? 'overworld'] ?? t.dimension ?? '地上'
+    if (t.locX != null) {
+      detail = `${dim} (${t.locX}, ${t.locY}, ${t.locZ}) ±${t.radius ?? 10}`
+    } else {
+      detail = '未設定'
+    }
   } else if (item.value) {
     detail = item.value
   } else {
