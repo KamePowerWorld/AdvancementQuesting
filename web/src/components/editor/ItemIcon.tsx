@@ -78,7 +78,6 @@ export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
         height: size,
         flexShrink: 0,
         overflow: 'hidden',
-        imageRendering: 'pixelated',
         backgroundImage: 'url(/mc/atlas/blocks.png)',
         backgroundRepeat: 'no-repeat',
         backgroundPosition: `${cx}px ${cy}px`,

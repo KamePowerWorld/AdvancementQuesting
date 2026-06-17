@@ -30,7 +30,7 @@ const JAR_PATH = process.env['MC_JAR'] ?? join(CACHE_DIR, 'minecraft.jar')
 
 // WSL 内の作業ディレクトリ（WSL パスで指定）
 const WSL_WORK_DIR = '/tmp/mc-render-atlas'
-const TILE_SIZE = 64
+const TILE_SIZE = 128
 
 function toWslPath(winPath: string): string {
   // D:\foo\bar → /mnt/d/foo/bar
