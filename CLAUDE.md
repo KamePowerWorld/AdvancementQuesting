@@ -9,6 +9,10 @@ AdvancementQuesting is a PaperMC (Minecraft) plugin that provides a quest system
 1. **Java backend** (`src/`) — PaperMC plugin with an embedded Javalin HTTP server
 2. **React frontend** (`web/`) — TypeScript/React SPA that runs in the browser
 
+## Temporary Files
+
+Save all screenshots, transient test results, and debug files to `tmp/`. This directory is excluded via `.gitignore`.
+
 ## Must Follow
 
 After completing each implementation unit, do all of the following before moving to the next task:
