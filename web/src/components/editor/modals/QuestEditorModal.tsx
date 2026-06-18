@@ -56,10 +56,7 @@ export function QuestEditorModal({
   const [showRewardMenu, setShowRewardMenu] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
-  // スマホ用: タスク/報酬どちらのタブを表示するか
-  const [activeTab, setActiveTab] = useState<'task' | 'reward'>('task')
-
-  const isMobile = useIsMobile()
+const isMobile = useIsMobile()
   const { data: lang } = useMcLang()
 
   const addTask = (type: string) => {
@@ -373,46 +370,35 @@ export function QuestEditorModal({
           )}
         </div>
 
-        {/* タブ切り替え */}
-        <div className="flex shrink-0 border-b border-gray-600">
-          {(['task', 'reward', 'detail'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as 'task' | 'reward')}
-              className={`flex-1 py-2 text-sm font-bold transition-colors ${
-                activeTab === tab
-                  ? 'bg-[#1e1f29] text-white border-b-2 border-blue-400'
-                  : 'text-gray-400'
-              }`}
-            >
-              {tab === 'task' ? 'タスク' : tab === 'reward' ? '報酬' : '詳細'}
-            </button>
-          ))}
-        </div>
-
-        {/* タブコンテンツ */}
-        <div className="flex-1 flex flex-col overflow-hidden p-3 min-h-0">
-          {activeTab === 'task' && <TaskList />}
-          {activeTab === 'reward' && <RewardList />}
-          {(activeTab as string) === 'detail' && (
-            <div className="flex flex-col gap-3 flex-1">
-              <input
-                type="text"
-                value={node.subtitle}
-                onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
-                readOnly={readOnly}
-                className={`w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 placeholder-gray-600 pb-1 ${readOnly ? 'cursor-default' : 'focus:border-gray-400'}`}
-                placeholder="補足説明 (例: 掘って、切って、壊して！)"
-              />
-              <textarea
-                value={node.description}
-                onChange={(e) => updateNode({ ...node, description: e.target.value })}
-                readOnly={readOnly}
-                className={`w-full flex-1 bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none rounded-sm leading-relaxed ${readOnly ? 'cursor-default' : 'focus:border-blue-500'}`}
-                placeholder="クエストの詳細な説明..."
-              />
-            </div>
-          )}
+        {/* 縦スクロール: タスク・報酬・詳細を1画面に */}
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4 min-h-0">
+          <div>
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">タスク</div>
+            <TaskList />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">報酬</div>
+            <RewardList />
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">詳細</div>
+            <input
+              type="text"
+              value={node.subtitle}
+              onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
+              readOnly={readOnly}
+              className={`w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 placeholder-gray-600 pb-1 ${readOnly ? 'cursor-default' : 'focus:border-gray-400'}`}
+              placeholder="補足説明 (例: 掘って、切って、壊して！)"
+            />
+            <textarea
+              value={node.description}
+              onChange={(e) => updateNode({ ...node, description: e.target.value })}
+              readOnly={readOnly}
+              rows={4}
+              className={`w-full bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none rounded-sm leading-relaxed ${readOnly ? 'cursor-default' : 'focus:border-blue-500'}`}
+              placeholder="クエストの詳細な説明..."
+            />
+          </div>
         </div>
       </div>
     )
