@@ -343,3 +343,27 @@ test('スマホ: 完了済み未受取クエストで報酬受取ボタンが表
 
   await page.getByRole('button', { name: '閉じる' }).last().click()
 })
+
+// M-A-4: 繰り返しcron入力欄に連続入力してもフォーカス（キーボード）が外れない
+test('スマホ: cron入力欄に連続入力してもフォーカスが維持される (M-A-4)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  // モーダルを開く
+  const node1 = page.locator('[data-node-id="1"]')
+  const box = await node1.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
+
+  // 繰り返し → 時刻指定 を選択 (縦スクロールで下にある)
+  const scheduleBtn = page.getByRole('button', { name: '時刻指定' })
+  await scheduleBtn.scrollIntoViewIfNeeded()
+  await scheduleBtn.click()
+
+  const cron = page.getByPlaceholder('分 時 日 月 曜日')
+  await cron.click()
+  await page.keyboard.press('Control+A')
+  // 1文字ずつ入力してもフォーカスが外れない（以前は再マウントで毎回キーボードが閉じた）
+  await page.keyboard.type('30 8 * * *', { delay: 40 })
+  await expect(cron).toBeFocused()
+  await expect(cron).toHaveValue('30 8 * * *')
+})

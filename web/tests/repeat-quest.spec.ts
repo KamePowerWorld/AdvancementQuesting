@@ -27,14 +27,32 @@ test('RP-1: 編集モードで繰り返しタイプ選択UIが表示される', 
   await expect(page.getByRole('button', { name: '無制限' })).toBeVisible()
 })
 
-test('RP-2: クールダウン選択で時間入力が現れる', async ({ page }) => {
+test('RP-2: クールダウン選択で時間+分入力と復活プレビューが現れる', async ({ page }) => {
   await loginAs(page, 'demo-editor-token')
   await openQuestModal(page, '1')
 
   await page.getByRole('button', { name: 'クールダウン' }).click()
   await expect(page.getByText('復活までの時間')).toBeVisible()
+  // 時間・分の単位ラベルが両方出る
+  await expect(page.getByText('時間', { exact: true })).toBeVisible()
+  await expect(page.getByText('分', { exact: true })).toBeVisible()
+  // 「今達成したら: ... に復活 (... 後)」のプレビューが出る
+  await expect(page.getByText(/今達成したら:.*に復活.*後/)).toBeVisible()
   // cron式入力は出ない
   await expect(page.getByPlaceholder('分 時 日 月 曜日')).toHaveCount(0)
+})
+
+test('RP-2b: クールダウンに分を入力するとプレビューに反映される', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await openQuestModal(page, '1')
+
+  await page.getByRole('button', { name: 'クールダウン' }).click()
+  const inputs = page.locator('input[type="number"]')
+  // 1番目=時間, 2番目=分
+  await inputs.nth(0).fill('1')
+  await inputs.nth(1).fill('30')
+  // 1h 30m 後 のプレビュー
+  await expect(page.getByText(/1h 30m 後/)).toBeVisible()
 })
 
 test('RP-3: 時刻指定選択でcron式入力とプリセットが現れる', async ({ page }) => {
@@ -61,4 +79,18 @@ test('RP-4: pendingRewards>1で受取ボタンに件数が表示される', asyn
   await openQuestModal(page, '1')
 
   await expect(page.getByRole('button', { name: /報酬を受け取る.*×3/ })).toBeVisible()
+})
+
+test('RP-5: cron入力欄に連続入力してもフォーカスが外れない (再マウント回帰)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await openQuestModal(page, '1')
+
+  await page.getByRole('button', { name: '時刻指定' }).click()
+  const cron = page.getByPlaceholder('分 時 日 月 曜日')
+  await cron.click()
+  // 1文字ずつ打ってもフォーカスが維持される (以前は再マウントで毎回外れていた)
+  await page.keyboard.press('Control+A')
+  await page.keyboard.type('15 9 * * 1', { delay: 30 })
+  await expect(cron).toBeFocused()
+  await expect(cron).toHaveValue('15 9 * * 1')
 })

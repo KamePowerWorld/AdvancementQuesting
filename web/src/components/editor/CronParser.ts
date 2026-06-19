@@ -98,3 +98,34 @@ export function cooldownNextFire(completedAt: string, cooldownHours: number): Da
   d.setTime(d.getTime() + cooldownHours * 3600000)
   return d
 }
+
+/** 復活時刻を絶対表記 "HH:MM" / 日をまたぐなら "M/D HH:MM" で返す */
+export function formatAbsolute(nextAt: Date, from: Date = new Date()): string {
+  const hh = String(nextAt.getHours()).padStart(2, '0')
+  const mm = String(nextAt.getMinutes()).padStart(2, '0')
+  const sameDay = nextAt.getFullYear() === from.getFullYear()
+    && nextAt.getMonth() === from.getMonth()
+    && nextAt.getDate() === from.getDate()
+  if (sameDay) return `${hh}:${mm}`
+  return `${nextAt.getMonth() + 1}/${nextAt.getDate()} ${hh}:${mm}`
+}
+
+/** 残り時間を相対表記 "Xd Yh Zm" (0の単位は省略) で返す */
+export function formatDuration(nextAt: Date, from: Date = new Date()): string {
+  const diffMs = nextAt.getTime() - from.getTime()
+  if (diffMs <= 0) return '0m'
+  const totalMin = Math.floor(diffMs / 60000)
+  const d = Math.floor(totalMin / 1440)
+  const h = Math.floor((totalMin % 1440) / 60)
+  const m = totalMin % 60
+  const parts: string[] = []
+  if (d > 0) parts.push(`${d}d`)
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0 || parts.length === 0) parts.push(`${m}m`)
+  return parts.join(' ')
+}
+
+/** "HH:MM に復活 (Xh Ym 後)" 形式の編集プレビュー文字列を返す */
+export function formatRevivePreview(nextAt: Date, from: Date = new Date()): string {
+  return `${formatAbsolute(nextAt, from)} に復活 (${formatDuration(nextAt, from)} 後)`
+}
