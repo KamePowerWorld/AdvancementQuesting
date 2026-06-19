@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Plus, Trash2, X, RotateCw } from 'lucide-react'
 import type { EditorNode, ItemSelectorConfig, EditingTaskReward } from '../types.js'
 import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
@@ -450,7 +450,7 @@ export function QuestEditorModal({
           {/* 繰り返しクエストバナー */}
           {readOnly && isRepeatQuest && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-bold" style={{ backgroundColor: '#1a2a3a', borderLeft: '3px solid #4a9edd', color: '#7bc8f8' }}>
-              <span>🔁 繰り返しクエスト</span>
+              <span className="flex items-center gap-1"><RotateCw size={13} strokeWidth={2.5} /> 繰り返しクエスト</span>
               {repeatCountdown && <span className="text-gray-300 font-normal">｜ 次の復活: {repeatCountdown}</span>}
             </div>
           )}
@@ -619,7 +619,7 @@ export function QuestEditorModal({
           {/* 繰り返しクエストバナー */}
           {readOnly && isRepeatQuest && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-bold" style={{ backgroundColor: '#1a2a3a', borderLeft: '3px solid #4a9edd', color: '#7bc8f8' }}>
-              <span>🔁 繰り返しクエスト</span>
+              <span className="flex items-center gap-1"><RotateCw size={13} strokeWidth={2.5} /> 繰り返しクエスト</span>
               {repeatCountdown && <span className="text-gray-300 font-normal">｜ 次の復活: {repeatCountdown}</span>}
             </div>
           )}

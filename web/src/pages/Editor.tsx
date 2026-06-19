@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User } from 'lucide-react'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -1486,6 +1486,13 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
       </div>
       {isDraft && (
         <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-400 rounded-full border border-white z-10" title="提案ドラフト" />
+      )}
+
+      {/* 繰り返しクエストバッジ (左上) */}
+      {node.repeat && node.repeat.type !== 'none' && (
+        <div className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#1a2a3a] border border-[#4a9edd] z-10 flex items-center justify-center" title="繰り返しクエスト">
+          <RotateCw size={11} strokeWidth={2.5} className="text-[#7ec8ff]" style={{ transform: 'translate(-0.5px, -0.5px)' }} />
+        </div>
       )}
 
       {/* 達成済みチェックマーク (右下バッジ) */}
