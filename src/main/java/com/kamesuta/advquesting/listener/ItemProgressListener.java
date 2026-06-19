@@ -26,8 +26,11 @@ public class ItemProgressListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack item = event.getItem().getItemStack();
-        String type = item.getType().getKey().toString(); // "minecraft:oak_log" 形式
-        progressManager.onItemPickup(player.getUniqueId().toString(), type, item.getAmount());
+        org.bukkit.Material mat = item.getType();
+        String type = mat.getKey().toString();
+        // 拾得後のインベントリ合計（拾う分を加算して計算）
+        int inv = countInInventory(player, mat) + item.getAmount();
+        progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
     }
 
     /** クラフトで作ったとき */
@@ -35,20 +38,27 @@ public class ItemProgressListener implements Listener {
     public void onCraft(CraftItemEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         ItemStack result = event.getRecipe().getResult();
-        int amount = result.getAmount();
-        // Shift+クリックで一括クラフト
-        if (event.isShiftClick()) {
-            // 最大クラフト回数を概算 (上限64スタック分)
-            amount = Math.min(amount * 64, 64);
-        }
-        String type = result.getType().getKey().toString(); // "minecraft:oak_log" 形式
-        progressManager.onItemPickup(player.getUniqueId().toString(), type, amount);
+        org.bukkit.Material mat = result.getType();
+        String type = mat.getKey().toString();
+        int inv = countInInventory(player, mat) + result.getAmount();
+        progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
     }
 
     /** かまどから取り出したとき */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onFurnaceExtract(FurnaceExtractEvent event) {
-        String type = event.getItemType().getKey().toString(); // "minecraft:oak_log" 形式
-        progressManager.onItemPickup(event.getPlayer().getUniqueId().toString(), type, event.getItemAmount());
+        Player player = event.getPlayer();
+        org.bukkit.Material mat = event.getItemType();
+        String type = mat.getKey().toString();
+        int inv = countInInventory(player, mat) + event.getItemAmount();
+        progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
+    }
+
+    private static int countInInventory(Player player, org.bukkit.Material mat) {
+        int total = 0;
+        for (ItemStack slot : player.getInventory().getContents()) {
+            if (slot != null && slot.getType() == mat) total += slot.getAmount();
+        }
+        return total;
     }
 }

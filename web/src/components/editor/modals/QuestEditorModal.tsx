@@ -154,7 +154,7 @@ export function QuestEditorModal({
         {node.tasks?.map((task) => {
           const cp = conditionProgress?.find((p) => p.conditionId === task.id)
           const isDone = cp?.completed ?? false
-          const hasCount = cp != null && cp.current != null && cp.required != null
+          const hasCount = cp != null && cp.current != null && cp.required != null && task.type !== 'item'
           return (
             <div
               key={task.id}

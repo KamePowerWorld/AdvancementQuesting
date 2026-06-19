@@ -77,11 +77,10 @@ public class ProgressManager {
 
     /**
      * アイテム獲得時に呼ぶ。
-     * itemType が一致する item 条件の count を消費分だけ加算する。
+     * inventoryCount はそのアイテムのインベントリ内現在所持数。
+     * required 以上所持していれば達成とする（累積カウントしない）。
      */
-    public void onItemPickup(String playerUuid, String itemType, int amount) {
-        // Bukkit は "minecraft:oak_log" 形式で返すが、UIは "oak_log" 形式で保存する場合がある
-        // 両方にマッチするよう名前空間なし版も用意する
+    public void onItemPickup(String playerUuid, String itemType, int inventoryCount) {
         String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
         try {
             for (Quest quest : questManager.loadAll()) {
@@ -95,7 +94,7 @@ public class ProgressManager {
                     return itemTypeNoNs.equals(condNoNs);
                 });
                 if (hasMatch) {
-                    updateItemProgress(playerUuid, quest, itemType, amount);
+                    updateItemProgress(playerUuid, quest, itemType, inventoryCount);
                 }
             }
         } catch (Exception e) {
@@ -387,12 +386,7 @@ public class ProgressManager {
                 for (Map<String, Object> cond : quest.conditions) {
                     String condId = (String) cond.get("id");
                     if (condId == null) continue;
-                    if ("item".equals(cond.get("type"))) {
-                        int required = ((Number) cond.getOrDefault("count", 1)).intValue();
-                        allDone.add(Map.of("conditionId", condId, "current", required, "required", required, "completed", true));
-                    } else {
-                        allDone.add(Map.of("conditionId", condId, "completed", true));
-                    }
+                    allDone.add(Map.of("conditionId", condId, "completed", true));
                 }
                 progressJson = MAPPER.writeValueAsString(allDone);
             } else {
@@ -458,7 +452,7 @@ public class ProgressManager {
         }
     }
 
-    private void updateItemProgress(String playerUuid, Quest quest, String itemType, int addAmount)
+    private void updateItemProgress(String playerUuid, Quest quest, String itemType, int inventoryCount)
             throws Exception {
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
@@ -476,18 +470,15 @@ public class ProgressManager {
             String condId = (String) cond.get("id");
             int required = ((Number) cond.getOrDefault("count", 1)).intValue();
 
-            // 現在の収集数
-            Map<String, Object> existing = progress.stream()
-                .filter(p -> condId.equals(p.get("conditionId")))
-                .findFirst().orElse(null);
-            int current = existing == null ? 0 : ((Number) existing.getOrDefault("current", 0)).intValue();
-            boolean wasCompleted = existing != null && Boolean.TRUE.equals(existing.get("completed"));
+            boolean wasCompleted = progress.stream()
+                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
             if (wasCompleted) continue;
 
-            int newCount = Math.min(current + addAmount, required);
-            boolean nowDone = newCount >= required;
+            // 一度に required 個以上持っていなければ達成しない
+            if (inventoryCount < required) continue;
+
             progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "current", newCount, "required", required, "completed", nowDone));
+            progress.add(Map.of("conditionId", condId, "completed", true));
             changed = true;
         }
         if (!changed) return;

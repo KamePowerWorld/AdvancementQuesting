@@ -157,21 +157,33 @@ test('条件チェックマーク: progress_update受信でモーダル内の条
   await page.getByRole('button', { name: '閉じる' }).last().click()
 })
 
-test('アイテム条件部分達成: progress_updateでモーダルにプログレスバーが表示される (WA2)', async ({ page }) => {
+test('アイテム条件: progress_updateでプログレスバーは表示されず、完了時のみ達成マークが出る (WA2)', async ({ page }) => {
   await resetProgress(page)
   await loginAs(page, 'demo-editor-token')
   await openQuestModal(page, '2')
   await expect(page.getByPlaceholder('クエストのタイトル')).toHaveValue('石器時代')
 
+  // item タイプは途中進捗を保存しないのでプログレスバーは出ない
   await setConditionProgress(
     page, EDITOR_UUID, 2,
-    [{ conditionId: 'cond-2-item', current: 1, required: 3, completed: false }],
+    [{ conditionId: 'cond-2-item', completed: false }],
     { completed: false },
   )
   await notifyProgressUpdate(page, 'demo-editor-token', 2, false)
 
-  await expect(page.getByText('1/3')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText('1/3')).not.toBeVisible()
   await expect(page.getByTitle('達成済み')).not.toBeVisible()
+
+  // 完了状態にすると達成マークが出る
+  await setConditionProgress(
+    page, EDITOR_UUID, 2,
+    [{ conditionId: 'cond-2-item', completed: true }],
+    { completed: true, rewardClaimed: false },
+  )
+  await notifyProgressUpdate(page, 'demo-editor-token', 2, true)
+
+  // ノードバッジではなくモーダル内の達成マークを確認
+  await expect(page.locator(':not([data-node-id]) > [title="達成済み"]')).toBeVisible({ timeout: 5000 })
 
   await page.getByRole('button', { name: '閉じる' }).last().click()
 })
