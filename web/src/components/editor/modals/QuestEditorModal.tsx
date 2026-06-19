@@ -7,7 +7,7 @@ import { getDisplayText } from '../utils.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
 import type { ConditionProgress } from '@/types/progress.js'
-import { nextFire, cooldownNextFire, formatCountdown, formatRevivePreview } from '../CronParser.js'
+import { nextFire, cooldownNextFire, formatRevivePreview } from '../CronParser.js'
 
 interface ProposalMeta {
   proposalId: number
@@ -72,17 +72,18 @@ export function QuestEditorModal({
 
   // 繰り返し設定
   const repeat = node.repeat
+  const isRepeatQuest = repeat && repeat.type !== 'none'
   const repeatCountdown = (() => {
     if (!repeat || repeat.type === 'none' || repeat.type === 'unlimited') return null
     if (repeat.type === 'cooldown' && repeat.cooldownHours && completedAt) {
       const next = cooldownNextFire(completedAt, repeat.cooldownHours)
       if (next <= new Date()) return null // already available
-      return formatCountdown(next)
+      return formatRevivePreview(next)
     }
     if (repeat.type === 'schedule' && repeat.cron) {
       const next = nextFire(repeat.cron)
       if (!next) return null
-      return formatCountdown(next)
+      return formatRevivePreview(next)
     }
     return null
   })()
@@ -446,8 +447,15 @@ export function QuestEditorModal({
           {node.creatorName && (
             <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
+          {/* 繰り返しクエストバナー */}
+          {readOnly && isRepeatQuest && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-bold" style={{ backgroundColor: '#1a2a3a', borderLeft: '3px solid #4a9edd', color: '#7bc8f8' }}>
+              <span>🔁 繰り返しクエスト</span>
+              {repeatCountdown && <span className="text-gray-300 font-normal">｜ 次の復活: {repeatCountdown}</span>}
+            </div>
+          )}
           {/* 納品ボタン / 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(onDeliver || claimReward || proposalMeta || repeatCountdown) && (
+          {(onDeliver || claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
               {onDeliver && (
                 <button
@@ -468,7 +476,7 @@ export function QuestEditorModal({
                 </button>
               )}
               {claimReward && (
-                <div className="flex flex-col gap-1 mr-auto">
+                <div className="flex items-center gap-3 mr-auto">
                   <button
                     onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
                     disabled={claiming}
@@ -485,11 +493,7 @@ export function QuestEditorModal({
                   >
                     {claiming ? '受取中...' : `★ 報酬を受け取る${pendingRewards && pendingRewards > 1 ? ` (×${pendingRewards})` : ''}`}
                   </button>
-                  {repeatCountdown && <span className="text-xs text-gray-400">次の復活まで {repeatCountdown}</span>}
                 </div>
-              )}
-              {!claimReward && repeatCountdown && (
-                <span className="text-xs text-gray-400 mr-auto">次の復活まで {repeatCountdown}</span>
               )}
               {proposalMeta && (<>
                 <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
@@ -612,11 +616,18 @@ export function QuestEditorModal({
           {node.creatorName && (
             <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
+          {/* 繰り返しクエストバナー */}
+          {readOnly && isRepeatQuest && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm text-xs font-bold" style={{ backgroundColor: '#1a2a3a', borderLeft: '3px solid #4a9edd', color: '#7bc8f8' }}>
+              <span>🔁 繰り返しクエスト</span>
+              {repeatCountdown && <span className="text-gray-300 font-normal">｜ 次の復活: {repeatCountdown}</span>}
+            </div>
+          )}
           {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(claimReward || proposalMeta || repeatCountdown) && (
+          {(claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
               {claimReward && (
-                <div className="flex flex-col gap-1 mr-auto">
+                <div className="flex items-center gap-3 mr-auto">
                   <button
                     onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
                     disabled={claiming}
@@ -633,11 +644,7 @@ export function QuestEditorModal({
                   >
                     {claiming ? '受取中...' : `★ 報酬を受け取る${pendingRewards && pendingRewards > 1 ? ` (×${pendingRewards})` : ''}`}
                   </button>
-                  {repeatCountdown && <span className="text-xs text-gray-400">次の復活まで {repeatCountdown}</span>}
                 </div>
-              )}
-              {!claimReward && repeatCountdown && (
-                <span className="text-xs text-gray-400 mr-auto">次の復活まで {repeatCountdown}</span>
               )}
               {proposalMeta && (<>
                 <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
