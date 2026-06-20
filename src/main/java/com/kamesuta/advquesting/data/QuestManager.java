@@ -28,29 +28,44 @@ public class QuestManager {
     private final File questsDir;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+    // イベントハンドラから毎回ディスクI/Oが発生しないようにオンメモリキャッシュを持つ。
+    // create/update/delete 後にのみ無効化される。
+    private volatile List<Quest> cache = null;
+
     public QuestManager(File dataFolder) {
         this.questsDir = new File(dataFolder, "quests");
         questsDir.mkdirs();
     }
 
     public List<Quest> loadAll() {
+        if (cache != null) return cache;
         lock.readLock().lock();
         try {
-            File[] files = questsDir.listFiles(f -> FILE_PATTERN.matcher(f.getName()).matches());
-            if (files == null) return Collections.emptyList();
-            Arrays.sort(files);
-            List<Quest> result = new ArrayList<>();
-            for (File f : files) {
-                try {
-                    result.add(MAPPER.readValue(f, Quest.class));
-                } catch (IOException e) {
-                    // 壊れたファイルはスキップ
-                }
-            }
-            return result;
+            if (cache != null) return cache;
+            cache = loadFromDisk();
+            return cache;
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    private List<Quest> loadFromDisk() {
+        File[] files = questsDir.listFiles(f -> FILE_PATTERN.matcher(f.getName()).matches());
+        if (files == null) return Collections.emptyList();
+        Arrays.sort(files);
+        List<Quest> result = new ArrayList<>();
+        for (File f : files) {
+            try {
+                result.add(MAPPER.readValue(f, Quest.class));
+            } catch (IOException e) {
+                // 壊れたファイルはスキップ
+            }
+        }
+        return result;
+    }
+
+    private void invalidateCache() {
+        cache = null;
     }
 
     public Quest findById(int id) {
@@ -73,12 +88,13 @@ public class QuestManager {
     public Quest create(Quest quest) throws IOException {
         lock.writeLock().lock();
         try {
-            int nextId = loadAll().stream().mapToInt(q -> q.id).max().orElse(0) + 1;
+            int nextId = loadFromDisk().stream().mapToInt(q -> q.id).max().orElse(0) + 1;
             quest.id = nextId;
             String now = Instant.now().toString();
             quest.createdAt = now;
             quest.updatedAt = now;
             MAPPER.writeValue(file(quest), quest);
+            invalidateCache();
             return quest;
         } finally {
             lock.writeLock().unlock();
@@ -111,6 +127,7 @@ public class QuestManager {
             // タイトルが変わるとファイル名も変わる → 旧ファイル削除
             f.delete();
             MAPPER.writeValue(file(existing), existing);
+            invalidateCache();
             return existing;
         } finally {
             lock.writeLock().unlock();
@@ -121,7 +138,11 @@ public class QuestManager {
         lock.writeLock().lock();
         try {
             File f = findFile(id);
-            return f != null && f.delete();
+            if (f != null && f.delete()) {
+                invalidateCache();
+                return true;
+            }
+            return false;
         } finally {
             lock.writeLock().unlock();
         }
