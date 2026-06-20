@@ -731,9 +731,11 @@ export function QuestEditorModal({
 
       {/* ランキングパネル: メインダイアログの右にフローティング表示 */}
       {rankingSection && (
-        <div className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[280px] flex flex-col p-4 shadow-2xl text-white rounded-md overflow-y-auto">
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">ランキング</div>
-          {rankingSection}
+        <div className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[280px] h-[650px] flex flex-col p-4 shadow-2xl text-white rounded-md">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 shrink-0">ランキング</div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {rankingSection}
+          </div>
         </div>
       )}
       </div>

@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 const router = Router()
 
 const DEFAULT_LIMIT = 10
-const DEFAULT_AROUND = 2
+const DEFAULT_AROUND = 1
 
 interface AggRow {
   playerUuid: string

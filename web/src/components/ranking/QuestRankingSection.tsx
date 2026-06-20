@@ -21,8 +21,15 @@ export function QuestRankingSection({ questId, repeatable }: Props) {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ranking', questId, type, full],
-    queryFn: () => rankingApi.get(questId, { type, full: full || undefined }),
+    queryFn: () => rankingApi.get(questId, { type, limit: full ? undefined : 5, full: full || undefined }),
   })
+
+  const handleShowAll = () => setFull(true)
+
+  const handleTypeChange = (t: RankingType) => {
+    setType(t)
+    setFull(false)
+  }
 
   if (isLoading) {
     return <div className="text-center text-sm text-gray-500 py-8">ランキングを読み込み中...</div>
@@ -38,8 +45,8 @@ export function QuestRankingSection({ questId, repeatable }: Props) {
       around={data.around}
       totalPlayers={data.totalPlayers}
       repeatable={repeatable}
-      onTypeChange={(t) => { setType(t); setFull(false) }}
-      onShowAll={full ? undefined : () => setFull(true)}
+      onTypeChange={handleTypeChange}
+      onShowAll={full ? undefined : handleShowAll}
     />
   )
 }

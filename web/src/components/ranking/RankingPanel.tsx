@@ -90,19 +90,18 @@ const RankingRow: FC<RowProps> = ({ entry, type }) => {
         onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }}
       />
 
-      {/* 名前 */}
-      <div className={`flex-1 min-w-0 truncate text-sm font-semibold ${entry.isMe ? 'text-yellow-200' : 'text-gray-100'}`}>
-        {entry.playerName}
-        {entry.isMe && <span className="ml-1 text-[10px] text-yellow-400">(あなた)</span>}
-      </div>
-
-      {/* 値 (クリア順=時刻 / 回数=回数) */}
-      <div className="shrink-0 text-right">
-        {type === 'count' ? (
-          <span className="text-sm font-bold text-blue-300">{entry.clears}<span className="text-xs text-gray-400">回</span></span>
-        ) : (
-          <span className="text-xs text-gray-400 tabular-nums">{formatClearTime(entry.completedAt)}</span>
-        )}
+      {/* 名前 + 日付 (2行) */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className={`truncate text-sm font-semibold ${entry.isMe ? 'text-yellow-200' : 'text-gray-100'}`}>
+          {entry.playerName}
+          {entry.isMe && <span className="ml-1 text-[10px] text-yellow-400">(あなた)</span>}
+        </div>
+        <div className="text-[11px] text-gray-500 tabular-nums">
+          {type === 'count'
+            ? <><span className="font-bold text-blue-300 text-xs">{entry.clears}</span><span className="text-gray-400">回</span></>
+            : formatClearTime(entry.completedAt)
+          }
+        </div>
       </div>
     </div>
   )
@@ -129,7 +128,7 @@ export const RankingPanel: FC<RankingPanelProps> = ({
   const empty = top.length === 0
 
   return (
-    <div className="flex flex-col gap-2 text-white">
+    <div className="flex flex-col gap-2 text-white h-full">
       {/* ヘッダー: 種別セグメント + 総数 */}
       <div className="flex items-center justify-between gap-2">
         {repeatable ? (
@@ -159,36 +158,38 @@ export const RankingPanel: FC<RankingPanelProps> = ({
         )}
       </div>
 
-      {/* 本体 */}
-      {empty ? (
-        <div className="text-center text-sm text-gray-500 py-8 border border-dashed border-gray-700 rounded-sm">
-          まだ誰もクリアしていません
-        </div>
-      ) : (
-        <div className="flex flex-col gap-1">
-          {top.map((e) => (
-            <RankingRow key={`top-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
-          ))}
+      {/* 本体 (full時はスクロール、デフォルトは固定) */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {empty ? (
+          <div className="text-center text-sm text-gray-500 py-8 border border-dashed border-gray-700 rounded-sm">
+            まだ誰もクリアしていません
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {top.map((e) => (
+              <RankingRow key={`top-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
+            ))}
 
-          {/* 周辺順位 (自分が圏外のとき) */}
-          {around.length > 0 && (
-            <>
-              <div className="text-center text-gray-600 text-sm leading-none py-0.5 select-none">⋯</div>
-              {around.map((e) => (
-                <RankingRow key={`around-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
-              ))}
-            </>
-          )}
-        </div>
-      )}
+            {/* 周辺順位 (自分が圏外のとき) */}
+            {around.length > 0 && (
+              <>
+                <div className="text-center text-gray-600 text-sm leading-none py-0.5 select-none">⋯</div>
+                {around.map((e) => (
+                  <RankingRow key={`around-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* 詳細を見る */}
+      {/* 全ランキングを見る: リストの外に固定配置なので around があっても隠れない */}
       {onShowAll && !empty && (
         <button
           onClick={onShowAll}
-          className="self-center mt-1 text-xs px-4 py-1.5 border border-gray-600 rounded-sm text-gray-300 hover:bg-white/5 font-bold"
+          className="shrink-0 self-center mt-1 text-xs px-4 py-1.5 border border-gray-600 rounded-sm text-gray-300 hover:bg-white/5 font-bold"
         >
-          詳細を見る
+          全ランキングを見る
         </button>
       )}
     </div>

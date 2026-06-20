@@ -5,7 +5,7 @@
  * RK-3. 自分が圏外のとき、区切り線付きで自分の周辺順位 (isMeハイライト) が出る
  * RK-4. 繰り返しクエストで「クリア回数」セグメントが出て回数降順で並ぶ
  * RK-5. 非繰り返しクエストでは回数セグメントが出ない
- * RK-6. 「詳細を見る」で全件表示に切り替わる
+ * RK-6. 「全ランキングを見る」で全件表示に切り替わる
  */
 
 import { test, expect } from '@playwright/test'
@@ -140,7 +140,7 @@ test('RK-5: 非繰り返しクエストでは回数セグメントが出ない',
   await expect(page.getByRole('button', { name: 'クリア回数' })).toHaveCount(0)
 })
 
-test('RK-6: 詳細を見るで全件表示に切り替わる', async ({ page }) => {
+test('RK-6: 全ランキングを見るで全件表示に切り替わる', async ({ page }) => {
   // 12人クリア (limit=10 を超える) → 詳細ボタンが出る
   const many = Array.from({ length: 12 }, (_, i) => ({
     playerUuid: `q${i}`,
@@ -153,11 +153,34 @@ test('RK-6: 詳細を見るで全件表示に切り替わる', async ({ page }) 
 
   // 初期は上位10位 → #11 は見えない
   await expect(page.getByText('#11')).toHaveCount(0)
-  // 詳細を見る
-  await page.getByRole('button', { name: '詳細を見る' }).click()
+  // 全ランキングを見る
+  await page.getByRole('button', { name: '全ランキングを見る' }).click()
   // 全件表示 → #11, #12 が出る
   await expect(page.getByText('#11')).toBeVisible()
   await expect(page.getByText('#12')).toBeVisible()
+})
+
+test('RK-9: 自分が圏外のとき「全ランキングを見る」ボタンが押せる', async ({ page }) => {
+  // 自分(Alex)を limit=5 圏外 (8位) にする
+  const many = Array.from({ length: 7 }, (_, i) => ({
+    playerUuid: `bot${i}`,
+    playerName: `Bot${i}`,
+    completedAt: `2026-06-19T0${i + 1}:00:00`,
+  }))
+  many.push({ playerUuid: PLAYER_UUID, playerName: 'Alex', completedAt: '2026-06-30T23:59:00' })
+  await addCompletions(page, 1, many)
+
+  await loginAs(page, 'demo-player-token')
+  await openQuestModal(page, '1')
+
+  // around があっても「全ランキングを見る」ボタンが見えて押せる
+  await expect(page.getByText('⋯')).toBeVisible()
+  const btn = page.getByRole('button', { name: '全ランキングを見る' })
+  await expect(btn).toBeVisible()
+  await btn.click()
+  // 全件表示になりボタンが消える
+  await expect(btn).toHaveCount(0)
+  await expect(page.getByText('#8')).toBeVisible()
 })
 
 test('RK-8: 既存の完了済み進捗がランキングへ移行される', async ({ page }) => {

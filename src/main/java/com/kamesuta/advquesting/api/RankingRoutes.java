@@ -21,7 +21,7 @@ import java.util.Map;
 public class RankingRoutes {
 
     private static final int DEFAULT_LIMIT = 10;
-    private static final int DEFAULT_AROUND = 2;
+    private static final int DEFAULT_AROUND = 1;
 
     private final CompletionDao completionDao;
     private final SessionDao sessionDao;
