@@ -61,3 +61,36 @@ Ports:
 | Minecraft server | 25599 |
 | Plugin API (Web UI) | 8090 |
 | RCON | 25598 |
+
+## Parallel Development with git worktree
+
+複数のブランチを同時に開発する場合は `git worktree` と `PORT_OFFSET` を組み合わせる。
+
+```powershell
+# worktree を作成
+git worktree add ..\AdvancementQuesting-wt2 -b feature/my-feature
+
+# worktree 内で npm install
+cd ..\AdvancementQuesting-wt2\web && npm install
+
+# public/ ディレクトリ (アトラス画像) をシンボリックリンクで共有
+New-Item -ItemType SymbolicLink -Path ..\AdvancementQuesting-wt2\web\public -Target (Resolve-Path .\web\public)
+
+# worktree でテストを実行 (PORT_OFFSET=100)
+$env:PORT_OFFSET = "100"; npm run test:e2e
+
+# Minecraft テストも同様
+cd ..\mc-tests && $env:PORT_OFFSET = "100"; npm run test
+```
+
+`PORT_OFFSET` でポート番号をずらすことで、メインと worktree のサーバーを同時起動できる。
+
+| サービス | main (offset=0) | wt2 (offset=100) |
+|---|---|---|
+| Mock backend (API) | 3001 | 3101 |
+| Vite frontend | 5174 | 5274 |
+| Minecraft server | 25599 | 25699 |
+| Plugin API (Web UI) | 8090 | 8190 |
+| RCON | 25598 | 25698 |
+
+テスト用 SQLite DB も自動で分離される (`test.db` vs `test100.db`)。
