@@ -31,9 +31,11 @@ const PLUGINS_DIR = path.join(RUN_DIR, 'plugins')
 const PAPER_MC_VERSION = '1.21.11'
 const PAPER_BUILD = 'latest'  // 'latest' または具体的なビルド番号
 
-const MC_PORT  = process.env.MC_PORT  ?? '25599'
-const API_PORT = process.env.API_PORT ?? '8090'
-const RCON_PORT = process.env.RCON_PORT ?? '25598'
+// worktree 並列開発用ポートオフセット (例: PORT_OFFSET=100)
+const PORT_OFFSET = parseInt(process.env.PORT_OFFSET ?? '0', 10)
+const MC_PORT   = process.env.MC_PORT   ?? String(25599 + PORT_OFFSET)
+const API_PORT  = process.env.API_PORT  ?? String(8090  + PORT_OFFSET)
+const RCON_PORT = process.env.RCON_PORT ?? String(25598 + PORT_OFFSET)
 const RCON_PASS = process.env.RCON_PASS ?? 'testpass'
 
 const noBuild = process.argv.includes('--no-build')

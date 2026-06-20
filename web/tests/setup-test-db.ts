@@ -4,7 +4,8 @@
 import { execSync } from 'child_process'
 import { existsSync, rmSync } from 'fs'
 
-const TEST_DB = './mock-server/db/test.db'
+const OFFSET = parseInt(process.env.PORT_OFFSET ?? '0', 10)
+const TEST_DB = process.env.DB_PATH ?? `./mock-server/db/test${OFFSET || ''}.db`
 
 export default function globalSetup() {
   // 前回のテストDBを削除 (ロック中なら無視)
