@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* カスタムスクロールバー */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
 /* クエスト達成演出のキーフレーム */
 @keyframes aq-completed-glow {
   0%, 100% { opacity: 0.5; transform: scale(1); }

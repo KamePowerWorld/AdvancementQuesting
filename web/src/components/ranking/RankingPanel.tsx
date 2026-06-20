@@ -64,7 +64,7 @@ const RankingRow: FC<RowProps> = ({ entry, type }) => {
   return (
     <div
       className={[
-        'flex items-center gap-3 px-3 py-2 rounded-sm border transition-colors',
+        'flex items-center gap-2 px-2 py-1.5 rounded-sm border transition-colors',
         entry.isMe
           ? 'bg-yellow-900/25 border-yellow-600/60'
           : top3
@@ -74,7 +74,7 @@ const RankingRow: FC<RowProps> = ({ entry, type }) => {
     >
       {/* 順位 */}
       <div
-        className={`shrink-0 text-center font-bold ${top3 ? 'text-lg w-8' : 'text-sm w-8 text-gray-400'}`}
+        className={`shrink-0 text-center font-bold ${top3 ? 'text-lg w-6' : 'text-sm w-6 text-gray-400'}`}
       >
         {rankBadge(entry.rank)}
       </div>
