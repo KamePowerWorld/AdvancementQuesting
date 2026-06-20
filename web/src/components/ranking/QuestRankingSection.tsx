@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { rankingApi } from '@/api/ranking.js'
 import type { RankingType } from '@/types/ranking.js'
+import { useViewAsContext } from '@/contexts/ViewAsContext.js'
 import { RankingPanel } from './RankingPanel.js'
 
 interface Props {
@@ -9,15 +10,18 @@ interface Props {
   questId: number
   /** 繰り返しクエストなら種別セグメントを表示する。 */
   repeatable: boolean
+  /** プレイヤー選択 (view-as) 時に呼ばれる。モーダルを閉じる等に使う。 */
+  onSelectPlayer?: () => void
 }
 
 /**
  * クエストのランキングを取得して RankingPanel に流し込むコンテナ。
  * モーダル内の「ランキング」タブで使う。
  */
-export function QuestRankingSection({ questId, repeatable }: Props) {
+export function QuestRankingSection({ questId, repeatable, onSelectPlayer }: Props) {
   const [type, setType] = useState<RankingType>('first')
   const [full, setFull] = useState(false)
+  const { setViewAs } = useViewAsContext()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ranking', questId, type, full],
@@ -47,6 +51,10 @@ export function QuestRankingSection({ questId, repeatable }: Props) {
       repeatable={repeatable}
       onTypeChange={handleTypeChange}
       onShowAll={full ? undefined : handleShowAll}
+      onSelectPlayer={(playerUuid, playerName) => {
+        setViewAs({ playerUuid, playerName })
+        onSelectPlayer?.()
+      }}
     />
   )
 }

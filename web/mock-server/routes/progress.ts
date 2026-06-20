@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { db } from '../db/client.js'
-import { playerProgress, quests } from '../db/schema.js'
+import { playerProgress, quests, playerSessions } from '../db/schema.js'
 import { and, eq } from 'drizzle-orm'
 import type { AuthRequest } from '../middleware/auth.js'
 import { requireAuth } from '../middleware/auth.js'
+import { insertQuestRewards } from '../rewardLog.js'
 
 const router = Router()
 
@@ -161,7 +162,18 @@ router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
 
   // モック: 報酬内容を返す
   const quest = await db.select().from(quests).where(eq(quests.id, questId)).get()
-  res.json({ claimed: true, rewards: quest?.rewards ?? [] })
+  const rewards = Array.isArray(quest?.rewards) ? (quest!.rewards as Array<Record<string, unknown>>) : []
+
+  // 報酬受取ログを追記
+  const session = await db.select().from(playerSessions)
+    .where(eq(playerSessions.playerUuid, req.playerUuid!)).get()
+  const playerName = session?.playerName ?? req.playerUuid!
+  await insertQuestRewards(
+    req.playerUuid!, playerName, questId, quest?.title ?? `クエスト #${questId}`,
+    rewards, new Date().toISOString(), 'claim',
+  )
+
+  res.json({ claimed: true, rewards })
 })
 
 export default router

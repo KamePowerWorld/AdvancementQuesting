@@ -18,6 +18,13 @@ public class CompletionDao {
         String firstAt   // 初回クリア時刻 (ISO 8601)
     ) {}
 
+    /** アクティビティ1行 (1クリア=1行)。questTitle はアプリ側で解決して付加する。 */
+    public record ActivityRow(
+        long id,
+        int questId,
+        String completedAt
+    ) {}
+
     private final DatabaseManager db;
 
     public CompletionDao(DatabaseManager db) {
@@ -79,6 +86,33 @@ public class CompletionDao {
             ps.setInt(3, questId);
             ps.setString(4, completedAt);
             ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 最近のアクティビティ (個人タイムライン)。新しい順 (id DESC)。
+     * カーソルページング: beforeId より小さい id のものを limit 件返す。
+     * beforeId が 0 以下なら最新から。
+     */
+    public List<ActivityRow> recentByPlayer(String playerUuid, int limit, long beforeId) throws SQLException {
+        String sql = """
+            SELECT id, quest_id, completed_at
+            FROM quest_completions
+            WHERE player_uuid = ? AND (? <= 0 OR id < ?)
+            ORDER BY id DESC
+            LIMIT ?
+            """;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setString(1, playerUuid);
+            ps.setLong(2, beforeId);
+            ps.setLong(3, beforeId);
+            ps.setInt(4, limit);
+            ResultSet rs = ps.executeQuery();
+            List<ActivityRow> rows = new ArrayList<>();
+            while (rs.next()) {
+                rows.add(new ActivityRow(rs.getLong("id"), rs.getInt("quest_id"), rs.getString("completed_at")));
+            }
+            return rows;
         }
     }
 

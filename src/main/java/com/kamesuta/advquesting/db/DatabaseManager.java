@@ -88,6 +88,26 @@ public class DatabaseManager {
             st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest ON quest_completions (quest_id)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest_time ON quest_completions (quest_id, completed_at)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest_player ON quest_completions (quest_id, player_uuid)");
+            // 最近のアクティビティ (個人タイムライン・カーソルページング) 用
+            st.execute("CREATE INDEX IF NOT EXISTS idx_completions_player_id ON quest_completions (player_uuid, id)");
+
+            // 報酬受取ログ (報酬1項目=1レコード)。トータル獲得報酬・報酬→クエスト導線の真実のソース。
+            st.execute("""
+                CREATE TABLE IF NOT EXISTS reward_claims (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_uuid  TEXT NOT NULL,
+                    player_name  TEXT NOT NULL,
+                    quest_id     INTEGER NOT NULL,
+                    quest_title  TEXT NOT NULL,
+                    reward_type  TEXT NOT NULL,
+                    reward_label TEXT,
+                    item_type    TEXT,
+                    amount       INTEGER NOT NULL DEFAULT 1,
+                    claimed_at   TEXT NOT NULL,
+                    source       TEXT NOT NULL DEFAULT 'claim'
+                )""");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_claims_player ON reward_claims (player_uuid)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_claims_quest ON reward_claims (quest_id)");
         }
     }
 

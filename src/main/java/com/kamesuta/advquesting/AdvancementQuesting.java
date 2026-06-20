@@ -3,6 +3,7 @@ package com.kamesuta.advquesting;
 import com.kamesuta.advquesting.api.AuthRoutes;
 import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.api.PlayerRoutes;
+import com.kamesuta.advquesting.api.PlayerProfileRoutes;
 import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
@@ -17,6 +18,7 @@ import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.DatabaseManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.ProposalDao;
+import com.kamesuta.advquesting.db.RewardClaimDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import com.kamesuta.advquesting.listener.AdvancementListener;
 import com.kamesuta.advquesting.listener.ItemProgressListener;
@@ -54,9 +56,10 @@ public final class AdvancementQuesting extends JavaPlugin {
         AuthCodeDao authCodeDao = new AuthCodeDao(db, sessionDao);
         ProgressDao progressDao = new ProgressDao(db);
         CompletionDao completionDao = new CompletionDao(db);
+        RewardClaimDao rewardClaimDao = new RewardClaimDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
-        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao);
+        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
 
         // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
         // 機能リリース前にクリア済みのプレイヤーをランキングに載せる。
@@ -71,6 +74,26 @@ public final class AdvancementQuesting extends JavaPlugin {
             if (migrated > 0) getLogger().info("ランキング: 既存クリア記録 " + migrated + " 件を移行しました");
         } catch (Exception e) {
             getLogger().warning("ランキングのクリア記録移行に失敗: " + e.getMessage());
+        }
+
+        // 既存の「クリア済み&受取済み」進捗を報酬受取ログへ初回移行する (冪等)。
+        try {
+            int migrated = rewardClaimDao.migrateFromProgress(
+                questId -> {
+                    var q = questManager.findById(questId);
+                    if (q == null) return null;
+                    return new RewardClaimDao.QuestRewards(q.title, q.rewards);
+                },
+                uuid -> {
+                    try {
+                        return getServer().getOfflinePlayer(java.util.UUID.fromString(uuid)).getName();
+                    } catch (Exception e) {
+                        return null;
+                    }
+                });
+            if (migrated > 0) getLogger().info("報酬: 既存受取記録 " + migrated + " 件を移行しました");
+        } catch (Exception e) {
+            getLogger().warning("報酬の受取記録移行に失敗: " + e.getMessage());
         }
 
         int port = getConfig().getInt("web-port", 8080);
@@ -95,6 +118,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         new QuestRoutes(questManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new RankingRoutes(completionDao, sessionDao).register(app);
+        new PlayerProfileRoutes(completionDao, rewardClaimDao, questManager).register(app);
         new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
         new PlayerRoutes(this, sessionDao).register(app);
         notificationRoutes.register(app);

@@ -42,6 +42,21 @@ export const questCompletions = sqliteTable('quest_completions', {
   completedAt: text('completed_at').notNull(),
 })
 
+// 報酬受取ログ (報酬1項目=1レコード)。トータル獲得報酬の真実のソース。
+export const rewardClaims = sqliteTable('reward_claims', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  playerUuid: text('player_uuid').notNull(),
+  playerName: text('player_name').notNull(),
+  questId: integer('quest_id').notNull(),
+  questTitle: text('quest_title').notNull(),
+  rewardType: text('reward_type').notNull(),
+  rewardLabel: text('reward_label'),
+  itemType: text('item_type'),
+  amount: integer('amount').notNull().default(1),
+  claimedAt: text('claimed_at').notNull(),
+  source: text('source').notNull().default('claim'),
+})
+
 export const questProposals = sqliteTable('quest_proposals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   questId: integer('quest_id').notNull().references(() => quests.id),

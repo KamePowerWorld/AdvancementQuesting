@@ -24,6 +24,8 @@ export interface RankingPanelProps {
   onTypeChange?: (type: RankingType) => void
   /** 「詳細を見る」ボタン。未指定なら非表示 */
   onShowAll?: () => void
+  /** プレイヤー行クリック (view-as 開始)。未指定なら行はクリック不可 */
+  onSelectPlayer?: (playerUuid: string, playerName: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -57,14 +59,20 @@ function avatarUrl(name: string, size = 24): string {
 interface RowProps {
   entry: RankingEntry
   type: RankingType
+  onSelectPlayer?: (playerUuid: string, playerName: string) => void
 }
 
-const RankingRow: FC<RowProps> = ({ entry, type }) => {
+const RankingRow: FC<RowProps> = ({ entry, type, onSelectPlayer }) => {
   const top3 = entry.rank <= 3
+  // 自分以外の行は view-as へ飛べる
+  const clickable = !!onSelectPlayer && !entry.isMe
   return (
     <div
+      onClick={clickable ? () => onSelectPlayer!(entry.playerUuid, entry.playerName) : undefined}
+      title={clickable ? `👁 ${entry.playerName} の攻略を見る` : undefined}
       className={[
         'flex items-center gap-2 px-2 py-1.5 rounded-sm border transition-colors',
+        clickable ? 'cursor-pointer hover:bg-white/10 hover:border-gray-500' : '',
         entry.isMe
           ? 'bg-yellow-900/25 border-yellow-600/60'
           : top3
@@ -124,6 +132,7 @@ export const RankingPanel: FC<RankingPanelProps> = ({
   repeatable = false,
   onTypeChange,
   onShowAll,
+  onSelectPlayer,
 }) => {
   const empty = top.length === 0
 
@@ -167,7 +176,7 @@ export const RankingPanel: FC<RankingPanelProps> = ({
         ) : (
           <div className="flex flex-col gap-1">
             {top.map((e) => (
-              <RankingRow key={`top-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
+              <RankingRow key={`top-${e.playerUuid}-${e.rank}`} entry={e} type={type} onSelectPlayer={onSelectPlayer} />
             ))}
 
             {/* 周辺順位 (自分が圏外のとき) */}
@@ -175,7 +184,7 @@ export const RankingPanel: FC<RankingPanelProps> = ({
               <>
                 <div className="text-center text-gray-600 text-sm leading-none py-0.5 select-none">⋯</div>
                 {around.map((e) => (
-                  <RankingRow key={`around-${e.playerUuid}-${e.rank}`} entry={e} type={type} />
+                  <RankingRow key={`around-${e.playerUuid}-${e.rank}`} entry={e} type={type} onSelectPlayer={onSelectPlayer} />
                 ))}
               </>
             )}

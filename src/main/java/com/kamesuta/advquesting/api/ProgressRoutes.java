@@ -44,6 +44,17 @@ public class ProgressRoutes {
             }
         });
 
+        // GET /api/players/:uuid/progress — 任意プレイヤーの全進捗 (view-as 用・認証不要・全員閲覧可)
+        app.get("/api/players/{uuid}/progress", ctx -> {
+            String uuid = ctx.pathParam("uuid");
+            try {
+                List<ProgressDao.ProgressRecord> records = progressDao.findByPlayer(uuid);
+                ctx.json(records.stream().map(this::toMap).toList());
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         // GET /api/progress/:questId — 特定クエストの進捗
         app.get("/api/progress/{questId}", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);

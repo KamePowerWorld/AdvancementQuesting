@@ -8,9 +8,11 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import rankingRoutes from './routes/ranking.js'
 import progressRoutes from './routes/progress.js'
+import playerRoutes from './routes/players.js'
 import proposalRoutes from './routes/proposals.js'
-import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions } from './db/schema.js'
+import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions, rewardClaims } from './db/schema.js'
 import { eq } from 'drizzle-orm'
+import { insertQuestRewards } from './rewardLog.js'
 
 config()
 
@@ -20,6 +22,8 @@ migrate(db, { migrationsFolder: './mock-server/db/migrations' })
 // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
 // 本番 (AdvancementQuesting.onEnable) と同じく初回1クリアのみ。
 await migrateCompletionsFromProgress()
+// 既存の「クリア済み&受取済み」進捗を報酬受取ログへ初回移行する (冪等)。
+await migrateRewardsFromProgress()
 
 const app = express()
 const port = parseInt(process.env.MOCK_PORT ?? '3000', 10)
@@ -31,6 +35,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/quests', rankingRoutes)
 app.use('/api/quests', questRoutes)
 app.use('/api/progress', progressRoutes)
+app.use('/api/players', playerRoutes)
 app.use('/api/proposals', proposalRoutes)
 
 // ヘルスチェック
@@ -202,6 +207,30 @@ app.post('/api/test/migrate-completions', async (_req, res) => {
   res.json({ ok: true })
 })
 
+// テスト用: 報酬受取ログを投入する (トータル獲得報酬の検証用)
+// body: { questId, questTitle, playerUuid, playerName, rewards: [...], source? }
+app.post('/api/test/add-reward-claim', async (req, res) => {
+  const { questId, questTitle, playerUuid, playerName, rewards, source } = req.body as {
+    questId: number; questTitle: string; playerUuid: string; playerName: string
+    rewards: Array<Record<string, unknown>>; source?: 'claim' | 'migrated'
+  }
+  await insertQuestRewards(playerUuid, playerName, questId, questTitle, rewards,
+    new Date().toISOString(), source ?? 'claim')
+  res.json({ ok: true })
+})
+
+// テスト用: 報酬受取ログをすべて削除
+app.post('/api/test/reset-reward-claims', async (_req, res) => {
+  await db.delete(rewardClaims)
+  res.json({ ok: true })
+})
+
+// テスト用: 既存進捗から報酬受取ログへの移行を手動実行する
+app.post('/api/test/migrate-rewards', async (_req, res) => {
+  await migrateRewardsFromProgress()
+  res.json({ ok: true })
+})
+
 // 既存 player_progress (completed) → quest_completions 初回移行 (冪等)
 async function migrateCompletionsFromProgress() {
   const completedRows = (await db.select().from(playerProgress)).filter((p) => p.completed)
@@ -224,6 +253,35 @@ async function migrateCompletionsFromProgress() {
     migrated++
   }
   if (migrated > 0) console.log(`[ranking] migrated ${migrated} existing completion(s)`)
+}
+
+// 既存 player_progress (completed=1 AND reward_claimed=1) → reward_claims 初回移行 (冪等)
+async function migrateRewardsFromProgress() {
+  const rows = (await db.select().from(playerProgress)).filter((p) => p.completed && p.rewardClaimed)
+  if (rows.length === 0) return
+  // source='migrated' 済みの (uuid, questId) はスキップ
+  const existing = (await db.select().from(rewardClaims)).filter((c) => c.source === 'migrated')
+  const seen = new Set(existing.map((c) => `${c.playerUuid}:${c.questId}`))
+  const sessions = await db.select().from(playerSessions)
+  const nameByUuid = new Map(sessions.map((s) => [s.playerUuid, s.playerName]))
+  const allQuests = await db.select().from(quests)
+  const questById = new Map(allQuests.map((q) => [q.id, q]))
+  let migrated = 0
+  for (const p of rows) {
+    const key = `${p.playerUuid}:${p.questId}`
+    if (seen.has(key)) continue
+    const quest = questById.get(p.questId)
+    const rewards = Array.isArray(quest?.rewards) ? (quest!.rewards as Array<Record<string, unknown>>) : []
+    if (!quest || rewards.length === 0) continue // 解決不可・報酬なしはスキップ
+    seen.add(key)
+    await insertQuestRewards(
+      p.playerUuid, nameByUuid.get(p.playerUuid) ?? p.playerUuid,
+      p.questId, quest.title, rewards,
+      (p.completedAt ?? new Date()).toISOString(), 'migrated',
+    )
+    migrated++
+  }
+  if (migrated > 0) console.log(`[rewards] migrated ${migrated} existing claim(s)`)
 }
 
 app.listen(port, () => {

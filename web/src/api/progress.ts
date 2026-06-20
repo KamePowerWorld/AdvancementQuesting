@@ -4,6 +4,10 @@ import type { PlayerProgress } from '@/types/progress.js'
 export const progressApi = {
   list: () => api.get<PlayerProgress[]>('/progress'),
 
+  // 任意プレイヤーの全進捗 (view-as 用・認証不要)
+  listByPlayer: (playerUuid: string) =>
+    api.get<PlayerProgress[]>(`/players/${playerUuid}/progress`),
+
   get: (questId: string) => api.get<PlayerProgress>(`/progress/${questId}`),
 
   claim: (questId: string) =>

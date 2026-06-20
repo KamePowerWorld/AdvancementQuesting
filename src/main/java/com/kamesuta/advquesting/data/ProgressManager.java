@@ -6,6 +6,7 @@ import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.api.PlayerRoutes;
 import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.ProgressDao;
+import com.kamesuta.advquesting.db.RewardClaimDao;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -35,15 +36,17 @@ public class ProgressManager {
     private final QuestManager questManager;
     private final ProgressDao progressDao;
     private final CompletionDao completionDao;
+    private final RewardClaimDao rewardClaimDao;
     private final Logger log;
     private NotificationRoutes notificationRoutes;
 
     public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao,
-                           CompletionDao completionDao) {
+                           CompletionDao completionDao, RewardClaimDao rewardClaimDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
         this.completionDao = completionDao;
+        this.rewardClaimDao = rewardClaimDao;
         this.log = plugin.getLogger();
     }
 
@@ -248,6 +251,16 @@ public class ProgressManager {
             claimed = ok ? 1 : 0;
         }
         if (claimed == 0) return 0;
+
+        // 報酬受取ログを追記 (受け取った回数ぶん明細を残す)。プレイヤーがオフラインでも記録する。
+        try {
+            for (int i = 0; i < claimed; i++) {
+                rewardClaimDao.insertQuestRewards(playerUuid, playerUuidToName(playerUuid),
+                    quest.id, quest.title, quest.rewards, Instant.now().toString(), "claim");
+            }
+        } catch (Exception e) {
+            log.warning("reward claim log insert error: " + e.getMessage());
+        }
 
         Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
         if (player == null) return claimed;

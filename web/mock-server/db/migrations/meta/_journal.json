@@ -36,6 +36,13 @@
       "when": 1781891531696,
       "tag": "0004_fearless_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781934930607,
+      "tag": "0005_supreme_stellaris",
+      "breakpoints": true
     }
   ]
 }

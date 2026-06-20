@@ -12,6 +12,10 @@ import { ItemSelectorModal } from '@/components/editor/modals/ItemSelectorModal.
 import { RewardTableModal } from '@/components/editor/modals/RewardTableModal.js'
 import { LoginModal } from '@/components/LoginModal.js'
 import { useAuth } from '@/contexts/AuthContext.js'
+import { ViewAsContext } from '@/contexts/ViewAsContext.js'
+import { useViewAs } from '@/hooks/useViewAs.js'
+import { RecentActivityPanel } from '@/components/activity/RecentActivityPanel.js'
+import { PlayerRewardsPanel } from '@/components/activity/PlayerRewardsPanel.js'
 import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { questsApi } from '@/api/quests.js'
@@ -162,7 +166,9 @@ const CLICK_MAX_DIST = 5
 
 export default function EditorPage() {
   const { isEditor: isEditorRole, viewMode, me } = useAuth()
-  const isEditor = isEditorRole && viewMode === 'edit'
+  const { viewAs, setViewAs } = useViewAs()
+  // view-as 中は他人の進捗を「閲覧専用」で見るモード。編集・操作は一切させない。
+  const isEditor = isEditorRole && viewMode === 'edit' && !viewAs
   const queryClient = useQueryClient()
   const {
     proposalMode, setProposalMode,
@@ -177,11 +183,12 @@ export default function EditorPage() {
     queryFn: () => questsApi.list(),
   })
 
-  // ---- 自分の進捗 (達成済み表示用) ----
+  // ---- 進捗 (達成済み表示用) ----
+  // view-as 中は対象プレイヤーの進捗、通常時は自分の進捗を取得する。
   const { data: progressData } = useQuery({
-    queryKey: ['progress'],
-    queryFn: () => progressApi.list(),
-    enabled: !!me,
+    queryKey: viewAs ? ['progress', viewAs.playerUuid] : ['progress'],
+    queryFn: () => viewAs ? progressApi.listByPlayer(viewAs.playerUuid) : progressApi.list(),
+    enabled: !!viewAs || !!me,
   })
 
   // 完了したクエストID集合 (questId は文字列で保持してノードIDと比較)
@@ -194,6 +201,9 @@ export default function EditorPage() {
   }, [progressData])
 
   const { data: lang } = useMcLang()
+
+  // ---- view-as フローティングパネルのタブ ----
+  const [viewAsTab, setViewAsTab] = useState<'activity' | 'rewards'>('activity')
 
   // ---- マップ演出: 今キラキラ中のノードID ----
   const [celebratingNodeId, setCelebratingNodeId] = useState<string | null>(null)
@@ -1083,10 +1093,71 @@ export default function EditorPage() {
   // ---------------------------------------------------------------------------
 
   return (
+    <ViewAsContext.Provider value={{ viewAs, setViewAs }}>
       <div
-        className="flex-1 relative flex overflow-hidden select-none min-h-0"
+        className="flex-1 relative flex flex-col overflow-hidden select-none min-h-0"
         style={{ fontFamily: '"Minecraftia", "Courier New", Courier, monospace' }}
       >
+        {/* ===== view-as 閲覧バナー ===== */}
+        {viewAs && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-[#2a3a4a] border-b-2 border-[#4a9edd] text-sm text-[#cfe8ff] shrink-0 z-30">
+            <img
+              src={`https://mc-heads.net/avatar/${viewAs.playerName}/24`}
+              alt={viewAs.playerName}
+              width={24}
+              height={24}
+              style={{ imageRendering: 'pixelated' }}
+              className="rounded-sm"
+            />
+            <span>
+              👁 <span className="font-bold text-white">{viewAs.playerName}</span> の攻略を見ています
+            </span>
+            <button
+              onClick={() => setViewAs(null)}
+              className="ml-auto text-xs px-3 py-1 border border-[#4a9edd] rounded-sm text-white hover:bg-[#4a9edd]/30 font-bold"
+            >
+              自分に戻る
+            </button>
+          </div>
+        )}
+        <div className="flex-1 relative flex overflow-hidden min-h-0">
+        {/* ===== view-as: 最近のアクティビティ (マップ右上にフローティング) ===== */}
+        {viewAs && (
+          <div data-testid="viewas-panel" className="absolute top-3 right-3 z-30 w-64 max-h-[70%] flex flex-col bg-[#2d2f3b] border-2 border-[#1e1f29] rounded-md shadow-2xl p-3 text-white">
+            {/* タブ: アクティビティ / 報酬 */}
+            <div className="flex shrink-0 mb-2 rounded-sm border border-gray-600 overflow-hidden text-xs font-bold">
+              <button
+                onClick={() => setViewAsTab('activity')}
+                className={`flex-1 px-2 py-1 transition-colors ${viewAsTab === 'activity' ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
+              >
+                アクティビティ
+              </button>
+              <button
+                onClick={() => setViewAsTab('rewards')}
+                className={`flex-1 px-2 py-1 transition-colors ${viewAsTab === 'rewards' ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
+              >
+                獲得報酬
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {viewAsTab === 'activity' ? (
+                <RecentActivityPanel
+                  playerUuid={viewAs.playerUuid}
+                  onSelectQuest={(questId) => {
+                    if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                  }}
+                />
+              ) : (
+                <PlayerRewardsPanel
+                  playerUuid={viewAs.playerUuid}
+                  onSelectQuest={(questId) => {
+                    if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
         {/* ===== 左サイドバー: ツールバー ===== */}
         <div className="w-16 bg-[#8B8B8B] border-r-4 border-black p-2 flex flex-col items-center shrink-0 z-20 shadow-[inset_-2px_0_0_rgba(0,0,0,0.2)]">
           <ToolButton icon={MousePointer2} active={mode === 'select'} onClick={() => changeMode('select')} tooltip="選択" />
@@ -1300,6 +1371,7 @@ export default function EditorPage() {
             pendingRewards={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.pendingRewards}
             completedAt={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.completedAt}
             claimReward={(() => {
+              if (viewAs) return undefined // view-as 中は操作不可 (読み取り専用)
               const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
               if (!p) return undefined
               // 繰り返しクエスト: pendingRewards が残っていれば受取可能
@@ -1313,11 +1385,12 @@ export default function EditorPage() {
                 showToast('報酬を受け取りました！')
               }
             })()}
-            onCheckmarkComplete={isReadOnlyNode(editingNodeId!) && me ? async (conditionId) => {
+            onCheckmarkComplete={!viewAs && isReadOnlyNode(editingNodeId!) && me ? async (conditionId) => {
               await progressApi.completeCondition(editingNodeId!, conditionId)
               await queryClient.invalidateQueries({ queryKey: ['progress'] })
             } : undefined}
             onDeliver={(() => {
+              if (viewAs) return undefined // view-as 中は操作不可 (読み取り専用)
               const node = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null
               const hasDelivery = node?.tasks?.some((t) => t.type === 'delivery')
               const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
@@ -1391,7 +1464,9 @@ export default function EditorPage() {
         {showLoginModal && (
           <LoginModal close={() => setShowLoginModal(false)} />
         )}
+        </div>
       </div>
+    </ViewAsContext.Provider>
   )
 }
 

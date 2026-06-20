@@ -79,7 +79,7 @@ export function QuestEditorModal({
   // 新規作成中ノード (node-<timestamp> 等) は数値にならないので非表示。
   const rankingQuestId = /^\d+$/.test(node.id) ? parseInt(node.id, 10) : null
   const rankingSection = rankingQuestId != null
-    ? <QuestRankingSection questId={rankingQuestId} repeatable={!!isRepeatQuest} />
+    ? <QuestRankingSection questId={rankingQuestId} repeatable={!!isRepeatQuest} onSelectPlayer={close} />
     : null
   const repeatCountdown = (() => {
     if (!repeat || repeat.type === 'none' || repeat.type === 'unlimited') return null
