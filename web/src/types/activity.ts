@@ -3,6 +3,7 @@ export interface ActivityItem {
   id: number
   questId: number
   questTitle: string
+  questIcon: string
   completedAt: string
 }
 

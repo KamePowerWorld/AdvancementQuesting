@@ -52,7 +52,9 @@ public class PlayerProfileRoutes {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id", r.id());
                 m.put("questId", r.questId());
-                m.put("questTitle", resolveTitle(r.questId()));
+                Quest q = questManager.findById(r.questId());
+                m.put("questTitle", (q != null && q.title != null && !q.title.isEmpty()) ? q.title : "クエスト #" + r.questId());
+                m.put("questIcon", (q != null && q.icon != null && !q.icon.isEmpty()) ? q.icon : "stone");
                 m.put("completedAt", r.completedAt());
                 items.add(m);
             }
@@ -91,13 +93,6 @@ public class PlayerProfileRoutes {
             result.put("items", items);
             ctx.json(result);
         });
-    }
-
-    /** クエストID → タイトル。削除済み等で解決できなければ "クエスト #id"。 */
-    private String resolveTitle(int questId) {
-        Quest q = questManager.findById(questId);
-        if (q != null && q.title != null && !q.title.isEmpty()) return q.title;
-        return "クエスト #" + questId;
     }
 
     private static int clamp(int v, int min, int max) {

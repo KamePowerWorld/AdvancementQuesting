@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { activityApi } from '@/api/activity.js'
+import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import type { ActivityItem } from '@/types/activity.js'
 
 interface Props {
@@ -71,6 +72,7 @@ export function RecentActivityPanel({ playerUuid, onSelectQuest }: Props) {
           onClick={() => onSelectQuest?.(it.questId)}
           className="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-black/20 border border-transparent hover:bg-white/10 hover:border-gray-500 text-left transition-colors"
         >
+          <ItemIcon type={it.questIcon} size={20} />
           <span className="flex-1 min-w-0 truncate text-sm font-semibold text-gray-100">{it.questTitle}</span>
           <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">{formatRelative(it.completedAt)}</span>
         </button>

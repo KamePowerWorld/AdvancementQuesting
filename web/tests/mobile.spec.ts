@@ -12,7 +12,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   resetProgress, setProgress, setConditionProgress, notifyProgressUpdate,
-  EDITOR_UUID, MOCK,
+  EDITOR_UUID, MOCK, PLAYER_UUID,
 } from './helpers.js'
 
 // ---------------------------------------------------------------------------
@@ -409,4 +409,45 @@ test('スマホ: ランキングが表示される (RK-7)', async ({ page }) => 
   await ranking.scrollIntoViewIfNeeded()
   await expect(ranking).toBeVisible()
   await expect(page.getByText('Notch')).toBeVisible()
+})
+
+// VA-MOB-1: スマホで view-as パネルが下部ドロワーとして表示・折りたたみできる
+test('スマホ: view-as パネルが下部に展開・タブで折りたたみできる (VA-MOB-1)', async ({ page }) => {
+  const OTHER_UUID = 'dddddddd-eeee-ffff-aaaa-bbbbbbbbbbbb'
+  const OTHER_NAME = 'Notch'
+
+  // Notch をランキングに載せる
+  await page.request.post(`${MOCK}/api/test/reset-completions`)
+  await page.request.post(`${MOCK}/api/test/add-completion`, {
+    data: {
+      questId: 1,
+      entries: [{ playerUuid: OTHER_UUID, playerName: OTHER_NAME, completedAt: '2026-06-19T09:00:00' }],
+    },
+  })
+
+  // view-as 直リンクでアクセス
+  await loginAs(page, 'demo-player-token')
+  await page.goto(`/?viewAs=${OTHER_UUID}&viewAsName=${OTHER_NAME}`)
+  await expect(page.getByText(`${OTHER_NAME} の攻略を見ています`)).toBeVisible({ timeout: 10000 })
+
+  const panel = page.getByTestId('viewas-panel')
+  await expect(panel).toBeVisible()
+
+  // パネルが下部にある (bottom:0) かつ高さを持つ
+  const box = await panel.boundingBox()
+  expect(box).not.toBeNull()
+  // スマホ画面高さ (667) に対して下端が画面内に収まっている
+  expect(box!.y + box!.height).toBeLessThanOrEqual(700)
+  // 展開時は高さがある (折りたたみ時はタブだけ)
+  expect(box!.height).toBeGreaterThan(60)
+
+  // アクティビティタブをクリックすると折りたたまれる (同タブ再クリック = トグル)
+  await panel.getByRole('button', { name: 'アクティビティ' }).click()
+  const collapsedBox = await panel.boundingBox()
+  expect(collapsedBox!.height).toBeLessThan(box!.height)
+
+  // 獲得報酬タブをクリックすると再展開
+  await panel.getByRole('button', { name: '獲得報酬' }).click()
+  const expandedBox = await panel.boundingBox()
+  expect(expandedBox!.height).toBeGreaterThan(collapsedBox!.height)
 })

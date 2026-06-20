@@ -202,8 +202,9 @@ export default function EditorPage() {
 
   const { data: lang } = useMcLang()
 
-  // ---- view-as フローティングパネルのタブ ----
+  // ---- view-as フローティングパネルのタブ・折りたたみ ----
   const [viewAsTab, setViewAsTab] = useState<'activity' | 'rewards'>('activity')
+  const [viewAsPanelCollapsed, setViewAsPanelCollapsed] = useState(false)
 
   // ---- マップ演出: 今キラキラ中のノードID ----
   const [celebratingNodeId, setCelebratingNodeId] = useState<string | null>(null)
@@ -1121,41 +1122,71 @@ export default function EditorPage() {
           </div>
         )}
         <div className="flex-1 relative flex overflow-hidden min-h-0">
-        {/* ===== view-as: 最近のアクティビティ (マップ右上にフローティング) ===== */}
+        {/* ===== view-as パネル: デスクトップ=右上フローティング / モバイル=下部ドロワー ===== */}
         {viewAs && (
-          <div data-testid="viewas-panel" className="absolute top-3 right-3 z-30 w-64 max-h-[70%] flex flex-col bg-[#2d2f3b] border-2 border-[#1e1f29] rounded-md shadow-2xl p-3 text-white">
-            {/* タブ: アクティビティ / 報酬 */}
-            <div className="flex shrink-0 mb-2 rounded-sm border border-gray-600 overflow-hidden text-xs font-bold">
+          <div
+            data-testid="viewas-panel"
+            className={[
+              'absolute z-30 flex flex-col bg-[#2d2f3b] border-2 border-[#1e1f29] shadow-2xl text-white transition-all duration-200',
+              // デスクトップ: 右上フローティング
+              'md:top-3 md:right-3 md:w-64 md:max-h-[70%] md:rounded-md md:p-3',
+              // モバイル: 下部ドロワー (折りたたみ対応)
+              'max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:rounded-t-lg max-md:border-x-0 max-md:border-b-0',
+              viewAsPanelCollapsed ? 'max-md:h-auto' : 'max-md:h-[55%]',
+            ].join(' ')}
+          >
+            {/* タブバー (モバイルではタップで折りたたみトグル) */}
+            <div className="flex shrink-0 rounded-sm md:mb-2 border border-gray-600 overflow-hidden text-xs font-bold">
               <button
-                onClick={() => setViewAsTab('activity')}
-                className={`flex-1 px-2 py-1 transition-colors ${viewAsTab === 'activity' ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
+                onClick={() => {
+                  if (viewAsPanelCollapsed) {
+                    setViewAsPanelCollapsed(false)
+                    setViewAsTab('activity')
+                  } else if (viewAsTab === 'activity') {
+                    setViewAsPanelCollapsed((c) => !c)
+                  } else {
+                    setViewAsTab('activity')
+                  }
+                }}
+                className={`flex-1 px-2 py-1.5 transition-colors ${viewAsTab === 'activity' && !viewAsPanelCollapsed ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
               >
                 アクティビティ
               </button>
               <button
-                onClick={() => setViewAsTab('rewards')}
-                className={`flex-1 px-2 py-1 transition-colors ${viewAsTab === 'rewards' ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
+                onClick={() => {
+                  if (viewAsPanelCollapsed) {
+                    setViewAsPanelCollapsed(false)
+                    setViewAsTab('rewards')
+                  } else if (viewAsTab === 'rewards') {
+                    setViewAsPanelCollapsed((c) => !c)
+                  } else {
+                    setViewAsTab('rewards')
+                  }
+                }}
+                className={`flex-1 px-2 py-1.5 transition-colors ${viewAsTab === 'rewards' && !viewAsPanelCollapsed ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}
               >
                 獲得報酬
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {viewAsTab === 'activity' ? (
-                <RecentActivityPanel
-                  playerUuid={viewAs.playerUuid}
-                  onSelectQuest={(questId) => {
-                    if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
-                  }}
-                />
-              ) : (
-                <PlayerRewardsPanel
-                  playerUuid={viewAs.playerUuid}
-                  onSelectQuest={(questId) => {
-                    if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
-                  }}
-                />
-              )}
-            </div>
+            {!viewAsPanelCollapsed && (
+              <div className="flex-1 overflow-y-auto min-h-0 md:mt-0 mt-1 px-3 pb-3 md:px-0 md:pb-0">
+                {viewAsTab === 'activity' ? (
+                  <RecentActivityPanel
+                    playerUuid={viewAs.playerUuid}
+                    onSelectQuest={(questId) => {
+                      if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                    }}
+                  />
+                ) : (
+                  <PlayerRewardsPanel
+                    playerUuid={viewAs.playerUuid}
+                    onSelectQuest={(questId) => {
+                      if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
         {/* ===== 左サイドバー: ツールバー ===== */}

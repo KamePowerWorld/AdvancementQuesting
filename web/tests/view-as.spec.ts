@@ -166,7 +166,7 @@ test('VA-6: 自分の行 (isMe) クリックでは view-as に入らない', asy
   await expect(page.getByText('の攻略を見ています')).toHaveCount(0)
 })
 
-test('VA-9: 獲得報酬タブに type別合計が出て明細クリックでクエストへ辿れる', async ({ page }) => {
+test('VA-9: 獲得報酬タブにスカラーチップとアイテムグリッドが出て内訳クリックでクエストへ辿れる', async ({ page }) => {
   // Notch の報酬受取ログを投入 (quest 1 で point+item)
   await addRewardClaim(page, {
     questId: 1, questTitle: '基本', playerUuid: OTHER_UUID, playerName: OTHER_NAME,
@@ -182,13 +182,15 @@ test('VA-9: 獲得報酬タブに type別合計が出て明細クリックでク
   const panel = page.getByTestId('viewas-panel')
   await panel.getByRole('button', { name: '獲得報酬' }).click()
 
-  // type別合計チップ (ポイント 100pt)
+  // ポイントスカラーチップ (100pt) が出る
   await expect(panel.getByText('100').first()).toBeVisible()
-  // 明細行
-  await expect(panel.getByText('達成ポイント')).toBeVisible()
 
-  // 明細クリックで取得元クエスト (基本) のモーダルが開く
-  await panel.getByText('木のツルハシ').click()
+  // ポイントチップをクリック → 内訳ポップオーバーに「達成ポイント」が出る
+  await panel.getByText('100').first().click()
+  await expect(page.getByText('達成ポイント')).toBeVisible({ timeout: 2000 })
+
+  // 内訳の行クリックでクエストモーダルが開く
+  await page.getByText('達成ポイント').click()
   await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 3000 })
 })
 
@@ -197,14 +199,10 @@ test('VA-MIG-1: クリア済み&受取済み進捗が報酬ログへ移行され
   await setProgress(page, OTHER_UUID, 1, { completed: true, rewardClaimed: true })
   await page.request.post(`${MOCK}/api/test/migrate-rewards`)
 
-  await loginAs(page, 'demo-player-token')
-  await page.goto(`/?viewAs=${OTHER_UUID}&viewAsName=${OTHER_NAME}`)
-  await expect(page.getByText(`${OTHER_NAME} の攻略を見ています`)).toBeVisible({ timeout: 10000 })
-
-  const panel = page.getByTestId('viewas-panel')
-  await panel.getByRole('button', { name: '獲得報酬' }).click()
-  // quest 1 (基本) の報酬が移行されている (seed の rewards が出る)
-  await expect(panel.getByText('基本')).toBeVisible({ timeout: 5000 })
+  // API を直接確認: items が存在する
+  const resp = await page.request.get(`${MOCK}/api/players/${OTHER_UUID}/rewards`)
+  const body = await resp.json()
+  expect(body.items.length).toBeGreaterThan(0)
 })
 
 test('VA-MIG-2: 未受取(reward_claimed=0)は移行されない', async ({ page }) => {

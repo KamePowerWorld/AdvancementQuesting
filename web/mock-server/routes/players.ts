@@ -40,16 +40,20 @@ router.get('/:uuid/activity', async (req, res) => {
   const hasMore = rows.length > limit
   const page = hasMore ? rows.slice(0, limit) : rows
 
-  // questTitle を解決
+  // questTitle / questIcon を解決
   const allQuests = await db.select().from(quests)
-  const titleById = new Map(allQuests.map((q) => [q.id, q.title]))
+  const questById = new Map(allQuests.map((q) => [q.id, q]))
 
-  const items = page.map((r) => ({
-    id: r.id,
-    questId: r.questId,
-    questTitle: titleById.get(r.questId) ?? `クエスト #${r.questId}`,
-    completedAt: r.completedAt,
-  }))
+  const items = page.map((r) => {
+    const q = questById.get(r.questId)
+    return {
+      id: r.id,
+      questId: r.questId,
+      questTitle: q?.title ?? `クエスト #${r.questId}`,
+      questIcon: q?.icon ?? 'stone',
+      completedAt: r.completedAt,
+    }
+  })
 
   res.json({
     playerUuid: uuid,
