@@ -41,6 +41,10 @@ interface QuestEditorModalProps {
   pendingRewards?: number
   /** クエスト最終達成時刻 (クールダウン残り計算用) */
   completedAt?: string | null
+  /** editor のみ: 公開/非公開トグル。呼び出すとステータスを切り替えて保存する */
+  onToggleStatus?: () => Promise<void>
+  /** editor のみ: 現在のクエストステータス */
+  questStatus?: string
 }
 
 /**
@@ -62,12 +66,15 @@ export function QuestEditorModal({
   onDeliver,
   pendingRewards,
   completedAt,
+  onToggleStatus,
+  questStatus,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const [delivering, setDelivering] = useState(false)
   const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
+  const [togglingStatus, setTogglingStatus] = useState(false)
   const isMobile = useIsMobile()
   const { data: lang } = useMcLang()
 
@@ -127,6 +134,25 @@ export function QuestEditorModal({
   const removeReward = (id: string) => {
     updateNode({ ...node, rewards: node.rewards.filter((r) => r.id !== id) })
   }
+
+  // B-2: 公開/非公開トグルボタン (editor のみ・proposed 以外)
+  const statusToggleButton = onToggleStatus && questStatus !== 'proposed' ? (
+    <button
+      onClick={async () => {
+        setTogglingStatus(true)
+        try { await onToggleStatus() } finally { setTogglingStatus(false) }
+      }}
+      disabled={togglingStatus}
+      className="text-xs px-3 py-1 border font-bold shrink-0"
+      style={questStatus === 'public'
+        ? { color: '#0a1f1f', backgroundColor: '#5BC6C6', borderColor: '#3B7B7B', cursor: togglingStatus ? 'wait' : 'pointer' }
+        : { color: '#1f1a0a', backgroundColor: '#C6B85B', borderColor: '#7B6B3B', cursor: togglingStatus ? 'wait' : 'pointer' }
+      }
+      title={questStatus === 'public' ? '公開中 — クリックで非公開にする' : '非公開 — クリックで公開する'}
+    >
+      {togglingStatus ? '...' : questStatus === 'public' ? '🌐 公開中' : '🔒 非公開'}
+    </button>
+  ) : null
 
   // ---------------------------------------------------------------------------
   // 共通サブコンポーネント
@@ -447,6 +473,7 @@ export function QuestEditorModal({
                 placeholder="補足説明..."
               />
             </div>
+            {statusToggleButton}
             <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1 shrink-0">
               <X size={24} />
             </button>
@@ -622,6 +649,7 @@ export function QuestEditorModal({
                 placeholder="補足説明..."
               />
             </div>
+            {statusToggleButton}
             <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400 shrink-0">
               <X size={28} />
             </button>
@@ -637,9 +665,27 @@ export function QuestEditorModal({
               {repeatCountdown && <span className="text-gray-300 font-normal">｜ 次の復活: {repeatCountdown}</span>}
             </div>
           )}
-          {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(claimReward || proposalMeta) && (
+          {/* 2行目: 納品ボタン / 報酬受取ボタン / いいね・承認/却下ボタン */}
+          {(onDeliver || claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
+              {onDeliver && (
+                <button
+                  onClick={async () => { setDelivering(true); try { await onDeliver() } finally { setDelivering(false) } }}
+                  disabled={delivering}
+                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
+                  style={{
+                    color: '#1a0a00',
+                    backgroundColor: delivering ? '#9B7B3B' : '#E8A830',
+                    borderTopColor: '#F5C842',
+                    borderLeftColor: '#F5C842',
+                    borderBottomColor: '#8B6020',
+                    borderRightColor: '#8B6020',
+                    cursor: delivering ? 'wait' : 'pointer',
+                  }}
+                >
+                  {delivering ? '納品中...' : '🎁 まとめて納品する'}
+                </button>
+              )}
               {claimReward && (
                 <div className="flex items-center gap-3 mr-auto">
                   <button
