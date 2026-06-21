@@ -42,7 +42,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       return p
     })
 
-    return { ...row, progress: enrichedProgress }
+    const rewardClaimable = row.completed && !row.rewardClaimed
+    return { ...row, progress: enrichedProgress, rewardClaimable }
   })
 
   res.json(enriched)

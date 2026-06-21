@@ -224,6 +224,20 @@ async function seed() {
     completedAt: new Date(Date.now() - 1800000),
   }).onConflictDoNothing()
 
+  // Alex (player): 石器時代クエストを進行中 (完了済みかつ未受取 → 🎁バッジ表示テスト)
+  await db.insert(playerProgress).values({
+    playerUuid: PLAYER_UUID,
+    questId: QUEST_ID_2,
+    progress: [
+      { conditionId: 'cond-2-adv', completed: true },
+      { conditionId: 'cond-2-item', completed: false, current: 1, required: 3 },
+    ],
+    completed: false,
+    rewardClaimed: false,
+    startedAt: new Date(Date.now() - 7200000),
+    completedAt: null,
+  }).onConflictDoNothing()
+
   // Alex: スコアボードテストクエストを進行中 (D-2: stat/scoreboard 進捗バー表示テスト)
   await db.insert(playerProgress).values({
     playerUuid: PLAYER_UUID,

@@ -200,6 +200,17 @@ export default function EditorPage() {
     return set
   }, [progressData])
 
+  // C-3: 報酬受取可能クエストID集合 (完了済みかつ未受取、もしくは pendingRewards > 0)
+  const rewardClaimableQuestIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of progressData ?? []) {
+      const hasPending = (p.pendingRewards ?? 0) > 0
+      const normalClaimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
+      if (hasPending || normalClaimable) set.add(String(p.questId))
+    }
+    return set
+  }, [progressData])
+
   const { data: lang } = useMcLang()
 
   // ---- view-as フローティングパネルのタブ・折りたたみ ----
@@ -1313,6 +1324,7 @@ export default function EditorPage() {
                 setHoveredNode={setHoveredNode}
                 completed={completedQuestIds.has(node.id)}
                 celebrating={celebratingNodeId === node.id}
+                rewardClaimable={rewardClaimableQuestIds.has(node.id)}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
                 onMouseUp={handleNodeMouseUp}
                 onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
@@ -1437,6 +1449,22 @@ export default function EditorPage() {
                 }
               }
             })()}
+            questStatus={(() => {
+              if (!isEditor || !editingNodeId) return undefined
+              const q = questsData?.find((q) => String(q.id) === editingNodeId)
+              return q?.status
+            })()}
+            onToggleStatus={(() => {
+              if (!isEditor || !editingNodeId) return undefined
+              const q = questsData?.find((q) => String(q.id) === editingNodeId)
+              if (!q || q.status === 'proposed') return undefined
+              return async () => {
+                const newStatus = q.status === 'public' ? 'hidden' : 'public'
+                await questsApi.update(q.id, { status: newStatus })
+                await queryClient.invalidateQueries({ queryKey: ['quests'] })
+                showToast(newStatus === 'public' ? '公開しました' : '非公開にしました')
+              }
+            })()}
           />
         )}
 
@@ -1517,6 +1545,8 @@ interface NodeElProps {
   completed?: boolean
   /** たった今達成した瞬間のキラキラ演出中 */
   celebrating?: boolean
+  /** 報酬受取可能 (完了済みかつ未受取) */
+  rewardClaimable?: boolean
   onMouseDown: (e: React.MouseEvent) => void
   onMouseUp: (e: React.MouseEvent) => void
   onTouchStart: (e: React.TouchEvent) => void
@@ -1524,7 +1554,8 @@ interface NodeElProps {
   onTouchEnd: (e: React.TouchEvent) => void
 }
 
-function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, completed, celebrating, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
+function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, completed, celebrating, rewardClaimable, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
+  const isCheckmarkOnly = (node.tasks?.length ?? 0) > 0 && node.tasks!.every((t) => t.type === 'checkmark')
   return (
     <div
       data-node-id={node.id}
@@ -1598,6 +1629,20 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
       {node.repeat && node.repeat.type !== 'none' && (
         <div className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-[#1a2a3a] border border-[#4a9edd] z-10 flex items-center justify-center" title="繰り返しクエスト">
           <RotateCw size={11} strokeWidth={2.5} className="text-[#7ec8ff]" style={{ transform: 'translate(-0.5px, -0.5px)' }} />
+        </div>
+      )}
+
+      {/* C-2: checkmark のみクエストバッジ (右上) */}
+      {isCheckmarkOnly && (
+        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#1a3a2a] border border-[#4add9e] z-10 flex items-center justify-center" title="チェックマーク条件のみ" style={{ fontSize: '11px' }}>
+          ☑
+        </div>
+      )}
+
+      {/* C-3: 報酬未受取バッジ (左下) */}
+      {rewardClaimable && (
+        <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-[#3a1a00] border border-[#dd7a1a] z-10 flex items-center justify-center" title="報酬を受け取れます" style={{ fontSize: '11px' }}>
+          🎁
         </div>
       )}
 
