@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
@@ -235,6 +236,7 @@ public class ProgressManager {
     public int claimReward(String playerUuid, int questId) throws SQLException {
         Quest quest = questManager.findById(questId);
         if (quest == null) return 0;
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return 0;
 
         ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, questId);
         if (rec == null) return 0;
@@ -284,6 +286,7 @@ public class ProgressManager {
     public DeliveryResult deliverItems(String playerUuid, int questId) throws Exception {
         Quest quest = questManager.findById(questId);
         if (quest == null || quest.conditions == null) return new DeliveryResult(Map.of(), Map.of());
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return new DeliveryResult(Map.of(), Map.of());
 
         // delivery 条件のみ抽出
         List<Map<String, Object>> deliveryConds = quest.conditions.stream()
@@ -427,8 +430,27 @@ public class ProgressManager {
 
     // ---- private helpers ----
 
+    /**
+     * 前提クエストが全て完了しているか確認する。
+     * prerequisites リストが空または null の場合は true を返す。
+     */
+    private boolean arePrerequisitesMet(UUID playerUuid, Quest quest) {
+        if (quest.prerequisites == null || quest.prerequisites.isEmpty()) return true;
+        for (int prereqId : quest.prerequisites) {
+            try {
+                ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid.toString(), prereqId);
+                if (rec == null || !rec.completed()) return false;
+            } catch (SQLException e) {
+                log.warning("arePrerequisitesMet error: " + e.getMessage());
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void markConditionComplete(String playerUuid, Quest quest, String condType, String condValue)
             throws Exception {
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
@@ -471,6 +493,7 @@ public class ProgressManager {
 
     private void updateItemProgress(String playerUuid, Quest quest, String itemType, int inventoryCount)
             throws Exception {
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
@@ -514,6 +537,7 @@ public class ProgressManager {
     /** stat 条件の進捗を更新する。currentValue が required 以上になったら達成。 */
     private void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
             throws Exception {
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
@@ -569,6 +593,7 @@ public class ProgressManager {
     /** scoreboard 条件の進捗を確認し、スコアが目標値以上なら達成とする。 */
     private void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
             throws Exception {
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
@@ -607,6 +632,7 @@ public class ProgressManager {
     /** location 条件の進捗を確認し、半径内に入っていれば達成とする。 */
     private void updateLocationProgress(String playerUuid, Quest quest, int px, int py, int pz, String dimension)
             throws Exception {
+        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
@@ -702,13 +728,14 @@ public class ProgressManager {
             // schedule は RepeatScheduler が毎分チェックしてリセットする
         }
 
-        Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
+        Player player = Bukkit.getPlayer(UUID.fromString(playerUuid));
         if (player == null) return;
         Bukkit.getScheduler().runTask(plugin, () -> {
             // チャットメッセージ
             player.sendMessage(net.kyori.adventure.text.Component.text(
                 "§6✨ クエスト完了: §f§l" + quest.title + "\n§7報酬を受け取るには §a/quest claim " + quest.id + " §7を実行"
             ));
+
             // サウンド
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
             // パーティクル (プレイヤー周囲に花火)
