@@ -142,8 +142,10 @@ test('提案送信: 送信後も提案モードで見える / 終了後・ログ
   await page.getByText('✏️ 編集者としてログイン').click()
   await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
   // editor はデフォルトプレイモード → 編集モードに切り替えて提案ノードを確認
+  // 注意: editor の編集モードでは hidden クエストも表示されるため、提案ノードを id で直接確認する
+  // editor が編集モードで見る提案ノードは existing-proposal-{id} という id を持つ
   await page.getByTitle('編集モード').click()
-  await expect(page.locator('[data-node-id]')).toHaveCount(base + 1, { timeout: 5000 })
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
 })
 
 // 17
