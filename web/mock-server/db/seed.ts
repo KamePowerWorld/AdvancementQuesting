@@ -24,6 +24,7 @@ const QUEST_ID_4 = 4
 const QUEST_ID_5 = 5
 const QUEST_ID_6 = 6
 const QUEST_ID_7 = 7
+const QUEST_ID_8 = 8
 
 async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
@@ -146,6 +147,20 @@ async function seed() {
       customButtons: [] as object[],
       status: 'draft' as const,
       creatorUuid: DEMO_PLAYER_UUID,
+    },
+    {
+      id: QUEST_ID_8,
+      title: '非公開テストクエスト',
+      description: '非公開 (hidden) クエストのテスト用。',
+      icon: 'barrier',
+      category: 'テスト',
+      prerequisites: [] as number[],
+      conditions: [{ id: 'cond-8-adv', type: 'advancement', advancementId: 'minecraft:story/mine_stone', requiredCount: 1 }],
+      rewards: [],
+      mapPosition: { x: 100, y: 400 },
+      customButtons: [] as object[],
+      status: 'hidden' as const,
+      creatorUuid: null,
     },
   ]
 

@@ -8,6 +8,7 @@
  * W-D. モードトースト・ツールバー表示制御
  * W-E. 依存関係（エッジ）の作成と保存
  * W-F. パンの初期位置（最左上ノードがビューポート内）
+ * B2+. hidden クエストの視覚化
  */
 
 import { test, expect } from '@playwright/test'
@@ -288,4 +289,43 @@ test('パン初期位置: ページロード後に最左上ノードがビュー
   expect(box!.y).toBeGreaterThan(0)
   expect(box!.x + box!.width).toBeLessThan(vp.width)
   expect(box!.y + box!.height).toBeLessThan(vp.height)
+})
+
+// ---------------------------------------------------------------------------
+// B2+: hidden クエストの視覚化
+// ---------------------------------------------------------------------------
+
+// B2+-1
+test('hidden クエスト: 編集者モードでは暗く表示され 🔒 バッジが付く (B2+-1)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  // hidden クエスト (id=8) が表示されていること (編集者にはhiddenも見える)
+  const hiddenNode = page.locator('[data-node-id="8"]')
+  await expect(hiddenNode).toBeVisible({ timeout: 5000 })
+
+  // data-hidden 属性が設定されていること
+  await expect(hiddenNode).toHaveAttribute('data-hidden', 'true')
+
+  // opacity が 0.5 程度になっていること
+  const opacity = await hiddenNode.evaluate((el) => parseFloat((el as HTMLElement).style.opacity))
+  expect(opacity).toBeCloseTo(0.5, 1)
+
+  // 🔒 バッジが存在すること
+  const badge = hiddenNode.locator('[title="非公開クエスト"]')
+  await expect(badge).toBeVisible()
+})
+
+// B2+-2
+test('hidden クエスト: プレイヤーには表示されない (B2+-2)', async ({ page }) => {
+  await loginAs(page, 'demo-player-token')
+
+  // hidden クエスト (id=8) はプレイヤーには表示されないこと
+  const hiddenNode = page.locator('[data-node-id="8"]')
+  await expect(hiddenNode).not.toBeVisible()
+})
+
+// B2+-3
+test('hidden クエスト: 未ログイン時は表示されない (B2+-3)', async ({ page }) => {
+  // ログインしていない状態
+  await expect(page.locator('[data-node-id="8"]')).not.toBeVisible()
 })

@@ -60,6 +60,7 @@ function questToNode(q: Quest): EditorNode {
       return { ...base, type: r.type }
     }),
     repeat: q.repeat ? { type: q.repeat.type, cooldownHours: q.repeat.cooldownHours, cron: q.repeat.cron } : undefined,
+    status: q.status,
   }
 }
 
@@ -556,7 +557,9 @@ export default function EditorPage() {
           .map((q) => questsApi.delete(q.id))
       )
       await Promise.all(nodes.map(async (node) => {
-        const body = { ...nodeToApiBody(node, edges), status: 'public' as const }
+        // hidden クエストはステータスを保持、新規ノードはデフォルト public
+        const savedStatus: 'hidden' | 'public' = node.status === 'hidden' ? 'hidden' : 'public'
+        const body = { ...nodeToApiBody(node, edges), status: savedStatus }
         if (existingIds.has(node.id)) {
           await questsApi.update(parseInt(node.id, 10), body)
         } else {
@@ -1325,6 +1328,7 @@ export default function EditorPage() {
                 completed={completedQuestIds.has(node.id)}
                 celebrating={celebratingNodeId === node.id}
                 rewardClaimable={rewardClaimableQuestIds.has(node.id)}
+                isEditor={isEditor}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id, false)}
                 onMouseUp={handleNodeMouseUp}
                 onTouchStart={(e) => handleNodeTouchStart(e, node.id, false)}
@@ -1547,6 +1551,8 @@ interface NodeElProps {
   celebrating?: boolean
   /** 報酬受取可能 (完了済みかつ未受取) */
   rewardClaimable?: boolean
+  /** 編集者モード (hidden バッジ表示に使用) */
+  isEditor?: boolean
   onMouseDown: (e: React.MouseEvent) => void
   onMouseUp: (e: React.MouseEvent) => void
   onTouchStart: (e: React.TouchEvent) => void
@@ -1554,17 +1560,19 @@ interface NodeElProps {
   onTouchEnd: (e: React.TouchEvent) => void
 }
 
-function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, completed, celebrating, rewardClaimable, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
+function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHoveredNode, isDraft, completed, celebrating, rewardClaimable, isEditor, onMouseDown, onMouseUp, onTouchStart, onTouchMove, onTouchEnd }: NodeElProps) {
   const isCheckmarkOnly = (node.tasks?.length ?? 0) > 0 && node.tasks!.every((t) => t.type === 'checkmark')
+  const isHidden = node.status === 'hidden'
   return (
     <div
       data-node-id={node.id}
       data-completed={completed ? 'true' : undefined}
       data-celebrating={celebrating ? 'true' : undefined}
+      data-hidden={isHidden ? 'true' : undefined}
       className={`absolute w-12 h-12 -ml-6 -mt-6 flex items-center justify-center cursor-pointer z-10 transition-transform ${
         draggingNode === node.id ? 'scale-110 z-20' : ''
       } ${celebrating ? 'z-30' : ''}`}
-      style={{ left: node.x, top: node.y, opacity: isDraft ? 0.85 : 1 }}
+      style={{ left: node.x, top: node.y, opacity: isDraft ? 0.85 : isHidden ? 0.5 : 1 }}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
       onMouseEnter={() => setHoveredNode(node)}
@@ -1646,8 +1654,15 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
         </div>
       )}
 
-      {/* 達成済みチェックマーク (右下バッジ) */}
-      {completed && (
+      {/* B2+: 非公開クエストバッジ (右下) — 編集者のみ表示 */}
+      {isHidden && isEditor && (
+        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2a1a3a] border border-[#9a6acc] z-10 flex items-center justify-center" title="非公開クエスト" style={{ fontSize: '11px' }}>
+          🔒
+        </div>
+      )}
+
+      {/* 達成済みチェックマーク (右下バッジ) — hidden のときは非公開バッジを優先 */}
+      {completed && !(isHidden && isEditor) && (
         <div
           className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-yellow-700 z-20 flex items-center justify-center"
           style={{ backgroundColor: '#FFD700', fontSize: '10px', lineHeight: 1 }}

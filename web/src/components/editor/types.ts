@@ -75,6 +75,8 @@ export interface EditorNode {
   rewards: EditorReward[]
   creatorName?: string | null
   repeat?: EditorRepeat
+  /** クエストの公開状態 ('public' | 'hidden' | 'draft' | 'proposed') */
+  status?: string
 }
 
 /** クエスト間の依存エッジ */
