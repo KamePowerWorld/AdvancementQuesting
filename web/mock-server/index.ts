@@ -45,6 +45,16 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// GET /favicon.png — プラグインフォルダの favicon.png を返す (モック: 最小 PNG を返す)
+const MOCK_FAVICON_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+)
+app.get('/favicon.png', (_req, res) => {
+  res.set('Content-Type', 'image/png')
+  res.send(MOCK_FAVICON_PNG)
+})
+
 // GET /api/player/location — テスト用固定座標を返す
 app.get('/api/player/location', (_req, res) => {
   res.json({ x: 100, y: 64, z: 200, dimension: 'overworld' })

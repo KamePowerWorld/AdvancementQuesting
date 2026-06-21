@@ -13,5 +13,4 @@ point-command: "scoreboard players add {player} point {amount}"
 # Web UI のサイトタイトル
 site-title: "AdvancementQuesting"
 
-# Web UI のファビコンに使用するアイテム名 (Minecraft アイテム ID)
-site-favicon-item: "writable_book"
+# カスタムファビコン: plugins/AdvancementQuesting/favicon.png を置くと自動的に使用される

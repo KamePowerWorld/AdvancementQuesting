@@ -256,29 +256,7 @@ function AppInner() {
   })
   useEffect(() => {
     if (!appConfig) return
-    // タイトル設定
     document.title = appConfig.title
-    // favicon: Minecraft テクスチャをキャンバスで拡大して設定
-    const img = new Image()
-    img.src = `/mc/textures/item/${appConfig.faviconItem}.png`
-    img.onload = () => {
-      const size = 64
-      const c = document.createElement('canvas')
-      c.width = c.height = size
-      const ctx = c.getContext('2d')
-      if (!ctx) return
-      ctx.imageSmoothingEnabled = false
-      ctx.drawImage(img, 0, 0, size, size)
-      // 既存の favicon リンクを更新または新規追加
-      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-      if (!link) {
-        link = document.createElement('link')
-        link.rel = 'icon'
-        link.type = 'image/png'
-        document.head.appendChild(link)
-      }
-      link.href = c.toDataURL()
-    }
   }, [appConfig])
 
   const [proposalMode, setProposalMode] = useState(false)

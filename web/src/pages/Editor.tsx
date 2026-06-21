@@ -1425,7 +1425,7 @@ export default function EditorPage() {
               if (!claimable) return undefined
               return async () => {
                 await progressApi.claim(editingNodeId!)
-                await queryClient.invalidateQueries({ queryKey: ['progress'] })
+                await queryClient.refetchQueries({ queryKey: ['progress'] })
                 showToast('報酬を受け取りました！')
               }
             })()}
