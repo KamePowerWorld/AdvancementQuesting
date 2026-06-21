@@ -7,6 +7,11 @@ import com.kamesuta.advquesting.api.PlayerRoutes;
 import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.RewardClaimDao;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -728,13 +733,47 @@ public class ProgressManager {
             // schedule は RepeatScheduler が毎分チェックしてリセットする
         }
 
+        // 全員へのブロードキャスト
+        String playerName = playerUuidToName(playerUuid);
+        Component broadcastMsg = Component.text("🎉 ")
+            .append(Component.text(playerName, NamedTextColor.YELLOW))
+            .append(Component.text(" が "))
+            .append(Component.text(quest.title, NamedTextColor.GOLD, TextDecoration.BOLD))
+            .append(Component.text(" をクリアしました！"));
+        Bukkit.getServer().broadcast(broadcastMsg);
+
         Player player = Bukkit.getPlayer(UUID.fromString(playerUuid));
         if (player == null) return;
         Bukkit.getScheduler().runTask(plugin, () -> {
-            // チャットメッセージ
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                "§6✨ クエスト完了: §f§l" + quest.title + "\n§7報酬を受け取るには §a/quest claim " + quest.id + " §7を実行"
-            ));
+            // ホバーテキスト: クエストの説明と条件一覧
+            Component hoverContent = Component.text(quest.title, NamedTextColor.GOLD, TextDecoration.BOLD);
+            if (quest.description != null && !quest.description.isEmpty()) {
+                hoverContent = hoverContent
+                    .append(Component.newline())
+                    .append(Component.text(quest.description, NamedTextColor.GRAY));
+            }
+            if (quest.conditions != null && !quest.conditions.isEmpty()) {
+                hoverContent = hoverContent.append(Component.newline());
+                for (Map<String, Object> cond : quest.conditions) {
+                    String condTitle = cond.get("title") instanceof String t ? t : (String) cond.get("type");
+                    if (condTitle != null) {
+                        hoverContent = hoverContent
+                            .append(Component.newline())
+                            .append(Component.text("・" + condTitle, NamedTextColor.WHITE));
+                    }
+                }
+            }
+
+            // 本人向けクエスト完了メッセージ (claimコマンド付き)
+            Component claimMsg = Component.text("✨ クエスト完了: ", NamedTextColor.GOLD)
+                .append(Component.text(quest.title, NamedTextColor.WHITE, TextDecoration.BOLD))
+                .append(Component.newline())
+                .append(Component.text("報酬を受け取るには ", NamedTextColor.GRAY))
+                .append(Component.text("/quest claim " + quest.id, NamedTextColor.GREEN)
+                    .clickEvent(ClickEvent.runCommand("/quest claim " + quest.id))
+                    .hoverEvent(HoverEvent.showText(hoverContent)))
+                .append(Component.text(" を実行", NamedTextColor.GRAY));
+            player.sendMessage(claimMsg);
 
             // サウンド
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
