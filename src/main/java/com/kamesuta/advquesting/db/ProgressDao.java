@@ -104,14 +104,23 @@ public class ProgressDao {
      * completed_at は保持し、pending_rewards は変更しない。
      */
     public void resetForRepeat(String playerUuid, int questId) throws SQLException {
+        resetForRepeatWithProgress(playerUuid, questId, "[]");
+    }
+
+    /**
+     * 繰り返しクエストをリセットする。stat/scoreboard 条件の baseValue を引き継いだ進捗JSONを設定する。
+     * completed_at は保持し、pending_rewards は変更しない。
+     */
+    public void resetForRepeatWithProgress(String playerUuid, int questId, String progressJson) throws SQLException {
         String sql = """
             UPDATE player_progress
-            SET progress = '[]', completed = 0, reward_claimed = 0
+            SET progress = ?, completed = 0, reward_claimed = 0
             WHERE player_uuid = ? AND quest_id = ?
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setString(1, playerUuid);
-            ps.setInt(2, questId);
+            ps.setString(1, progressJson);
+            ps.setString(2, playerUuid);
+            ps.setInt(3, questId);
             ps.executeUpdate();
         }
     }

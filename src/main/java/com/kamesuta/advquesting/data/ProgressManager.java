@@ -539,7 +539,7 @@ public class ProgressManager {
         }
     }
 
-    /** stat 条件の進捗を更新する。currentValue が required 以上になったら達成。 */
+    /** stat 条件の進捗を更新する。繰り返しクエストは前回クリア時の baseValue からの差分で判定する。 */
     private void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
@@ -548,6 +548,7 @@ public class ProgressManager {
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
 
+        boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
         boolean changed = false;
         for (Map<String, Object> cond : quest.conditions) {
             if (!"stat".equals(cond.get("type"))) continue;
@@ -562,10 +563,23 @@ public class ProgressManager {
             boolean wasCompleted = existing != null && Boolean.TRUE.equals(existing.get("completed"));
             if (wasCompleted) continue;
 
-            int capped = Math.min(currentValue, required);
-            boolean nowDone = currentValue >= required;
+            // 繰り返しクエストは前回クリア時の baseValue からの差分で判定
+            int baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
+            int diff = currentValue - baseValue;
+            int capped = Math.min(diff, required);
+            boolean nowDone = diff >= required;
+
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("conditionId", condId);
+            entry.put("current", capped);
+            entry.put("required", required);
+            entry.put("completed", nowDone);
+            if (isRepeat) {
+                entry.put("baseValue", baseValue);
+                entry.put("rawValue", currentValue);
+            }
             progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "current", capped, "required", required, "completed", nowDone));
+            progress.add(entry);
             changed = true;
         }
         if (!changed) return;
@@ -595,7 +609,7 @@ public class ProgressManager {
         return true;
     }
 
-    /** scoreboard 条件の進捗を確認し、スコアが目標値以上なら達成とする。 */
+    /** scoreboard 条件の進捗を確認する。繰り返しクエストは前回クリア時の baseValue からの差分で判定する。 */
     private void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
@@ -604,6 +618,7 @@ public class ProgressManager {
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
 
+        boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
         boolean changed = false;
         for (Map<String, Object> cond : quest.conditions) {
             if (!"scoreboard".equals(cond.get("type"))) continue;
@@ -611,14 +626,29 @@ public class ProgressManager {
             String condId = (String) cond.get("id");
             int required = ((Number) cond.getOrDefault("score", 1)).intValue();
 
-            boolean alreadyDone = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            Map<String, Object> existing = progress.stream()
+                .filter(p -> condId.equals(p.get("conditionId")))
+                .findFirst().orElse(null);
+            boolean alreadyDone = existing != null && Boolean.TRUE.equals(existing.get("completed"));
             if (alreadyDone) continue;
 
-            int capped = Math.min(score, required);
-            boolean nowDone = score >= required;
+            // 繰り返しクエストは前回クリア時の baseValue からの差分で判定
+            int baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
+            int diff = score - baseValue;
+            int capped = Math.min(diff, required);
+            boolean nowDone = diff >= required;
+
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("conditionId", condId);
+            entry.put("current", capped);
+            entry.put("required", required);
+            entry.put("completed", nowDone);
+            if (isRepeat) {
+                entry.put("baseValue", baseValue);
+                entry.put("rawValue", score);
+            }
             progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "current", capped, "required", required, "completed", nowDone));
+            progress.add(entry);
             changed = true;
         }
         if (!changed) return;
@@ -679,6 +709,39 @@ public class ProgressManager {
         }
     }
 
+    /**
+     * 繰り返しリセット用の新しい進捗JSONを生成する。
+     * stat/scoreboard 条件は前回クリア時の rawValue を新しい baseValue として引き継ぐ。
+     */
+    static String buildResetProgressJson(Quest quest, List<Map<String, Object>> completedProgress) throws Exception {
+        if (quest.conditions == null) return "[]";
+        List<Map<String, Object>> newProgress = new ArrayList<>();
+        for (Map<String, Object> cond : quest.conditions) {
+            String condType = (String) cond.get("type");
+            String condId = (String) cond.get("id");
+            if (condId == null) continue;
+            if (!"stat".equals(condType) && !"scoreboard".equals(condType)) continue;
+
+            Map<String, Object> existing = completedProgress.stream()
+                .filter(p -> condId.equals(p.get("conditionId")))
+                .findFirst().orElse(null);
+            int rawValue = existing != null && existing.get("rawValue") instanceof Number n ? n.intValue() : 0;
+            int required = "stat".equals(condType)
+                ? ((Number) cond.getOrDefault("count", 1)).intValue()
+                : ((Number) cond.getOrDefault("score", 1)).intValue();
+
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("conditionId", condId);
+            entry.put("current", 0);
+            entry.put("required", required);
+            entry.put("baseValue", rawValue);
+            entry.put("rawValue", rawValue);
+            entry.put("completed", false);
+            newProgress.add(entry);
+        }
+        return MAPPER.writeValueAsString(newProgress);
+    }
+
     /** checkmark を含む全条件が完了しているか確認する (checkmark 手動完了時に使用) */
     private boolean isAllConditionsMetIncludingCheckmarks(Quest quest, List<Map<String, Object>> progress) {
         if (quest.conditions == null || quest.conditions.isEmpty()) return false;
@@ -720,9 +783,14 @@ public class ProgressManager {
         Quest.RepeatConfig repeat = quest.repeat;
         if (repeat != null) {
             if ("unlimited".equals(repeat.type)) {
-                // 即座にリセット
+                // stat/scoreboard 条件の rawValue を baseValue として引き継いでリセット
                 try {
-                    progressDao.resetForRepeat(playerUuid, quest.id);
+                    ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                    List<Map<String, Object>> completedProgress = rec != null
+                        ? MAPPER.readValue(rec.progress(), LIST_MAP_TYPE)
+                        : new ArrayList<>();
+                    String newProgressJson = buildResetProgressJson(quest, completedProgress);
+                    progressDao.resetForRepeatWithProgress(playerUuid, quest.id, newProgressJson);
                 } catch (Exception e) {
                     log.warning("resetForRepeat (unlimited) error: " + e.getMessage());
                 }

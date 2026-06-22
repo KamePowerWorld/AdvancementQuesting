@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.data;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.db.ProgressDao;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -7,7 +9,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +21,9 @@ import java.util.logging.Logger;
  * 毎分実行されるスケジューラ。schedule タイプの繰り返しクエストを復活させ SSE で通知する。
  */
 public class RepeatScheduler {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final QuestManager questManager;
     private final ProgressDao progressDao;
@@ -69,7 +76,20 @@ public class RepeatScheduler {
                     if (prevFire == null) continue;
 
                     if (lastCompleted.isBefore(prevFire.toInstant())) {
-                        progressDao.resetForRepeat(rec.playerUuid(), quest.id);
+                        // stat/scoreboard 条件の rawValue を baseValue として引き継いでリセット
+                        List<Map<String, Object>> completedProgress;
+                        try {
+                            completedProgress = MAPPER.readValue(rec.progress(), LIST_MAP_TYPE);
+                        } catch (Exception ex) {
+                            completedProgress = new ArrayList<>();
+                        }
+                        String newProgressJson;
+                        try {
+                            newProgressJson = ProgressManager.buildResetProgressJson(quest, completedProgress);
+                        } catch (Exception ex) {
+                            newProgressJson = "[]";
+                        }
+                        progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.id, newProgressJson);
                         notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.id);
                     }
                 }
