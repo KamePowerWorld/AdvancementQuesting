@@ -64,17 +64,12 @@ Ports:
 
 ## Test Console (Manual Testing)
 
-A browser-based console for manual testing without a separate phone+screen setup. Combines Mineflayer bot control, chat monitoring, command input, and the quest Web UI in one page. The quest UI is embedded via `<iframe>` and you can get an auth code for the bot account with one tap.
-
-Prerequisite: Minecraft server must be running (start separately with `cd mc-tests && npm run test:no-build`, or while a normal test run is active).
+Browser-based console for manual testing. Requires Minecraft server running.
 
 ```powershell
 cd mc-tests && npm run dev:console
-# → open http://localhost:7890/test-console in browser (or phone via Tailscale)
+# → http://localhost:7890/test-console
 ```
-
-- **Code**: `mc-tests/test-server.ts` (Express + SSE), `mc-tests/test-server-bot.ts` (BotManager), `mc-tests/public/test-console.html` (UI)
-- The iframe points directly to the plugin API (port 8080) — no proxy.
 
 Ports:
 
