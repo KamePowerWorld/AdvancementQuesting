@@ -424,13 +424,15 @@ server.listen(PORT, () => {
 })
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
+async function shutdown() {
   await botManager.disconnect().catch(() => {})
+  if (mcProc) {
+    mcProc.stdin?.write('stop\n')
+    await new Promise<void>(resolve => mcProc!.on('exit', () => resolve()))
+      .catch(() => mcProc?.kill())
+  }
   server.close()
   process.exit(0)
-})
-process.on('SIGTERM', async () => {
-  await botManager.disconnect().catch(() => {})
-  server.close()
-  process.exit(0)
-})
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
