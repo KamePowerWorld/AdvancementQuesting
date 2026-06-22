@@ -1,21 +1,20 @@
 import mineflayer, { Bot } from 'mineflayer'
 import net from 'node:net'
 
-const MC_HOST = process.env.MC_HOST ?? 'localhost'
-const MC_PORT = parseInt(process.env.MC_PORT ?? '25599', 10)
 export const API_BASE = process.env.API_BASE ?? 'http://localhost:8090'
 
-// RCON 設定 (OP権限コマンド実行用)
-const RCON_HOST = process.env.MC_HOST ?? 'localhost'
-const RCON_PORT = parseInt(process.env.RCON_PORT ?? '25598', 10)
-const RCON_PASS = process.env.RCON_PASS ?? 'testpass'
+// Read connection settings lazily so callers can override process.env before importing
+function getMcHost() { return process.env.MC_HOST ?? 'localhost' }
+function getMcPort() { return parseInt(process.env.MC_PORT ?? '25599', 10) }
+function getRconPort() { return parseInt(process.env.RCON_PORT ?? '25598', 10) }
+function getRconPass() { return process.env.RCON_PASS ?? 'testpass' }
 
 /** Mineflayer ボットを作成してスポーンするまで待つ */
 export function createBot(username: string): Promise<Bot> {
   return new Promise((resolve, reject) => {
     const bot = mineflayer.createBot({
-      host: MC_HOST,
-      port: MC_PORT,
+      host: getMcHost(),
+      port: getMcPort(),
       username,
       version: '1.21.11',
       auth: 'offline',
@@ -90,7 +89,7 @@ export async function apiRequest<T = unknown>(
 /** RCON でコンソールコマンドを実行する (OP権限相当) */
 export function rcon(cmd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const sock = net.connect(RCON_PORT, RCON_HOST)
+    const sock = net.connect(getRconPort(), getMcHost())
     let buf = Buffer.alloc(0)
     const send = (id: number, type: number, body: string) => {
       const payload = Buffer.from(body + '\0\0', 'ascii')
@@ -102,7 +101,7 @@ export function rcon(cmd: string): Promise<string> {
       sock.write(pkt)
     }
     let authed = false
-    sock.on('connect', () => send(1, 3, RCON_PASS))
+    sock.on('connect', () => send(1, 3, getRconPass()))
     sock.on('data', (d: Buffer) => {
       buf = Buffer.concat([buf, d])
       while (buf.length >= 4 && buf.length >= buf.readInt32LE(0) + 4) {

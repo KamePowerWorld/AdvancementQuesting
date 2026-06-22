@@ -7,12 +7,16 @@
     "test": "node setup.js",
     "test:no-build": "node setup.js --no-build",
     "test:direct": "node --import tsx/esm --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:console": "npx tsx test-server.ts"
   },
   "dependencies": {
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.5",
     "mineflayer": "^4.23.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.3",
     "@types/node": "^25.9.3",
     "playwright": "^1.60.0",
     "tsx": "^4.22.4",

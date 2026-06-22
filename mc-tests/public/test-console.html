@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AQ Test Console</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #1a1a1a; color: #eee; }
+  #app { display: flex; flex-direction: column; height: 100dvh; }
+
+  /* iframe (quest UI) — top, takes most space */
+  #frame-wrap { flex: 1 1 auto; min-height: 0; position: relative; background: #000; }
+  #quest-frame { width: 100%; height: 100%; border: 0; display: block; }
+
+  /* control panel — bottom */
+  #panel { flex: 0 0 auto; background: #232323; border-top: 1px solid #000; max-height: 45dvh; display: flex; flex-direction: column; }
+
+  /* status bar */
+  #status-bar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: #2c2c2c; flex: 0 0 auto; border-bottom: 1px solid #111;
+  }
+  #dot { width: 10px; height: 10px; border-radius: 50%; background: #777; flex: 0 0 auto; }
+  #dot.connected { background: #3fbf5f; }
+  #dot.connecting { background: #e0a83f; }
+  #dot.error { background: #e04040; }
+  #status-text { font-size: 13px; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* tabs */
+  #tab-bar { display: flex; background: #1e1e1e; flex: 0 0 auto; border-bottom: 1px solid #111; }
+  .tab-btn {
+    flex: 1; padding: 7px 4px; font-size: 13px; border: none; background: none;
+    color: #888; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: #eee; border-bottom-color: #3a6ea5; }
+  .tab-content { display: none; flex: 1 1 auto; overflow-y: auto; }
+  .tab-content.active { display: block; }
+
+  .section { padding: 8px 12px; border-bottom: 1px solid #1a1a1a; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .row:last-child { margin-bottom: 0; }
+  label.lbl { font-size: 12px; color: #999; width: 56px; flex: 0 0 auto; }
+
+  input, select, button { font-size: 14px; padding: 7px 9px; border-radius: 6px; border: 1px solid #444; background: #333; color: #eee; }
+  input { flex: 1 1 80px; min-width: 0; }
+  select { flex: 1 1 100px; }
+  input.count { flex: 0 0 56px; }
+  button { background: #3a6ea5; border-color: #3a6ea5; cursor: pointer; flex: 0 0 auto; }
+  button:active { background: #2d5680; }
+  button.secondary { background: #444; border-color: #555; }
+  button.danger { background: #a53a3a; border-color: #a53a3a; }
+  button.success { background: #2e7d40; border-color: #2e7d40; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* chat / console log */
+  .log-wrap { padding: 0; }
+  .log-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px; background: #2a2a2a; position: sticky; top: 0; z-index: 1; }
+  .log-head h3 { margin: 0; font-size: 12px; color: #999; font-weight: 600; }
+  .log-list { list-style: none; margin: 0; padding: 4px 12px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
+  .log-list li { white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid #1e1e1e; padding: 2px 0; }
+  .log-list .ts { color: #666; margin-right: 6px; }
+  .log-list .mc-log { color: #ccc; }
+
+  /* MC status dot */
+  #mc-dot { width: 10px; height: 10px; border-radius: 50%; background: #777; flex: 0 0 auto; display: inline-block; margin-right: 6px; }
+  #mc-dot.running { background: #3fbf5f; }
+  #mc-dot.starting { background: #e0a83f; }
+
+  /* PC landscape: side-by-side */
+  @media (min-width: 768px) and (orientation: landscape) {
+    #app { flex-direction: row; }
+    #frame-wrap { flex: 1 1 60%; }
+    #panel { flex: 0 0 400px; max-height: none; height: 100dvh; border-top: 0; border-left: 1px solid #000; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="frame-wrap">
+    <iframe id="quest-frame"></iframe>
+  </div>
+
+  <div id="panel">
+    <div id="status-bar">
+      <span id="dot"></span>
+      <span id="status-text">Bot: 未接続</span>
+      <button id="btn-connect" class="secondary" style="padding:5px 9px;font-size:13px">接続</button>
+      <button id="btn-disconnect" class="danger" style="display:none;padding:5px 9px;font-size:13px">切断</button>
+    </div>
+
+    <div id="tab-bar">
+      <button class="tab-btn active" data-tab="bot">Bot / クエスト</button>
+      <button class="tab-btn" data-tab="mc">MCサーバー</button>
+    </div>
+
+    <!-- ===== Bot tab ===== -->
+    <div id="tab-bot" class="tab-content active">
+      <div class="section">
+        <div class="row">
+          <button id="btn-get-code" class="secondary">🔑 認証コード取得</button>
+          <span id="auth-code-display" style="font-family:monospace;font-size:18px;letter-spacing:4px;color:#3fbf5f;min-width:60px"></span>
+          <button id="btn-reload" class="secondary">UI再読込</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <label class="lbl" style="width:auto;margin-right:4px">WORKTREE</label>
+          <select id="wt-select" style="flex:1"></select>
+          <button id="btn-wt-deploy">デプロイ</button>
+          <button id="btn-wt-refresh" class="secondary" style="padding:7px 8px" title="更新">↺</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <label class="lbl">give</label>
+          <select id="give-item">
+            <option value="minecraft:apple">apple</option>
+            <option value="minecraft:diamond">diamond</option>
+            <option value="minecraft:iron_ingot">iron_ingot</option>
+            <option value="minecraft:gold_ingot">gold_ingot</option>
+            <option value="minecraft:emerald">emerald</option>
+            <option value="minecraft:oak_log">oak_log</option>
+            <option value="minecraft:cobblestone">cobblestone</option>
+            <option value="minecraft:bread">bread</option>
+            <option value="minecraft:wheat">wheat</option>
+            <option value="minecraft:coal">coal</option>
+            <option value="minecraft:netherite_ingot">netherite_ingot</option>
+            <option value="minecraft:ender_pearl">ender_pearl</option>
+          </select>
+          <input id="give-count" class="count" type="number" value="1" min="1">
+          <button id="btn-give">実行</button>
+        </div>
+        <div class="row">
+          <label class="lbl">mode</label>
+          <select id="gamemode">
+            <option value="survival">survival</option>
+            <option value="creative">creative</option>
+            <option value="spectator">spectator</option>
+          </select>
+          <button id="btn-gamemode" class="secondary">変更</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <input id="cmd-input" placeholder="/give ... または チャット" autocomplete="off">
+          <button id="btn-send">送信</button>
+        </div>
+      </div>
+
+      <div class="log-wrap">
+        <div class="log-head">
+          <h3>CHAT LOG</h3>
+          <button id="btn-clear" class="secondary" style="padding:3px 8px;font-size:12px">クリア</button>
+        </div>
+        <ul id="chat-log" class="log-list"></ul>
+      </div>
+    </div>
+
+    <!-- ===== MC server tab ===== -->
+    <div id="tab-mc" class="tab-content">
+      <div class="section">
+        <div class="row">
+          <span id="mc-dot"></span>
+          <span id="mc-status-text" style="font-size:13px;flex:1">状態確認中…</span>
+          <button id="btn-mc-start" class="success">起動</button>
+          <button id="btn-mc-stop" class="danger" style="display:none">停止</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <input id="mc-cmd-input" placeholder="サーバーコマンド (例: say hello)" autocomplete="off">
+          <button id="btn-mc-cmd">送信</button>
+        </div>
+      </div>
+
+      <div class="log-wrap">
+        <div class="log-head">
+          <h3>CONSOLE</h3>
+          <button id="btn-mc-clear" class="secondary" style="padding:3px 8px;font-size:12px">クリア</button>
+        </div>
+        <ul id="mc-log" class="log-list"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+let botUsername = null
+let mcApiPort = 8080  // updated from /api/mc/status
+
+function questBaseUrl() {
+  return `http://${location.hostname}:${mcApiPort}`
+}
+
+function setIframeSrc(path = '/') {
+  $('quest-frame').src = questBaseUrl() + path
+}
+
+// ---- tabs ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+    btn.classList.add('active')
+    $('tab-' + btn.dataset.tab).classList.add('active')
+  })
+})
+
+// ---- API helpers ----
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body !== undefined ? 'POST' : 'GET',
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || res.statusText)
+  return data
+}
+
+function toast(msg) {
+  pushChat({ ts: new Date().toLocaleTimeString('ja-JP', { hour12: false }), text: '» ' + msg })
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+}
+
+// ---- Bot status ----
+function renderStatus(s) {
+  const dot = $('dot')
+  dot.className = ''
+  dot.classList.add(s.state)
+  botUsername = s.username
+  const pos = s.position ? ` (${s.position.x},${s.position.y},${s.position.z})` : ''
+  const label = {
+    disconnected: 'Bot: 未接続',
+    connecting: 'Bot: 接続中…',
+    connected: `Bot: ${s.username}${pos}`,
+    error: `Bot: エラー — ${s.error || ''}`,
+  }[s.state] || 'Bot: ?'
+  $('status-text').textContent = label
+  const connected = s.state === 'connected'
+  $('btn-connect').style.display = connected ? 'none' : ''
+  $('btn-disconnect').style.display = connected ? '' : 'none'
+}
+
+// ---- chat log ----
+function pushChat(msg) {
+  const log = $('chat-log')
+  const li = document.createElement('li')
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 30
+  li.innerHTML = `<span class="ts">${msg.ts}</span>${escapeHtml(msg.text)}`
+  log.appendChild(li)
+  while (log.children.length > 200) log.removeChild(log.firstChild)
+  if (atBottom) log.scrollTop = log.scrollHeight
+}
+
+// ---- Bot SSE ----
+function connectSSE() {
+  const es = new EventSource('/api/bot/chat-stream')
+  es.addEventListener('message', (e) => pushChat(JSON.parse(e.data)))
+  es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)))
+  es.onerror = () => {}
+}
+
+// ---- auth code ----
+async function getAuthCode() {
+  $('btn-get-code').disabled = true
+  $('auth-code-display').textContent = '…'
+  try {
+    const st = await api('/api/bot/status')
+    if (st.state !== 'connected') {
+      toast('ボット接続中…')
+      await api('/api/bot/connect', {})
+      await waitConnected()
+    }
+    const { code } = await api('/api/bot/quest-login', {})
+    $('auth-code-display').textContent = code
+    toast('コード取得: ' + code)
+    // Auto-login: redirect iframe to /login?code=XXXXXX
+    setIframeSrc(`/login?code=${code}`)
+  } catch (err) {
+    $('auth-code-display').textContent = ''
+    toast('コード取得失敗: ' + err.message)
+  } finally {
+    $('btn-get-code').disabled = false
+  }
+}
+
+function waitConnected(timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now()
+    const tick = async () => {
+      const s = await api('/api/bot/status')
+      if (s.state === 'connected') return resolve()
+      if (s.state === 'error') return reject(new Error(s.error || 'connect error'))
+      if (Date.now() - start > timeoutMs) return reject(new Error('接続タイムアウト'))
+      setTimeout(tick, 500)
+    }
+    tick()
+  })
+}
+
+// ---- Bot button handlers ----
+$('btn-connect').onclick = async () => {
+  try { await api('/api/bot/connect', {}) } catch (e) { toast(e.message) }
+}
+$('btn-disconnect').onclick = async () => {
+  try { await api('/api/bot/disconnect', {}) } catch (e) { toast(e.message) }
+}
+$('btn-get-code').onclick = getAuthCode
+$('btn-reload').onclick = () => setIframeSrc('/')
+
+$('btn-give').onclick = async () => {
+  if (!botUsername) return toast('ボット未接続')
+  try {
+    await api('/api/bot/give', { player: botUsername, item: $('give-item').value, count: Number($('give-count').value) })
+    toast(`give ${$('give-item').value} x${$('give-count').value}`)
+  } catch (e) { toast(e.message) }
+}
+$('btn-gamemode').onclick = async () => {
+  if (!botUsername) return toast('ボット未接続')
+  try {
+    await api('/api/bot/gamemode', { mode: $('gamemode').value, player: botUsername })
+    toast('gamemode ' + $('gamemode').value)
+  } catch (e) { toast(e.message) }
+}
+
+async function sendCmd() {
+  const text = $('cmd-input').value.trim()
+  if (!text) return
+  try { await api('/api/bot/chat', { text }); $('cmd-input').value = '' } catch (e) { toast(e.message) }
+}
+$('btn-send').onclick = sendCmd
+$('cmd-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendCmd() })
+$('btn-clear').onclick = () => { $('chat-log').innerHTML = '' }
+
+// ---- Worktree dropdown ----
+function formatTime(isoStr) {
+  if (!isoStr) return '未ビルド'
+  const d = new Date(isoStr)
+  const hhmm = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const diffMin = Math.round((Date.now() - d.getTime()) / 60000)
+  if (diffMin < 1) return `${hhmm} · たった今`
+  if (diffMin < 60) return `${hhmm} · ${diffMin}分前`
+  return `${hhmm} · ${Math.floor(diffMin / 60)}時間前`
+}
+
+async function loadWorktrees() {
+  try {
+    const list = await api('/api/worktrees')
+    const sel = $('wt-select')
+    sel.innerHTML = ''
+    for (const wt of list) {
+      const opt = document.createElement('option')
+      opt.value = wt.path
+      opt.textContent = `${wt.branch}${wt.isBase ? ' ★' : ''}  [${formatTime(wt.builtAt)}]`
+      sel.appendChild(opt)
+    }
+  } catch (e) { toast('worktree取得失敗: ' + e.message) }
+}
+
+$('btn-wt-refresh').onclick = loadWorktrees
+$('btn-wt-deploy').onclick = async () => {
+  const path = $('wt-select').value
+  if (!path) return toast('worktreeを選択してください')
+  $('btn-wt-deploy').disabled = true
+  try {
+    toast(`デプロイ中: ${path}`)
+    await api('/api/worktrees/deploy', { path })
+    toast('デプロイ完了 — 3秒後にUI再読込…')
+    setTimeout(() => { setIframeSrc('/'); toast('UI再読込') }, 3000)
+  } catch (e) {
+    toast('デプロイ失敗: ' + e.message)
+  } finally {
+    $('btn-wt-deploy').disabled = false
+  }
+}
+
+// ---- MC server ----
+function pushMcLog(line) {
+  const log = $('mc-log')
+  const li = document.createElement('li')
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 30
+  li.className = 'mc-log'
+  li.textContent = line
+  log.appendChild(li)
+  while (log.children.length > 500) log.removeChild(log.firstChild)
+  if (atBottom) log.scrollTop = log.scrollHeight
+}
+
+function renderMcStatus(status, apiPort) {
+  const dot = $('mc-dot')
+  dot.className = status === 'running' ? 'running' : (status === 'starting' ? 'starting' : '')
+  $('mc-status-text').textContent = { running: 'サーバー稼働中', stopped: 'サーバー停止中', starting: 'サーバー起動中…' }[status] || status
+  $('btn-mc-start').style.display = status === 'running' ? 'none' : ''
+  $('btn-mc-stop').style.display = status === 'running' ? '' : 'none'
+  $('btn-mc-start').disabled = status === 'starting'
+}
+
+function connectMcSSE() {
+  const es = new EventSource('/api/mc/console-stream')
+  es.addEventListener('message', (e) => pushMcLog(JSON.parse(e.data)))
+  es.addEventListener('status', (e) => renderMcStatus(JSON.parse(e.data)))
+  es.addEventListener('reload-iframe', () => {
+    setTimeout(() => setIframeSrc('/'), 1000)
+  })
+  es.onerror = () => {}
+}
+
+$('btn-mc-start').onclick = async () => {
+  renderMcStatus('starting')
+  $('btn-mc-start').disabled = true
+  try {
+    await api('/api/mc/start', {})
+  } catch (e) {
+    toast('MCサーバー起動失敗: ' + e.message)
+    renderMcStatus('stopped')
+  }
+}
+$('btn-mc-stop').onclick = async () => {
+  try { await api('/api/mc/stop', {}) } catch (e) { toast(e.message) }
+}
+
+async function sendMcCmd() {
+  const text = $('mc-cmd-input').value.trim()
+  if (!text) return
+  try { await api('/api/mc/command', { cmd: text }); $('mc-cmd-input').value = '' } catch (e) { toast(e.message) }
+}
+$('btn-mc-cmd').onclick = sendMcCmd
+$('mc-cmd-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMcCmd() })
+$('btn-mc-clear').onclick = () => { $('mc-log').innerHTML = '' }
+
+// ---- init ----
+connectSSE()
+connectMcSSE()
+api('/api/bot/status').then(renderStatus).catch(() => {})
+loadWorktrees()
+// Set iframe to MC server directly (no proxy)
+api('/api/mc/status').then(d => {
+  mcApiPort = d.apiPort ?? 8080
+  setIframeSrc('/')
+}).catch(() => setIframeSrc('/'))
+</script>
+</body>
+</html>

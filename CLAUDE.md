@@ -62,6 +62,26 @@ Ports:
 | Plugin API (Web UI) | 8090 |
 | RCON | 25598 |
 
+## Test Console (手動テスト用)
+
+スマホ1台でブラウザだけで手動テストできる Web コンソール。Mineflayer ボット操作・チャット監視・コマンド送信・クエスト Web UI の確認を1ページで完結できる。クエスト UI は `<iframe>` で埋め込み、ボットのアカウントで「ワンタップログイン」できる（`/quest code` を自動実行し iframe にトークン注入）。
+
+前提: Minecraft サーバーが起動していること（`cd mc-tests && npm run test:no-build` などで別途起動、または通常テスト実行中）。
+
+```powershell
+cd mc-tests && npm run dev:console
+# → http://localhost:7890/test-console をスマホ/PCのブラウザで開く
+```
+
+- **コード**: `mc-tests/test-server.ts` (Express + SSE + プロキシ), `mc-tests/test-server-bot.ts` (BotManager), `mc-tests/public/test-console.html` (UI)
+- iframe は `/quest/*` → Plugin API (8090) へのリバースプロキシ経由（同一オリジン化のため）
+
+Ports:
+
+| Service | main (offset=0) | wt2 (offset=100) |
+|---|---|---|
+| Test Console | 7890 | 7990 |
+
 ## Parallel Development with git worktree
 
 複数のブランチを同時に開発する場合は `git worktree` と `PORT_OFFSET` を組み合わせる。
@@ -92,5 +112,6 @@ cd ..\mc-tests && $env:PORT_OFFSET = "100"; npm run test
 | Minecraft server | 25599 | 25699 |
 | Plugin API (Web UI) | 8090 | 8190 |
 | RCON | 25598 | 25698 |
+| Test Console | 7890 | 7990 |
 
 テスト用 SQLite DB も自動で分離される (`test.db` vs `test100.db`)。

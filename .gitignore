@@ -177,3 +177,7 @@ web/scripts/render-test/
 # 一時ファイル (スクリーンショット・テスト結果など)
 tmp/
 **/test-results/
+
+# Test Console ログ・ロック
+mc-tests/test-console.log
+mc-tests/.console-*.lock
