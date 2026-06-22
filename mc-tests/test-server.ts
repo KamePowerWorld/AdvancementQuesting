@@ -284,6 +284,32 @@ app.post('/api/mc/stop', async (_req: Request, res: Response) => {
   }
 })
 
+app.post('/api/mc/kill', async (_req: Request, res: Response) => {
+  if (mcProc) {
+    mcProc.kill('SIGKILL')
+    res.json({ ok: true })
+    return
+  }
+  // External server: find java process whose command line references MC_RUN_DIR and kill it
+  try {
+    let killed = false
+    if (process.platform === 'win32') {
+      // Use PowerShell to find java processes with MC_RUN_DIR in their command line
+      const runDirEscaped = MC_RUN_DIR.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      const scriptPath = join(dirname(fileURLToPath(import.meta.url)), 'scripts', 'kill-mc-server.ps1')
+      execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -RunDir "${MC_RUN_DIR}"`, { encoding: 'utf8' })
+      killed = true
+    } else {
+      execSync(`pkill -9 -f "paper.jar" || true`, { encoding: 'utf8' })
+      killed = true
+    }
+    if (!killed) { res.status(404).json({ ok: false, error: 'run/ で動いているjavaプロセスが見つかりません' }); return }
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) })
+  }
+})
+
 app.post('/api/mc/command', async (req: Request, res: Response) => {
   const { cmd } = req.body as { cmd: string }
   if (mcProc) {

@@ -168,6 +168,7 @@
           <span id="mc-status-text" style="font-size:13px;flex:1">状態確認中…</span>
           <button id="btn-mc-start" class="success">起動</button>
           <button id="btn-mc-stop" class="danger" style="display:none">停止</button>
+          <button id="btn-mc-kill" class="danger" style="display:none">強制停止</button>
         </div>
       </div>
 
@@ -441,6 +442,7 @@ function renderMcStatus(info, apiPort) {
     : (labels[status] || status)
   $('btn-mc-start').style.display = status === 'running' ? 'none' : ''
   $('btn-mc-stop').style.display = status === 'running' ? '' : 'none'
+  $('btn-mc-kill').style.display = ''
   $('btn-mc-start').disabled = status === 'starting'
 }
 
@@ -466,6 +468,10 @@ $('btn-mc-start').onclick = async () => {
 }
 $('btn-mc-stop').onclick = async () => {
   try { await api('/api/mc/stop', {}) } catch (e) { toast(e.message) }
+}
+$('btn-mc-kill').onclick = async () => {
+  if (!confirm('Javaプロセスを強制終了します。よろしいですか？')) return
+  try { await api('/api/mc/kill', {}) } catch (e) { toast(e.message) }
 }
 
 async function sendMcCmd() {
