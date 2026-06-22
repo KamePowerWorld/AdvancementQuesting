@@ -84,26 +84,9 @@ Ports:
 
 ## Parallel Development with git worktree
 
-Use `git worktree` combined with `PORT_OFFSET` to develop multiple branches simultaneously.
+Use `/new-worktree` to create a new worktree (handles symlinks and npm install automatically).
 
-```powershell
-# Create a worktree
-git worktree add ..\AdvancementQuesting-wt2 -b feature/my-feature
-
-# Install npm dependencies in the worktree
-cd ..\AdvancementQuesting-wt2\web && npm install
-
-# Share the public/ directory (atlas images) via symlink
-New-Item -ItemType SymbolicLink -Path ..\AdvancementQuesting-wt2\web\public -Target (Resolve-Path .\web\public)
-
-# Run tests in the worktree (PORT_OFFSET=100)
-$env:PORT_OFFSET = "100"; npm run test:e2e
-
-# Same for Minecraft tests
-cd ..\mc-tests && $env:PORT_OFFSET = "100"; npm run test
-```
-
-`PORT_OFFSET` shifts all port numbers so the main and worktree servers can run simultaneously.
+`PORT_OFFSET` shifts all port numbers so multiple worktrees can run simultaneously.
 
 | Service | main (offset=0) | wt2 (offset=100) |
 |---|---|---|

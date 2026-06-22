@@ -83,26 +83,9 @@ cd mc-tests && npm run dev:console
 
 ## git worktree による並列開発
 
-複数のブランチを同時に開発する場合は `git worktree` と `PORT_OFFSET` を組み合わせる。
+新しい worktree は `/new-worktree` で作成する（シンボリックリンクと npm install を自動で実行）。
 
-```powershell
-# worktree を作成
-git worktree add ..\AdvancementQuesting-wt2 -b feature/my-feature
-
-# worktree 内で npm install
-cd ..\AdvancementQuesting-wt2\web && npm install
-
-# public/ ディレクトリ (アトラス画像) をシンボリックリンクで共有
-New-Item -ItemType SymbolicLink -Path ..\AdvancementQuesting-wt2\web\public -Target (Resolve-Path .\web\public)
-
-# worktree でテストを実行 (PORT_OFFSET=100)
-$env:PORT_OFFSET = "100"; npm run test:e2e
-
-# Minecraft テストも同様
-cd ..\mc-tests && $env:PORT_OFFSET = "100"; npm run test
-```
-
-`PORT_OFFSET` でポート番号をずらすことで、メインと worktree のサーバーを同時起動できる。
+`PORT_OFFSET` でポート番号をずらすことで、複数の worktree を同時起動できる。
 
 | サービス | main (offset=0) | wt2 (offset=100) |
 |---|---|---|
