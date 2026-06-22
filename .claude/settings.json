@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -File \"$CLAUDE_PROJECT_DIR/build.ps1\" -SkipTests -Worktree \"$CLAUDE_PROJECT_DIR\"",
+            "async": true,
+            "statusMessage": "Worktree ビルド中…"
+          }
+        ]
+      }
+    ]
+  }
+}
