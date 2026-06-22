@@ -394,7 +394,7 @@ function waitForJavalin(timeoutMs = 15000) {
 
     // 1) Log-based detection (works when test-server manages the MC process)
     function onMcLog(line) {
-      if (/Javalin|started on port/i.test(line)) finish()
+      if (/Javalin started in/i.test(line)) finish()
     }
     mcLogListeners.push(onMcLog)
 
