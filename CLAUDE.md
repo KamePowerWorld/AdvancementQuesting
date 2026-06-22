@@ -11,9 +11,9 @@ AdvancementQuesting is a PaperMC (Minecraft) plugin that provides a quest system
 
 ## Temporary Files
 
-Save all screenshots, transient test results, and debug files to `tmp/`. This directory is excluded via `.gitignore`.
+Save screenshots, transient test results, and debug files to `tmp/`.
 
-One-off Playwright scripts for visual verification should also live in `tmp/` (e.g. `tmp/screenshot.spec.ts`), not in `web/tests/`. Run them with `npx playwright test ../../tmp/screenshot.spec.ts --headed`.
+One-off Playwright scripts go alongside the relevant test directory as `*.tmp.spec.ts` (e.g. `web/tests/screenshot.tmp.spec.ts`) — these are gitignored. Run with `npx playwright test --headed`.
 
 ## Must Follow
 
