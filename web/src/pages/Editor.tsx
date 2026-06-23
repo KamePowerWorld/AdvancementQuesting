@@ -330,6 +330,8 @@ export default function EditorPage() {
   // ---- select クリック判定: mouseDown 時の座標を記録し mouseUp で距離チェック ----
   const mouseDownPos = useRef<Vec2 | null>(null)
   const mouseDownNodeId = useRef<{ nodeId: string; isProposal: boolean } | null>(null)
+  // タッチでノードを新規配置した直後は開かないためのフラグ
+  const touchJustPlacedNode = useRef(false)
 
   // ---- モーダル ----
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
@@ -642,6 +644,7 @@ export default function EditorPage() {
     }
     mouseDownNodeId.current = null
     mouseDownPos.current = { x: e.clientX, y: e.clientY }
+    touchJustPlacedNode.current = false  // マウス操作開始でフラグをクリア
     if (mode === 'select' || mode === 'move') {
       setIsPanning(true)
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
@@ -696,8 +699,8 @@ export default function EditorPage() {
     if (isPanning) setIsPanning(false)
     if (draggingNode) { setDraggingNode(null); return }
 
-    // select モード: クリック判定 (キャンバス背景クリックでは無視)
-    if (mode === 'select' && mouseDownNodeId.current && mouseDownPos.current) {
+    // select / add_node モード: クリック判定 (キャンバス背景クリックでは無視、新規配置直後は開かない)
+    if ((mode === 'select' || mode === 'add_node') && mouseDownNodeId.current && mouseDownPos.current && !touchJustPlacedNode.current) {
       const dx = e.clientX - mouseDownPos.current.x
       const dy = e.clientY - mouseDownPos.current.y
       if (dx * dx + dy * dy <= CLICK_MAX_DIST * CLICK_MAX_DIST) {
@@ -707,6 +710,7 @@ export default function EditorPage() {
     }
     mouseDownPos.current = null
     mouseDownNodeId.current = null
+    touchJustPlacedNode.current = false  // タッチ+合成マウスイベント完了後にリセット
   }
 
   const openNode = (nodeId: string, isOtherProposal: boolean) => {
@@ -728,6 +732,7 @@ export default function EditorPage() {
     const t = e.touches[0]
     mouseDownNodeId.current = null
     mouseDownPos.current = { x: t.clientX, y: t.clientY }
+    touchJustPlacedNode.current = false
     if (mode === 'select' || mode === 'move') {
       const newStart = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y }
       panStartRef.current = newStart
@@ -740,12 +745,14 @@ export default function EditorPage() {
       const wy = t.clientY - rect.top - panRef.current.y
       if (proposalMode) {
         addProposalNode(wx, wy)
+        touchJustPlacedNode.current = true
       } else if (isEditor) {
         setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
           icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
+        touchJustPlacedNode.current = true
       }
     }
   }
@@ -800,8 +807,8 @@ export default function EditorPage() {
 
     if (draggingNode) { setDraggingNode(null); return }
 
-    // select タッチクリック判定
-    if (modeRef.current === 'select' && mouseDownNodeId.current && mouseDownPos.current) {
+    // select / add_node タッチクリック判定 (新規配置直後は開かない)
+    if ((modeRef.current === 'select' || modeRef.current === 'add_node') && mouseDownNodeId.current && mouseDownPos.current && !touchJustPlacedNode.current) {
       const touch = e.changedTouches[0]
       const dx = touch.clientX - mouseDownPos.current.x
       const dy = touch.clientY - mouseDownPos.current.y
@@ -812,6 +819,7 @@ export default function EditorPage() {
     }
     mouseDownPos.current = null
     mouseDownNodeId.current = null
+    // touchJustPlacedNode は handleMouseUp(合成マウスイベント後)でリセット
   }
 
   // ---------------------------------------------------------------------------
