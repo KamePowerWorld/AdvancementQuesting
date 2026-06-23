@@ -202,7 +202,7 @@ public class AdvancementSyncManager {
     private String buildRootJson() {
         return "{\"display\":{\"icon\":{\"id\":\"minecraft:map\"},\"title\":{\"text\":\"クエスト\"}," +
                "\"description\":{\"text\":\"クエスト一覧 | 詳細はブラウザで確認\"}," +
-               "\"background\":\"minecraft:textures/gui/advancements/backgrounds/stone.png\"," +
+               "\"background\":\"minecraft:textures/block/smooth_stone.png\"," +
                "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false}," +
                "\"criteria\":{\"root\":{\"trigger\":\"minecraft:impossible\"}}}";
     }
@@ -231,6 +231,9 @@ public class AdvancementSyncManager {
             .map(n -> "[\"" + n + "\"]")
             .collect(Collectors.joining(","));
 
+        // 依存クエストを parent に設定（Minecraft advancement は parent が1つのみのため先頭を使用）
+        String parentKey = resolveParentKey(quest);
+
         String iconId = toMinecraftItem(quest.icon);
         String title = escapeJson(quest.title != null ? quest.title : "クエスト #" + quest.id);
         String description = escapeJson(buildDescription(quest));
@@ -239,9 +242,26 @@ public class AdvancementSyncManager {
                "\"title\":{\"text\":\"" + title + "\"}," +
                "\"description\":{\"text\":\"" + description + "\"}," +
                "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false,\"hidden\":false}," +
-               "\"parent\":\"advquesting:root\"," +
+               "\"parent\":\"" + parentKey + "\"," +
                "\"criteria\":{" + criteriaJson + "}," +
                "\"requirements\":[" + requirements + "]}";
+    }
+
+    /**
+     * クエストの parent advancement key を解決する。
+     * prerequisites があれば先頭の public クエストを親にし、なければ root を返す。
+     */
+    private String resolveParentKey(Quest quest) {
+        if (quest.prerequisites == null || quest.prerequisites.isEmpty()) {
+            return "advquesting:root";
+        }
+        for (int prereqId : quest.prerequisites) {
+            Quest prereq = questManager.findById(prereqId);
+            if (prereq != null && "public".equals(prereq.status)) {
+                return "advquesting:q" + prereqId;
+            }
+        }
+        return "advquesting:root";
     }
 
     private String buildDescription(Quest quest) {
