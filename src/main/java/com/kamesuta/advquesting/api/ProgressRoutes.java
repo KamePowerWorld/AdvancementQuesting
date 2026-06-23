@@ -129,7 +129,9 @@ public class ProgressRoutes {
         m.put("completedAt", r.completedAt() != null ? r.completedAt() : "");
         m.put("completedCount", r.completedCount());
         m.put("pendingRewards", r.pendingRewards());
-        m.put("rewardClaimable", r.completed() && !r.rewardClaimed());
+        // 未受取報酬(pending_rewards)があれば受取可能。
+        // unlimited は完了直後に completed=0 へリセットされるため completed では判定できない。
+        m.put("rewardClaimable", r.pendingRewards() > 0 && !r.rewardClaimed());
         return m;
     }
 
