@@ -31,6 +31,7 @@ $info = [ordered]@{
     branch       = $branch
     builtAt      = (Get-Date -Format 'o')
     taskName     = $TaskName
+    verified     = $false
 } | ConvertTo-Json
 [System.IO.File]::WriteAllText("$projectDir\target\WORKTREE_INFO.json", $info, [System.Text.UTF8Encoding]::new($false))
 

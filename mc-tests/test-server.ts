@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { execSync, spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readdirSync, copyFileSync, readFileSync, utimesSync } from 'node:fs'
+import { existsSync, readdirSync, copyFileSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import express, { Request, Response } from 'express'
 
 import { rcon } from './tests/helpers.js'
@@ -327,6 +327,7 @@ interface WorktreeEntry {
   branch: string
   builtAt: string | null
   taskName: string | null
+  verified: boolean
   isBase: boolean
 }
 
@@ -353,10 +354,12 @@ function listWorktrees(): WorktreeEntry[] {
         const infoPath = join(currentPath, 'target', 'WORKTREE_INFO.json')
         let builtAt: string | null = null
         let taskName: string | null = null
+        let verified = false
         try {
           const info = JSON.parse(readFileSync(infoPath, 'utf8'))
           builtAt = info.builtAt ?? null
           taskName = info.taskName ?? null
+          verified = info.verified === true
         } catch { /* no WORKTREE_INFO.json */ }
 
         entries.push({
@@ -364,6 +367,7 @@ function listWorktrees(): WorktreeEntry[] {
           branch: currentBranch || 'HEAD',
           builtAt,
           taskName,
+          verified,
           isBase: resolve(currentPath) === resolve(BASE_DIR),
         })
       }
@@ -422,6 +426,20 @@ app.post('/api/worktrees/deploy', (req: Request, res: Response) => {
     const now = new Date()
     utimesSync(dest, now, now)
     res.json({ ok: true, deployedFrom: worktreePath, jar, dest })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+app.post('/api/worktrees/verify', (req: Request, res: Response) => {
+  const { path: worktreePath } = req.body as { path: string }
+  if (!worktreePath) { res.status(400).json({ error: 'path is required' }); return }
+  const infoPath = join(worktreePath, 'target', 'WORKTREE_INFO.json')
+  try {
+    const info = JSON.parse(readFileSync(infoPath, 'utf8'))
+    info.verified = true
+    writeFileSync(infoPath, JSON.stringify(info, null, 2), 'utf8')
+    res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
   }

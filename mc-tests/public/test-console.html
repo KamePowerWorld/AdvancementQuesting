@@ -109,6 +109,7 @@
           <label class="lbl" style="width:auto;margin-right:4px">WORKTREE</label>
           <select id="wt-select" style="flex:1"></select>
           <button id="btn-wt-deploy">デプロイ</button>
+          <button id="btn-wt-verify" class="success">動作確認完了</button>
           <button id="btn-wt-refresh" class="secondary" style="padding:7px 8px" title="更新">↺</button>
         </div>
       </div>
@@ -363,13 +364,22 @@ async function loadWorktrees() {
       const opt = document.createElement('option')
       opt.value = wt.path
       const label = wt.taskName ?? wt.branch
-      opt.textContent = `${label}${wt.isBase ? ' ★' : ''}  [${formatTime(wt.builtAt)}]`
+      opt.textContent = `${wt.verified ? '✅ ' : ''}${label}${wt.isBase ? ' ★' : ''}  [${formatTime(wt.builtAt)}]`
       sel.appendChild(opt)
     }
   } catch (e) { toast('worktree取得失敗: ' + e.message) }
 }
 
 $('btn-wt-refresh').onclick = loadWorktrees
+$('btn-wt-verify').onclick = async () => {
+  const path = $('wt-select').value
+  if (!path) return toast('worktreeを選択してください')
+  try {
+    await api('/api/worktrees/verify', { path })
+    toast('動作確認完了を記録しました')
+    await loadWorktrees()
+  } catch (e) { toast('失敗: ' + e.message) }
+}
 $('btn-wt-deploy').onclick = async () => {
   const path = $('wt-select').value
   if (!path) return toast('worktreeを選択してください')
