@@ -1,5 +1,6 @@
 package com.kamesuta.advquesting.api;
 
+import com.kamesuta.advquesting.data.AdvancementSyncManager;
 import com.kamesuta.advquesting.data.Quest;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.db.SessionDao;
@@ -7,6 +8,8 @@ import io.javalin.Javalin;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
 
@@ -14,10 +17,15 @@ public class QuestRoutes {
 
     private final QuestManager questManager;
     private final SessionDao sessionDao;
+    private final JavaPlugin plugin;
+    private final AdvancementSyncManager advancementSyncManager;
 
-    public QuestRoutes(QuestManager questManager, SessionDao sessionDao) {
+    public QuestRoutes(QuestManager questManager, SessionDao sessionDao,
+                       JavaPlugin plugin, AdvancementSyncManager advancementSyncManager) {
         this.questManager = questManager;
         this.sessionDao = sessionDao;
+        this.plugin = plugin;
+        this.advancementSyncManager = advancementSyncManager;
     }
 
     public void register(Javalin app) {
@@ -51,6 +59,7 @@ public class QuestRoutes {
             Quest quest = ctx.bodyAsClass(Quest.class);
             quest.creatorUuid = session.playerUuid();
             Quest created = questManager.create(quest);
+            Bukkit.getScheduler().runTask(plugin, () -> advancementSyncManager.syncQuest(created));
             ctx.status(201).json(created);
         });
 
@@ -62,6 +71,7 @@ public class QuestRoutes {
             Quest patch = ctx.bodyAsClass(Quest.class);
             Quest updated = questManager.update(id, patch);
             if (updated == null) throw new NotFoundResponse("Quest not found");
+            Bukkit.getScheduler().runTask(plugin, () -> advancementSyncManager.syncQuest(updated));
             ctx.json(updated);
         });
 
@@ -71,6 +81,7 @@ public class QuestRoutes {
             if (!session.isEditor()) throw new ForbiddenResponse();
             int id = parseId(ctx.pathParam("id"));
             if (!questManager.delete(id)) throw new NotFoundResponse("Quest not found");
+            Bukkit.getScheduler().runTask(plugin, () -> advancementSyncManager.removeQuest(id));
             ctx.status(204);
         });
     }

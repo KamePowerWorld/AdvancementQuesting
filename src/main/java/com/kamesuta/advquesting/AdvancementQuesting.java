@@ -15,6 +15,7 @@ import com.kamesuta.advquesting.api.RankingRoutes;
 import com.kamesuta.advquesting.api.StatsRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
+import com.kamesuta.advquesting.data.AdvancementSyncManager;
 import com.kamesuta.advquesting.data.CommentManager;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
@@ -31,6 +32,7 @@ import com.kamesuta.advquesting.db.SessionDao;
 import com.kamesuta.advquesting.listener.AdvancementListener;
 import com.kamesuta.advquesting.listener.ItemProgressListener;
 import com.kamesuta.advquesting.listener.LocationProgressListener;
+import com.kamesuta.advquesting.listener.PlayerJoinListener;
 import com.kamesuta.advquesting.listener.ScoreboardListener;
 import com.kamesuta.advquesting.listener.StatProgressListener;
 import io.javalin.Javalin;
@@ -47,6 +49,7 @@ public final class AdvancementQuesting extends JavaPlugin {
     private ScoreboardListener scoreboardListener;
     private RepeatScheduler repeatScheduler;
     private NotificationRoutes notificationRoutes;
+    private AdvancementSyncManager advancementSyncManager;
 
     @Override
     public void onEnable() {
@@ -70,6 +73,9 @@ public final class AdvancementQuesting extends JavaPlugin {
         QuestManager questManager = new QuestManager(getDataFolder());
         CommentManager commentManager = new CommentManager(getDataFolder());
         ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
+        advancementSyncManager = new AdvancementSyncManager(this, questManager, progressDao);
+        advancementSyncManager.loadAll();
+        progressManager.setAdvancementSyncManager(advancementSyncManager);
 
         // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
         // 機能リリース前にクリア済みのプレイヤーをランキングに載せる。
@@ -126,7 +132,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         progressManager.setNotificationRoutes(notificationRoutes);
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new ConfigRoutes(this).register(app);
-        new QuestRoutes(questManager, sessionDao).register(app);
+        new QuestRoutes(questManager, sessionDao, this, advancementSyncManager).register(app);
         new AiRoutes(this, sessionDao).register(app);
         new CommentRoutes(commentManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
@@ -154,6 +160,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         getLogger().info("Web UI を起動しました: " + webUrl);
 
         // イベントリスナー登録
+        getServer().getPluginManager().registerEvents(new PlayerJoinListener(this, advancementSyncManager), this);
         getServer().getPluginManager().registerEvents(new AdvancementListener(progressManager), this);
         getServer().getPluginManager().registerEvents(new ItemProgressListener(progressManager), this);
         getServer().getPluginManager().registerEvents(new StatProgressListener(progressManager), this);
@@ -176,6 +183,7 @@ public final class AdvancementQuesting extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (advancementSyncManager != null) advancementSyncManager.unloadAll();
         if (repeatScheduler != null) repeatScheduler.stop();
         if (scoreboardListener != null) scoreboardListener.stop();
         // SSE クライアントを先に閉じてから Javalin を停止する。

@@ -45,6 +45,7 @@ public class ProgressManager {
     private final RewardClaimDao rewardClaimDao;
     private final Logger log;
     private NotificationRoutes notificationRoutes;
+    private AdvancementSyncManager advancementSyncManager;
 
     public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao,
                            CompletionDao completionDao, RewardClaimDao rewardClaimDao) {
@@ -58,6 +59,10 @@ public class ProgressManager {
 
     public void setNotificationRoutes(NotificationRoutes notificationRoutes) {
         this.notificationRoutes = notificationRoutes;
+    }
+
+    public void setAdvancementSyncManager(AdvancementSyncManager advancementSyncManager) {
+        this.advancementSyncManager = advancementSyncManager;
     }
 
     /**
@@ -220,7 +225,11 @@ public class ProgressManager {
                 allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
             }
             String completedAt = allDone ? java.time.Instant.now().toString() : null;
-            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+            String progressJson = MAPPER.writeValueAsString(progress);
+            progressDao.upsertProgress(playerUuid, questId, progressJson, allDone, completedAt);
+            if (advancementSyncManager != null) {
+                advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+            }
 
             if (allDone) {
                 notifyQuestComplete(playerUuid, quest);
@@ -379,10 +388,16 @@ public class ProgressManager {
         // delivery を含む全条件を確認 (isAllConditionsMet は delivery をスキップするため全条件版を使う)
         boolean allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
+        String progressJson;
         try {
-            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+            progressJson = MAPPER.writeValueAsString(progress);
+            progressDao.upsertProgress(playerUuid, questId, progressJson, allDone, completedAt);
         } catch (Exception e) {
             log.warning("deliverItems upsert error: " + e.getMessage());
+            return new DeliveryResult(delivered, failed);
+        }
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
         }
 
         if (allDone) {
@@ -422,6 +437,9 @@ public class ProgressManager {
         }
 
         progressDao.setCompleted(playerUuid, questId, completed, progressJson);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (completed) {
             // 達成演出付きで通知（チャット・サウンド・パーティクル・SSE）
@@ -487,7 +505,11 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        String progressJson = MAPPER.writeValueAsString(progress);
+        progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
@@ -530,7 +552,11 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        String progressJson = MAPPER.writeValueAsString(progress);
+        progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
@@ -586,7 +612,11 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        String progressJson = MAPPER.writeValueAsString(progress);
+        progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
@@ -655,7 +685,11 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? java.time.Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        String progressJson = MAPPER.writeValueAsString(progress);
+        progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
@@ -700,7 +734,11 @@ public class ProgressManager {
         boolean allDone = isAllConditionsMet(quest, progress);
         if (!allDone) allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? java.time.Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        String progressJson = MAPPER.writeValueAsString(progress);
+        progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (advancementSyncManager != null) {
+            advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
