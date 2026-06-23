@@ -6,10 +6,37 @@
  * C-4. コメントブロック: delete モードでクリックすると削除される
  * C-5. コメントブロック: リロード後も永続化される
  * C-6. コメントブロック: 未ログインでは add_comment ボタンが表示されない
+ * C-7. コメントブロック: 枠をドラッグすると内包クエストもまとめて動く
+ * C-8. コメントブロック: 枠外のクエストはドラッグの影響を受けない
  */
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { loginAs, MOCK } from './helpers.js'
+
+/** ノードの style から world 座標 (left/top) を取り出す */
+async function nodePos(page: Page, nodeId: string): Promise<{ left: number; top: number }> {
+  const style = (await page.locator(`[data-node-id="${nodeId}"]`).getAttribute('style')) ?? ''
+  const left = parseFloat(/left:\s*([\d.-]+)px/.exec(style)?.[1] ?? 'NaN')
+  const top = parseFloat(/top:\s*([\d.-]+)px/.exec(style)?.[1] ?? 'NaN')
+  return { left, top }
+}
+
+/** ノード1を内包するコメントを作成する (ヘッダー帯はノードの上に来るよう開始点を上方に取る) */
+async function createCommentOverNode1(page: Page) {
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const nb = await node1.boundingBox()
+  const cx = nb!.x + nb!.width / 2
+  const cy = nb!.y + nb!.height / 2
+
+  await page.getByTitle('コメントを追加').click()
+  // ノード中心を囲む矩形。開始点を中心より上方(-60)に取り、ヘッダー帯がノードに被らないようにする
+  await page.mouse.move(cx - 70, cy - 60)
+  await page.mouse.down()
+  await page.mouse.move(cx + 80, cy + 80, { steps: 10 })
+  await page.mouse.up()
+  await expect(page.locator('[data-comment-id]')).toBeVisible({ timeout: 3000 })
+}
 
 test.beforeEach(async ({ page }) => {
   // コメントデータをリセット
@@ -129,4 +156,52 @@ test('コメントブロック: リロード後も永続化される (C-5)', asy
 test('コメントブロック: 未ログイン時はコメント追加ボタンが非表示 (C-6)', async ({ page }) => {
   // 未ログイン状態ではコメント追加ボタンが見えないこと
   await expect(page.getByTitle('コメントを追加')).not.toBeVisible()
+})
+
+// C-7
+test('コメントブロック: 枠をドラッグすると内包クエストもまとめて動く (C-7)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await createCommentOverNode1(page)
+
+  const before = await nodePos(page, '1')
+
+  // 選択モードに切り替えてコメントヘッダーをドラッグ
+  await page.getByTitle('選択').click()
+  const cbox = await page.locator('[data-comment-id]').first().boundingBox()
+  const hx = cbox!.x + cbox!.width / 2
+  const hy = cbox!.y + 14 // ヘッダー帯の中央
+  await page.mouse.move(hx, hy)
+  await page.mouse.down()
+  await page.mouse.move(hx + 100, hy + 50, { steps: 12 })
+  await page.mouse.up()
+
+  // 内包ノードが同方向に移動していること (誤差許容)
+  const after = await nodePos(page, '1')
+  expect(after.left - before.left).toBeGreaterThan(80)
+  expect(after.left - before.left).toBeLessThan(120)
+  expect(after.top - before.top).toBeGreaterThan(30)
+  expect(after.top - before.top).toBeLessThan(70)
+})
+
+// C-8
+test('コメントブロック: 枠外のクエストはドラッグの影響を受けない (C-8)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await createCommentOverNode1(page)
+
+  // ノード1を囲む小さなコメントなので、別ノード(3)は枠外のはず
+  const before = await nodePos(page, '3')
+
+  await page.getByTitle('選択').click()
+  const cbox = await page.locator('[data-comment-id]').first().boundingBox()
+  const hx = cbox!.x + cbox!.width / 2
+  const hy = cbox!.y + 14
+  await page.mouse.move(hx, hy)
+  await page.mouse.down()
+  await page.mouse.move(hx + 100, hy + 50, { steps: 12 })
+  await page.mouse.up()
+
+  // 枠外ノードは動かないこと
+  const after = await nodePos(page, '3')
+  expect(after.left).toBeCloseTo(before.left, 1)
+  expect(after.top).toBeCloseTo(before.top, 1)
 })

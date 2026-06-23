@@ -331,8 +331,13 @@ export default function EditorPage() {
   const [commentDraft, setCommentDraft] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const commentDraftStartRef = useRef<{ wx: number; wy: number } | null>(null)
   // コメントブロックの移動ドラッグ
+  // ドラッグ開始時に「枠内に中心があるノード」をスナップショットし、枠と一緒に動かす
   const [draggingCommentId, setDraggingCommentId] = useState<string | null>(null)
-  const commentDragOffsetRef = useRef<Vec2>({ x: 0, y: 0 })
+  const commentDragRef = useRef<{
+    offsetX: number; offsetY: number   // カーソルとコメント左上の差
+    startX: number; startY: number     // ドラッグ開始時のコメント位置
+    members: { id: string; x: number; y: number }[]  // 内包ノードの開始座標
+  } | null>(null)
   // コメントブロックのリサイズ
   const [resizingCommentId, setResizingCommentId] = useState<string | null>(null)
   const commentResizeStartRef = useRef<{ mouseX: number; mouseY: number; origW: number; origH: number } | null>(null)
@@ -651,6 +656,38 @@ export default function EditorPage() {
   }, [handleSave, setSaveQuests])
 
   // ---------------------------------------------------------------------------
+  // コメントブロックのドラッグ移動 (枠＋内包ノードをまとめて動かす)
+  // ---------------------------------------------------------------------------
+
+  /** ドラッグ中: ワールド座標 (wx, wy) にコメント枠を移動し、内包ノードも同じデルタで動かす */
+  const dragCommentTo = (wx: number, wy: number) => {
+    const d = commentDragRef.current
+    if (!d || !draggingCommentId) return
+    const newX = wx - d.offsetX
+    const newY = wy - d.offsetY
+    const dx = newX - d.startX
+    const dy = newY - d.startY
+    setComments((prev) => prev.map((c) =>
+      c.id === draggingCommentId ? { ...c, x: newX, y: newY } : c))
+    if (d.members.length > 0) {
+      const byId = new Map(d.members.map((m) => [m.id, m]))
+      setNodes((prev) => prev.map((n) => {
+        const m = byId.get(n.id)
+        return m ? { ...n, x: m.x + dx, y: m.y + dy } : n
+      }))
+    }
+  }
+
+  /** コメント枠の現在位置・サイズを API 保存 (内包ノード座標は 💾保存 で永続化) */
+  const saveCommentById = (id: string | null) => {
+    if (!id) return
+    const c = comments.find((c) => c.id === id)
+    if (c) commentsApi.update(c.id, {
+      x: c.x, y: c.y, width: c.width, height: c.height, title: c.title, color: c.color,
+    }).catch(() => {})
+  }
+
+  // ---------------------------------------------------------------------------
   // キャンバスイベント (マウス)
   // ---------------------------------------------------------------------------
 
@@ -712,12 +749,9 @@ export default function EditorPage() {
       })
     }
 
-    // コメントブロック: 移動ドラッグ
+    // コメントブロック: 移動ドラッグ (枠＋内包ノードをまとめて移動)
     if (draggingCommentId) {
-      const off = commentDragOffsetRef.current
-      setComments(prev => prev.map(c =>
-        c.id === draggingCommentId ? { ...c, x: wx - off.x, y: wy - off.y } : c
-      ))
+      dragCommentTo(wx, wy)
     }
 
     // コメントブロック: リサイズ
@@ -771,10 +805,10 @@ export default function EditorPage() {
       return
     }
 
-    // コメントブロック: 移動確定
+    // コメントブロック: 移動確定 (内包ノードの新座標は 💾保存 で永続化)
     if (draggingCommentId) {
-      const c = comments.find(c => c.id === draggingCommentId)
-      if (c) commentsApi.update(c.id, { x: c.x, y: c.y, width: c.width, height: c.height, title: c.title, color: c.color }).catch(() => {})
+      saveCommentById(draggingCommentId)
+      commentDragRef.current = null
       setDraggingCommentId(null)
       setIsPanning(false)
       return
@@ -782,8 +816,7 @@ export default function EditorPage() {
 
     // コメントブロック: リサイズ確定
     if (resizingCommentId) {
-      const c = comments.find(c => c.id === resizingCommentId)
-      if (c) commentsApi.update(c.id, { x: c.x, y: c.y, width: c.width, height: c.height, title: c.title, color: c.color }).catch(() => {})
+      saveCommentById(resizingCommentId)
       setResizingCommentId(null)
       commentResizeStartRef.current = null
       setIsPanning(false)
@@ -870,6 +903,25 @@ export default function EditorPage() {
       setLinkHoverNode(hoverId)
     }
 
+    // コメントブロック: 移動ドラッグ (枠＋内包ノードをまとめて移動)
+    if (draggingCommentId) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const wx = t.clientX - rect.left - panRef.current.x
+      const wy = t.clientY - rect.top - panRef.current.y
+      dragCommentTo(wx, wy)
+      return
+    }
+
+    // コメントブロック: リサイズ
+    if (resizingCommentId && commentResizeStartRef.current) {
+      const { mouseX, mouseY, origW, origH } = commentResizeStartRef.current
+      const newW = Math.max(80, origW + (t.clientX - mouseX))
+      const newH = Math.max(60, origH + (t.clientY - mouseY))
+      setComments((prev) => prev.map((c) =>
+        c.id === resizingCommentId ? { ...c, width: newW, height: newH } : c))
+      return
+    }
+
     if (mode === 'move' && draggingNode) {
       const rect = canvasRef.current.getBoundingClientRect()
       const wx = t.clientX - rect.left - panRef.current.x
@@ -898,6 +950,21 @@ export default function EditorPage() {
   const handleCanvasTouchEnd = (e: React.TouchEvent) => {
     setIsPanning(false)
     setLinkHoverNode(null)
+
+    // コメントブロック: 移動確定 (内包ノードの新座標は 💾保存 で永続化)
+    if (draggingCommentId) {
+      saveCommentById(draggingCommentId)
+      commentDragRef.current = null
+      setDraggingCommentId(null)
+      return
+    }
+    // コメントブロック: リサイズ確定
+    if (resizingCommentId) {
+      saveCommentById(resizingCommentId)
+      setResizingCommentId(null)
+      commentResizeStartRef.current = null
+      return
+    }
 
     if (draggingNode) { setDraggingNode(null); return }
 
@@ -1485,7 +1552,19 @@ export default function EditorPage() {
                   const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
                   const wx = clientX - (rect?.left ?? 0) - panRef.current.x
                   const wy = clientY - (rect?.top ?? 0) - panRef.current.y
-                  commentDragOffsetRef.current = { x: wx - comment.x, y: wy - comment.y }
+                  // ドラッグ開始時点で枠内に中心があるノードをスナップショット (editor のみ追従)
+                  const members = isEditor
+                    ? nodes
+                        .filter((n) =>
+                          n.x >= comment.x && n.x <= comment.x + comment.width &&
+                          n.y >= comment.y && n.y <= comment.y + comment.height)
+                        .map((n) => ({ id: n.id, x: n.x, y: n.y }))
+                    : []
+                  commentDragRef.current = {
+                    offsetX: wx - comment.x, offsetY: wy - comment.y,
+                    startX: comment.x, startY: comment.y,
+                    members,
+                  }
                   setDraggingCommentId(comment.id)
                 }}
                 onResizeStart={(e) => {
