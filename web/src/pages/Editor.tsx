@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare } from 'lucide-react'
-import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
+import type { EditorNode, EditorEdge, EditorReward, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import { ToolButton } from '@/components/editor/ToolButton.js'
@@ -162,6 +163,40 @@ const modeLabel: Record<ToolMode, string> = {
 const CLICK_MAX_DIST = 5
 
 // ---------------------------------------------------------------------------
+// 報酬チップ (ホバーツールチップ / ロングタップポップオーバー共用)
+// ---------------------------------------------------------------------------
+
+function NodeRewardChip({ reward }: { reward: EditorReward }) {
+  if (reward.type === 'item') {
+    return (
+      <div className="flex items-center gap-0.5 bg-black/40 border border-gray-600 rounded px-1 py-0.5">
+        <ItemIcon type={reward.itemType ?? 'stone'} size={18} />
+        {(reward.count ?? 1) > 1 && (
+          <span className="text-[11px] text-white tabular-nums">×{reward.count}</span>
+        )}
+      </div>
+    )
+  }
+  if (reward.type === 'xp') {
+    return (
+      <span className="text-[11px] bg-black/40 border border-gray-600 rounded px-1.5 py-0.5 text-green-300">
+        {reward.value}
+      </span>
+    )
+  }
+  if (reward.type === 'point') {
+    return (
+      <span className="text-[11px] bg-black/40 border border-gray-600 rounded px-1.5 py-0.5 text-yellow-300">
+        ⭐ {(reward as any).amount}
+      </span>
+    )
+  }
+  return (
+    <span className="text-[11px] bg-black/40 border border-gray-600 rounded px-1.5 py-0.5 text-gray-400">⚙️</span>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // メインコンポーネント
 // ---------------------------------------------------------------------------
 
@@ -286,6 +321,11 @@ export default function EditorPage() {
   // ---- ホバー ----
   const [hoveredNode, setHoveredNode] = useState<EditorNode | null>(null)
   const [mousePos, setMousePos] = useState<Vec2>({ x: 0, y: 0 })
+
+  // ---- ロングタップ (スマホ用報酬ポップオーバー) ----
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressActiveRef = useRef(false)
+  const [longPressPopover, setLongPressPopover] = useState<{ node: EditorNode; x: number; y: number } | null>(null)
 
   // ---- select クリック判定: mouseDown 時の座標を記録し mouseUp で距離チェック ----
   const mouseDownPos = useRef<Vec2 | null>(null)
@@ -840,6 +880,23 @@ export default function EditorPage() {
     mouseDownPos.current = { x: t.clientX, y: t.clientY }
     mouseDownNodeId.current = { nodeId, isProposal: isOtherProposal }
 
+    // ロングタップタイマー — 既存ポップオーバーを閉じてタイマーを開始
+    setLongPressPopover(null)
+    longPressActiveRef.current = false
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    if (mode === 'select') {
+      const lpNode = [...nodesRef.current, ...proposalNodesRef.current, ...otherProposalNodes].find((n) => n.id === nodeId) ?? null
+      if (lpNode && (lpNode.rewards?.length ?? 0) > 0) {
+        const lpX = t.clientX
+        const lpY = t.clientY
+        longPressTimerRef.current = setTimeout(() => {
+          longPressActiveRef.current = true
+          longPressTimerRef.current = null
+          setLongPressPopover({ node: lpNode, x: lpX, y: lpY })
+        }, 500)
+      }
+    }
+
     if (mode === 'move' && canMoveNode(nodeId)) {
       const node = [...nodesRef.current, ...proposalNodesRef.current, ...otherProposalNodes].find((n) => n.id === nodeId)!
       const rect = canvasRef.current!.getBoundingClientRect()
@@ -872,6 +929,16 @@ export default function EditorPage() {
     if (e.touches.length !== 1 || !canvasRef.current) return
     const t = e.touches[0]
     e.preventDefault()
+
+    // 指が動いたらロングタップタイマーをキャンセル
+    if (longPressTimerRef.current && mouseDownPos.current) {
+      const dx = t.clientX - mouseDownPos.current.x
+      const dy = t.clientY - mouseDownPos.current.y
+      if (dx * dx + dy * dy > CLICK_MAX_DIST * CLICK_MAX_DIST) {
+        clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+    }
 
     if (mode === 'move' && draggingNode === nodeId && canMoveNode(nodeId)) {
       const rect = canvasRef.current.getBoundingClientRect()
@@ -908,6 +975,9 @@ export default function EditorPage() {
 
   const handleNodeTouchEnd = (e: React.TouchEvent, nodeId: string, isOtherProposal = false) => {
     e.stopPropagation()
+
+    // ロングタップタイマーを常にクリア
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null }
 
     if (mode === 'move') {
       setDraggingNode(null)
@@ -952,7 +1022,12 @@ export default function EditorPage() {
       const dx = touch.clientX - mouseDownPos.current.x
       const dy = touch.clientY - mouseDownPos.current.y
       if (dx * dx + dy * dy <= CLICK_MAX_DIST * CLICK_MAX_DIST) {
-        openNode(nodeId, isOtherProposal)
+        // ロングタップで報酬ポップオーバーを表示した場合はモーダルを開かない
+        if (longPressActiveRef.current) {
+          longPressActiveRef.current = false
+        } else {
+          openNode(nodeId, isOtherProposal)
+        }
       }
     }
     mouseDownPos.current = null
@@ -1397,11 +1472,69 @@ export default function EditorPage() {
                   <div className="text-gray-500 text-xs">タスクがありません</div>
                 )}
               </div>
+              {hoveredNode.rewards && hoveredNode.rewards.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-700">
+                  <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="hover-reward-chips">
+                    {hoveredNode.rewards.map((r) => (
+                      <NodeRewardChip key={r.id} reward={r} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <ModeToast label={toastLabel} visible={toastVisible} />
         </div>
+
+        {/* スマホ ロングタップ 報酬ポップオーバー */}
+        {longPressPopover && createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[9998]"
+              onClick={() => setLongPressPopover(null)}
+              onTouchStart={() => setLongPressPopover(null)}
+            />
+            <div
+              className="fixed z-[9999] bg-black/90 border-2 border-purple-700 text-white p-3 shadow-xl max-w-[280px]"
+              style={{
+                bottom: window.innerHeight - longPressPopover.y + 12,
+                left: Math.max(8, Math.min(longPressPopover.x - 140, window.innerWidth - 296)),
+              }}
+              data-testid="longtap-reward-popover"
+            >
+              <div className="font-bold text-blue-300 text-lg mb-1">{longPressPopover.node.title}</div>
+              {longPressPopover.node.subtitle && (
+                <div className="text-gray-400 text-xs italic mb-2">{longPressPopover.node.subtitle}</div>
+              )}
+              <div className="text-sm space-y-1">
+                {longPressPopover.node.tasks?.map((task) => (
+                  <div key={task.id} className="text-gray-300 flex items-center gap-1">
+                    <span className="text-gray-500">
+                      {TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}
+                    </span>
+                    {getDisplayText(task, 'task', lang)}
+                  </div>
+                ))}
+                {(!longPressPopover.node.tasks || longPressPopover.node.tasks.length === 0) && (
+                  <div className="text-gray-500 text-xs">タスクがありません</div>
+                )}
+              </div>
+              {longPressPopover.node.rewards && longPressPopover.node.rewards.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-700">
+                  <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {longPressPopover.node.rewards.map((r) => (
+                      <NodeRewardChip key={r.id} reward={r} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>,
+          document.body,
+        )}
 
         {/* ===== モーダル群 ===== */}
 
