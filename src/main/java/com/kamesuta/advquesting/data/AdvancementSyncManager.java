@@ -10,6 +10,8 @@ import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,11 +53,63 @@ public class AdvancementSyncManager {
         }
     }
 
-    /** プラグイン無効時: 当プラグインが登録した全 Advancement を削除する。*/
+    /**
+     * プラグイン無効時: 全プレイヤーの advquesting 進捗を消去し Advancement を削除する。
+     * オンラインプレイヤーは Bukkit API で revoke、オフラインプレイヤーはワールドの
+     * advancements/*.json から advquesting:* キーを直接削除する。
+     */
     public void unloadAll() {
+        // オンラインプレイヤーの criteria を revoke
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            revokeAllAdvQuestingCriteriaForPlayer(player);
+        }
+        // 全プレイヤーのアドバンスメントファイルから advquesting:* を削除
+        cleanAllPlayerAdvancementFiles();
+        // Advancement を unload
         removeAdvancementSafe(rootKey());
         for (Quest quest : questManager.loadAll()) {
             removeAdvancementSafe(questKey(quest.id));
+        }
+    }
+
+    /** 指定プレイヤーの advquesting:* に関する criteria を全て revoke する。*/
+    private void revokeAllAdvQuestingCriteriaForPlayer(Player player) {
+        Advancement root = Bukkit.getAdvancement(rootKey());
+        if (root != null) {
+            AdvancementProgress ap = player.getAdvancementProgress(root);
+            for (String c : new HashSet<>(ap.getAwardedCriteria())) ap.revokeCriteria(c);
+        }
+        for (Quest quest : questManager.loadAll()) {
+            revokeAllCriteriaForPlayer(player, quest.id);
+        }
+    }
+
+    /**
+     * ワールドの advancements/*.json から advquesting:* キーを削除する。
+     * オフラインプレイヤーのデータを含む全ファイルを対象とする。
+     */
+    private void cleanAllPlayerAdvancementFiles() {
+        if (Bukkit.getWorlds().isEmpty()) return;
+        File advFolder = new File(Bukkit.getWorlds().get(0).getWorldFolder(), "advancements");
+        if (!advFolder.isDirectory()) return;
+        File[] files = advFolder.listFiles((dir, name) -> name.endsWith(".json"));
+        if (files == null) return;
+        for (File file : files) {
+            try {
+                removeAdvQuestingKeysFromFile(file);
+            } catch (Exception e) {
+                log.warning("進捗ファイルのクリーンアップ失敗 " + file.getName() + ": " + e.getMessage());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void removeAdvQuestingKeysFromFile(File file) throws Exception {
+        String content = Files.readString(file.toPath());
+        Map<String, Object> data = MAPPER.readValue(content, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        boolean changed = data.entrySet().removeIf(e -> e.getKey().startsWith(NAMESPACE + ":"));
+        if (changed) {
+            Files.writeString(file.toPath(), MAPPER.writeValueAsString(data));
         }
     }
 
