@@ -200,9 +200,9 @@ public class AdvancementSyncManager {
     }
 
     private String buildRootJson() {
-        return "{\"display\":{\"icon\":{\"id\":\"minecraft:map\"},\"title\":{\"text\":\"クエスト\"}," +
+        return "{\"display\":{\"icon\":{\"id\":\"minecraft:writable_book\"},\"title\":{\"text\":\"クエスト\"}," +
                "\"description\":{\"text\":\"クエスト一覧 | 詳細はブラウザで確認\"}," +
-               "\"background\":\"minecraft:textures/block/smooth_stone.png\"," +
+               "\"background\":\"minecraft:block/smooth_stone\"," +
                "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false}," +
                "\"criteria\":{\"root\":{\"trigger\":\"minecraft:impossible\"}}}";
     }
