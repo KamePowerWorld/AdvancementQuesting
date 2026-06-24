@@ -43,13 +43,19 @@ public class AdvancementSyncManager {
         this.log = plugin.getLogger();
     }
 
-    /** サーバー起動時: root と public クエスト全件を Advancement 登録する。*/
+    /** サーバー起動時・プラグインリロード時: root と public クエスト全件を Advancement 登録する。
+     *  既にログイン中のプレイヤーへも定義と進捗を即時送信する（/reload 対応）。*/
     public void loadAll() {
         loadRoot();
         for (Quest quest : questManager.loadAll()) {
             if ("public".equals(quest.status)) {
                 loadQuestAdvancement(quest);
             }
+        }
+        // リロード後など、既にログイン中のプレイヤーに Advancement 定義と進捗を再送信する。
+        // awardCriteria() が ClientboundUpdateAdvancementsPacket を生成し定義も含めて送る。
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            syncAllQuestsForPlayer(player);
         }
     }
 
