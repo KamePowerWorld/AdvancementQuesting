@@ -89,6 +89,12 @@ export const playerSessions = sqliteTable('player_sessions', {
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
 })
 
+export const dashboardConfigs = sqliteTable('dashboard_configs', {
+  key: text('key').primaryKey(),
+  configJson: text('config_json').notNull().default('{"widgets":[]}'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
 export const authCodes = sqliteTable('auth_codes', {
   code: text('code').primaryKey(),
   playerUuid: text('player_uuid').notNull(),

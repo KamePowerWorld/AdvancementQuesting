@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare, MessageSquare } from 'lucide-react'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare, MessageSquare, BarChart2 } from 'lucide-react'
 import type { EditorNode, EditorEdge, EditorReward, EditorComment, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import type { Quest, Condition, Reward } from '@/types/quest.js' // Reward は rewards 変換で使用
 import { useMcLang } from '@/hooks/useMcData.js'
+import { DashboardPage } from './Dashboard.js'
 
 // ---------------------------------------------------------------------------
 // Quest API ↔ EditorNode 変換
@@ -206,6 +207,7 @@ function NodeRewardChip({ reward }: { reward: EditorReward }) {
 export default function EditorPage() {
   const { isEditor: isEditorRole, viewMode, me } = useAuth()
   const { viewAs, setViewAs } = useViewAs()
+  const [showStats, setShowStats] = useState(false)
   // view-as 中は他人の進捗を「閲覧専用」で見るモード。編集・操作は一切させない。
   const isEditor = isEditorRole && viewMode === 'edit' && !viewAs
   const queryClient = useQueryClient()
@@ -1471,6 +1473,8 @@ export default function EditorPage() {
           {showRewardTable && <ToolButton icon={List}     active={showRewardTableModal} onClick={() => setShowRewardTableModal(true)} tooltip="報酬テーブル" />}
           {showSettings    && <ToolButton icon={Settings} active={false}               onClick={() => {}}                          tooltip="設定" />}
 
+          <ToolButton icon={BarChart2} active={showStats} onClick={() => setShowStats((s) => !s)} tooltip="統計ダッシュボード" />
+
           {/* ユーザーアイコン */}
           {me ? (
             <button
@@ -1514,6 +1518,7 @@ export default function EditorPage() {
           )}
         </div>
 
+        {showStats ? <DashboardPage /> : (<>
         {/* ===== キャンバスエリア ===== */}
         <div
           ref={canvasRef}
@@ -1907,6 +1912,7 @@ export default function EditorPage() {
         {showLoginModal && (
           <LoginModal close={() => setShowLoginModal(false)} />
         )}
+        </>)}
         </div>
       </div>
     </ViewAsContext.Provider>

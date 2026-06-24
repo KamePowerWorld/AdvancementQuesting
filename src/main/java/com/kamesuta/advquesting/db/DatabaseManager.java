@@ -113,6 +113,12 @@ public class DatabaseManager {
                 )""");
             st.execute("CREATE INDEX IF NOT EXISTS idx_claims_player ON reward_claims (player_uuid)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_claims_quest ON reward_claims (quest_id)");
+            st.execute("""
+                CREATE TABLE IF NOT EXISTS dashboard_configs (
+                    key         TEXT PRIMARY KEY,
+                    config_json TEXT NOT NULL DEFAULT '{"widgets":[]}',
+                    updated_at  TEXT NOT NULL
+                )""");
         }
     }
 

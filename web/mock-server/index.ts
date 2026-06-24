@@ -13,6 +13,8 @@ import proposalRoutes from './routes/proposals.js'
 import configRoutes from './routes/config.js'
 import aiRoutes from './routes/ai.js'
 import commentRoutes, { resetComments } from './routes/comments.js'
+import statsRoutes from './routes/stats.js'
+import dashboardRoutes from './routes/dashboard.js'
 import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions, rewardClaims } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 import { insertQuestRewards } from './rewardLog.js'
@@ -43,6 +45,8 @@ app.use('/api/proposals', proposalRoutes)
 app.use('/api/config', configRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/comments', commentRoutes)
+app.use('/api/stats', statsRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 
 // ヘルスチェック
 app.get('/api/health', (_req, res) => {

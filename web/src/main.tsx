@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.js'
 import './index.css'
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -43,6 +43,13 @@
       "when": 1781934930607,
       "tag": "0005_supreme_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782226182505,
+      "tag": "0006_pale_guardsmen",
+      "breakpoints": true
     }
   ]
 }
