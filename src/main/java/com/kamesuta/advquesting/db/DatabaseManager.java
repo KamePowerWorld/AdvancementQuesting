@@ -153,7 +153,7 @@ public class DatabaseManager {
                         INSERT INTO player_progress_v2
                             (player_uuid, questline_id, quest_id, progress, completed, reward_claimed,
                              started_at, completed_at, completed_count, pending_rewards)
-                        SELECT player_uuid, '00000000', printf('%08d', quest_id), progress, completed, reward_claimed,
+                        SELECT player_uuid, '00000000', CAST(quest_id AS TEXT), progress, completed, reward_claimed,
                                COALESCE(CAST(started_at AS TEXT), datetime('now')),
                                CAST(completed_at AS TEXT),
                                COALESCE(completed_count, 0), COALESCE(pending_rewards, 0)
@@ -178,7 +178,7 @@ public class DatabaseManager {
                     st.execute("""
                         INSERT INTO quest_completions_v2
                             (id, player_uuid, player_name, questline_id, quest_id, completed_at)
-                        SELECT id, player_uuid, player_name, '00000000', printf('%08d', quest_id), completed_at
+                        SELECT id, player_uuid, player_name, '00000000', CAST(quest_id AS TEXT), completed_at
                         FROM quest_completions
                         """);
                     st.execute("DROP TABLE quest_completions");
@@ -211,7 +211,7 @@ public class DatabaseManager {
                         INSERT INTO reward_claims_v2
                             (id, player_uuid, player_name, questline_id, quest_id, quest_title,
                              reward_type, reward_label, item_type, amount, claimed_at, source)
-                        SELECT id, player_uuid, player_name, '00000000', printf('%08d', quest_id), quest_title,
+                        SELECT id, player_uuid, player_name, '00000000', CAST(quest_id AS TEXT), quest_title,
                                reward_type, reward_label, item_type, amount, claimed_at, source
                         FROM reward_claims
                         """);
@@ -242,7 +242,7 @@ public class DatabaseManager {
                         INSERT INTO quest_proposals_v2
                             (id, questline_id, quest_id, proposer_uuid, proposer_name,
                              status, votes_up, votes_down, reject_reason, created_at)
-                        SELECT id, '00000000', printf('%08d', quest_id), proposer_uuid, proposer_name,
+                        SELECT id, '00000000', CAST(quest_id AS TEXT), proposer_uuid, proposer_name,
                                status, votes_up, votes_down, reject_reason, created_at
                         FROM quest_proposals
                         """);
