@@ -201,7 +201,7 @@ public class AdvancementSyncManager {
 
     private String buildRootJson() {
         return "{\"display\":{\"icon\":{\"id\":\"minecraft:writable_book\"},\"title\":{\"text\":\"クエスト\"}," +
-               "\"description\":{\"text\":\"クエスト一覧 | 詳細はブラウザで確認\"}," +
+               "\"description\":{\"text\":\"クエスト一覧\"}," +
                "\"background\":\"minecraft:block/smooth_stone\"," +
                "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false}," +
                "\"criteria\":{\"root\":{\"trigger\":\"minecraft:impossible\"}}}";
@@ -273,8 +273,15 @@ public class AdvancementSyncManager {
         if (condCount > 0) {
             sb.append("全").append(condCount).append("つの条件を達成しよう\n");
         }
-        sb.append("詳細・報酬はブラウザで確認");
+        String displayUrl = getDisplayUrl();
+        sb.append("詳細・報酬は" + (displayUrl.isBlank() ? "ブラウザ" : displayUrl) + " で確認");
         return sb.toString();
+    }
+
+    /** config の web-url から https:// / http:// を省いた表示用 URL を返す。*/
+    private String getDisplayUrl() {
+        String url = plugin.getConfig().getString("web-url", "");
+        return url.replaceFirst("^https?://", "");
     }
 
     private void removeAdvancementSafe(NamespacedKey key) {
