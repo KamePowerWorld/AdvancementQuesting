@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare } from 'lucide-react'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare, BarChart2 } from 'lucide-react'
 import type { EditorNode, EditorEdge, EditorReward, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -204,7 +204,7 @@ function NodeRewardChip({ reward }: { reward: EditorReward }) {
 export default function EditorPage() {
   const { isEditor: isEditorRole, viewMode, me } = useAuth()
   const { viewAs, setViewAs } = useViewAs()
-  const [mainTab, setMainTab] = useState<'map' | 'stats'>('map')
+  const [showStats, setShowStats] = useState(false)
   // view-as 中は他人の進捗を「閲覧専用」で見るモード。編集・操作は一切させない。
   const isEditor = isEditorRole && viewMode === 'edit' && !viewAs
   const queryClient = useQueryClient()
@@ -1219,40 +1219,6 @@ export default function EditorPage() {
             </button>
           </div>
         )}
-        {/* ===== タブバー ===== */}
-        <div
-          className="shrink-0 flex border-b-2 border-black"
-          style={{ backgroundColor: '#8B8B8B', fontFamily: '"Courier New", Courier, monospace' }}
-        >
-          {(['map', 'stats'] as const).map((tab) => {
-            const active = mainTab === tab
-            return (
-              <button
-                key={tab}
-                onClick={() => setMainTab(tab)}
-                className="px-3 py-1 text-xs font-bold"
-                style={{
-                  color: active ? '#0a1f0a' : '#2a2a2a',
-                  backgroundColor: active ? '#C6C6C6' : '#9B9B9B',
-                  borderTopColor: active ? 'white' : '#7B7B7B',
-                  borderLeftColor: active ? 'white' : '#7B7B7B',
-                  borderBottomColor: active ? '#C6C6C6' : '#555',
-                  borderRightColor: active ? '#555' : '#3B3B3B',
-                  borderWidth: '2px',
-                  borderStyle: 'solid',
-                  marginBottom: active ? '-2px' : '0',
-                  position: 'relative',
-                  zIndex: active ? 1 : 0,
-                }}
-              >
-                {tab === 'map' ? '🗺 マップ' : '📊 統計'}
-              </button>
-            )
-          })}
-        </div>
-        {mainTab === 'stats' ? (
-          <DashboardPage />
-        ) : (
         <div className="flex-1 relative flex overflow-hidden min-h-0">
         {/* ===== view-as パネル: デスクトップ=右上フローティング / モバイル=下部ドロワー ===== */}
         {viewAs && (
@@ -1334,6 +1300,8 @@ export default function EditorPage() {
           {showRewardTable && <ToolButton icon={List}     active={showRewardTableModal} onClick={() => setShowRewardTableModal(true)} tooltip="報酬テーブル" />}
           {showSettings    && <ToolButton icon={Settings} active={false}               onClick={() => {}}                          tooltip="設定" />}
 
+          <ToolButton icon={BarChart2} active={showStats} onClick={() => setShowStats((s) => !s)} tooltip="統計ダッシュボード" />
+
           {/* ユーザーアイコン */}
           {me ? (
             <button
@@ -1377,6 +1345,7 @@ export default function EditorPage() {
           )}
         </div>
 
+        {showStats ? <DashboardPage /> : (<>
         {/* ===== キャンバスエリア ===== */}
         <div
           ref={canvasRef}
@@ -1701,8 +1670,8 @@ export default function EditorPage() {
         {showLoginModal && (
           <LoginModal close={() => setShowLoginModal(false)} />
         )}
+        </>)}
         </div>
-        )}
       </div>
     </ViewAsContext.Provider>
   )

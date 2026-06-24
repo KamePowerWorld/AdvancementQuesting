@@ -10,15 +10,23 @@ interface Props {
 
 export function LeaderboardWidget({ config }: Props) {
   const { data, isLoading } = useQuery({
-    queryKey: ['stats', 'leaderboard', config.metric, config.limit],
-    queryFn: () => statsApi.leaderboard(config.metric, config.limit),
+    queryKey: ['stats', 'leaderboard', config.metric, config.limit, config.scoreboardObjective],
+    queryFn: () => statsApi.leaderboard(config.metric, config.limit, config.scoreboardObjective),
     staleTime: 5 * 60 * 1000,
   })
 
   if (isLoading) return <div className="text-gray-400 text-xs text-center py-4">読み込み中...</div>
-  if (!data || data.entries.length === 0) return <div className="text-gray-500 text-xs text-center py-4">データなし</div>
+  if (!data || data.entries.length === 0) {
+    return (
+      <div className="text-gray-500 text-xs text-center py-4">
+        {config.metric === 'scoreboard' && !config.scoreboardObjective
+          ? 'スコアボードオブジェクティブ名を設定してください'
+          : 'データなし'}
+      </div>
+    )
+  }
 
-  const metricLabel = config.metric === 'points' ? 'pt' : '回'
+  const metricLabel = config.metric === 'points' ? 'pt' : config.metric === 'completions' ? '回' : 'pt'
 
   return (
     <ol className="space-y-1">

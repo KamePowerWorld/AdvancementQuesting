@@ -4,12 +4,15 @@ import type {
   TimeseriesResponse,
   RewardsStatsResponse,
   QuestsStatsResponse,
-  GlobalActivityResponse,
+  GlobalActivityPage,
+  AllRewardsResponse,
+  AllRewardsDetailResponse,
 } from '@/types/stats.js'
 
 export const statsApi = {
-  leaderboard: (metric: 'points' | 'completions' = 'points', limit = 10) => {
+  leaderboard: (metric: 'points' | 'completions' | 'scoreboard' = 'points', limit = 10, scoreboardObjective?: string) => {
     const params = new URLSearchParams({ metric, limit: String(limit) })
+    if (metric === 'scoreboard' && scoreboardObjective) params.set('objective', scoreboardObjective)
     return api.get<LeaderboardResponse>(`/stats/leaderboard?${params}`)
   },
 
@@ -28,8 +31,17 @@ export const statsApi = {
     return api.get<QuestsStatsResponse>(`/stats/quests?${params}`)
   },
 
-  activity: (limit = 20) => {
-    const params = new URLSearchParams({ limit: String(limit) })
-    return api.get<GlobalActivityResponse>(`/stats/activity?${params}`)
+  activity: (before?: number) => {
+    const params = new URLSearchParams({ limit: '20' })
+    if (before != null) params.set('before', String(before))
+    return api.get<GlobalActivityPage>(`/stats/activity?${params}`)
+  },
+
+  allRewards: () => api.get<AllRewardsResponse>('/stats/all-rewards'),
+
+  allRewardsDetail: (rewardType: string, itemType: string | null) => {
+    const params = new URLSearchParams({ rewardType })
+    if (itemType != null) params.set('itemType', itemType)
+    return api.get<AllRewardsDetailResponse>(`/stats/all-rewards/detail?${params}`)
   },
 }

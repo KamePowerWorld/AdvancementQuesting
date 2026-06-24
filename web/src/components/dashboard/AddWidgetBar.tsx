@@ -1,7 +1,7 @@
 import type { WidgetType } from '@/types/dashboard.js'
 import { WIDGET_LABELS } from '@/types/dashboard.js'
 
-const WIDGET_TYPES: WidgetType[] = ['leaderboard', 'timeseries', 'rewards', 'quests', 'activity']
+const WIDGET_TYPES: WidgetType[] = ['leaderboard', 'timeseries', 'rewards', 'quests', 'activity', 'allrewards']
 
 interface Props {
   onAdd: (type: WidgetType) => void

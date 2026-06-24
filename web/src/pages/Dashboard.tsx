@@ -6,7 +6,7 @@ import type { DashboardConfig, DashboardWidget, WidgetType } from '@/types/dashb
 import { DEFAULT_WIDGET_CONFIGS, DEFAULT_WIDGET_SIZES } from '@/types/dashboard.js'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid.js'
 import { AddWidgetBar } from '@/components/dashboard/AddWidgetBar.js'
-import { WidgetConfigModal } from '@/components/dashboard/WidgetConfigModal.js'
+import { WidgetConfigModal, type WidgetConfigSavePayload } from '@/components/dashboard/WidgetConfigModal.js'
 
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
   let timer: ReturnType<typeof setTimeout>
@@ -80,8 +80,10 @@ export function DashboardPage() {
     updateConfig({ widgets: updatedWidgets })
   }
 
-  function handleWidgetConfigChange(id: string, newConfig: Record<string, unknown>) {
-    const updatedWidgets = config.widgets.map((w) => w.id === id ? { ...w, config: newConfig } : w)
+  function handleWidgetConfigChange(id: string, { config: newConfig, customTitle, description }: WidgetConfigSavePayload) {
+    const updatedWidgets = config.widgets.map((w) =>
+      w.id === id ? { ...w, config: newConfig, customTitle, description } : w,
+    )
     updateConfig({ widgets: updatedWidgets })
   }
 
@@ -109,7 +111,7 @@ export function DashboardPage() {
           canEdit={canEdit}
           width={gridWidth}
           onLayoutChange={handleLayoutChange}
-          onWidgetConfigChange={handleWidgetConfigChange}
+
           onWidgetRemove={handleWidgetRemove}
           onConfigOpen={setConfigModalWidget}
         />
@@ -117,7 +119,7 @@ export function DashboardPage() {
       {configModalWidget && (
         <WidgetConfigModal
           widget={configModalWidget}
-          onSave={(newCfg) => handleWidgetConfigChange(configModalWidget.id, newCfg)}
+          onSave={(payload) => handleWidgetConfigChange(configModalWidget.id, payload)}
           onClose={() => setConfigModalWidget(null)}
         />
       )}

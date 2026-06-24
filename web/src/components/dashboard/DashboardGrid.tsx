@@ -6,12 +6,12 @@ import { TimeseriesWidget } from './widgets/TimeseriesWidget.js'
 import { RewardsWidget } from './widgets/RewardsWidget.js'
 import { QuestsWidget } from './widgets/QuestsWidget.js'
 import { ActivityWidget } from './widgets/ActivityWidget.js'
+import { AllRewardsWidget } from './widgets/AllRewardsWidget.js'
 import type {
   LeaderboardConfig,
   TimeseriesConfig,
   RewardsConfig,
   QuestsConfig,
-  ActivityConfig,
 } from '@/types/dashboard.js'
 
 interface Props {
@@ -19,7 +19,6 @@ interface Props {
   canEdit: boolean
   width: number
   onLayoutChange: (updatedWidgets: DashboardWidget[]) => void
-  onWidgetConfigChange: (id: string, newConfig: Record<string, unknown>) => void
   onWidgetRemove: (id: string) => void
   onConfigOpen: (widget: DashboardWidget) => void
 }
@@ -31,7 +30,8 @@ function renderWidgetContent(widget: DashboardWidget) {
     case 'timeseries':  return <TimeseriesWidget config={config as unknown as TimeseriesConfig} />
     case 'rewards':     return <RewardsWidget config={config as unknown as RewardsConfig} />
     case 'quests':      return <QuestsWidget config={config as unknown as QuestsConfig} />
-    case 'activity':    return <ActivityWidget config={config as unknown as ActivityConfig} />
+    case 'activity':    return <ActivityWidget />
+    case 'allrewards':  return <AllRewardsWidget />
   }
 }
 
@@ -76,25 +76,15 @@ export function DashboardGrid({ config, canEdit, width, onLayoutChange, onWidget
       resizeHandles={['se']}
     >
       {config.widgets.map((w) => (
-        <div key={w.id} style={{ position: 'relative' }}>
-          {canEdit && (
-            <div
-              className="drag-handle"
-              style={{ position: 'absolute', inset: 0, cursor: 'grab', zIndex: 0, userSelect: 'none' }}
-            />
-          )}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
-            <div style={{ pointerEvents: 'auto', height: '100%' }}>
-              <WidgetWrapper
-                type={w.type}
-                canEdit={canEdit}
-                onConfigOpen={() => onConfigOpen(w)}
-                onRemove={() => onWidgetRemove(w.id)}
-              >
-                {renderWidgetContent(w)}
-              </WidgetWrapper>
-            </div>
-          </div>
+        <div key={w.id} className="h-full">
+          <WidgetWrapper
+            widget={w}
+            canEdit={canEdit}
+            onConfigOpen={() => onConfigOpen(w)}
+            onRemove={() => onWidgetRemove(w.id)}
+          >
+            {renderWidgetContent(w)}
+          </WidgetWrapper>
         </div>
       ))}
     </ReactGridLayout>

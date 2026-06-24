@@ -40,6 +40,13 @@ export interface QuestStatEntry {
 
 export type QuestsStatsResponse = QuestStatEntry[]
 
+export interface ActivityReward {
+  type: string
+  itemType?: string | null
+  amount: number
+  label?: string | null
+}
+
 export interface GlobalActivityItem {
   id: number
   playerUuid: string
@@ -48,6 +55,24 @@ export interface GlobalActivityItem {
   questTitle: string
   questIcon: string
   completedAt: string
+  rewards: ActivityReward[]
 }
 
-export type GlobalActivityResponse = GlobalActivityItem[]
+export interface GlobalActivityPage {
+  items: GlobalActivityItem[]
+  nextCursor: number | null
+}
+
+export interface AllRewardsEntry {
+  rewardType: string
+  itemType: string | null
+  rewardLabel: string | null
+  totalAmount: number
+}
+
+export type AllRewardsResponse = AllRewardsEntry[]
+
+export interface AllRewardsDetailResponse {
+  players: Array<{ playerUuid: string; playerName: string; totalAmount: number }>
+  quests: Array<{ questId: number; questTitle: string; totalAmount: number }>
+}
