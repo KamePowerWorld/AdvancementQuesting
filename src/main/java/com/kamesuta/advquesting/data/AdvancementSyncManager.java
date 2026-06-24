@@ -171,9 +171,83 @@ public class AdvancementSyncManager {
     }
 
     /**
-     * ログイン時に全クエストの進捗を一括同期する。Bukkit main thread から呼ぶこと。
+     * ログイン時・リロード時・定義変更時に全クエストの進捗を一括同期する。Bukkit main thread から呼ぶこと。
+     *
+     * NMS の PlayerAdvancements に進捗をサイレントに書き込み、save()+reload() で
+     * reset パケットとして再送する。reset パケットはクライアント側でトーストを出さない
+     * （バニラのログイン時と同じ挙動）ため、達成済みクエストのトースト連発を防げる。
+     * また reload() は最新の Advancement 定義も含めて送るため、リロード後の即時反映
+     * （定義の再送）も同時に達成される。
      */
     public void syncAllQuestsForPlayer(Player player) {
+        if (resyncPlayerSilently(player)) return;
+        // NMS リフレクションが失敗した場合は Bukkit API でフォールバック（トーストが出る可能性あり）
+        fallbackBukkitSync(player);
+    }
+
+    /**
+     * DB の進捗を NMS 経由でサイレントに反映し、reset パケットで再送する（トーストなし）。
+     * 成功時 true。
+     */
+    private boolean resyncPlayerSilently(Player player) {
+        try {
+            Object serverPlayer = player.getClass().getMethod("getHandle").invoke(player);
+            Object playerAdv = serverPlayer.getClass().getMethod("getAdvancements").invoke(serverPlayer);
+            java.lang.reflect.Method getOrStart = findMethod(playerAdv.getClass(), "getOrStartProgress", 1);
+            if (getOrStart == null) return false;
+
+            // root を付与
+            Advancement root = Bukkit.getAdvancement(rootKey());
+            if (root != null) {
+                Object holder = root.getClass().getMethod("getHandle").invoke(root);
+                Object progress = getOrStart.invoke(playerAdv, holder);
+                setCriterionSilently(progress, "root", true);
+            }
+
+            // 各クエストの criterion を DB の状態に合わせて付与/剥奪
+            String playerUuid = player.getUniqueId().toString();
+            for (Quest quest : questManager.loadAll()) {
+                if (!"public".equals(quest.status)) continue;
+                Advancement adv = Bukkit.getAdvancement(questKey(quest.id));
+                if (adv == null) continue;
+                Object holder = adv.getClass().getMethod("getHandle").invoke(adv);
+                Object progress = getOrStart.invoke(playerAdv, holder);
+                ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                Map<String, Boolean> done = parseProgress(rec != null ? rec.progress() : null);
+                if (quest.conditions == null || quest.conditions.isEmpty()) {
+                    setCriterionSilently(progress, "_root", false);
+                    continue;
+                }
+                for (Map<String, Object> cond : quest.conditions) {
+                    String condId = (String) cond.get("id");
+                    if (condId == null) continue;
+                    String crit = "c_" + sanitizeCriterionName(condId);
+                    setCriterionSilently(progress, crit, done.getOrDefault(condId, false));
+                }
+            }
+
+            // save() で在メモリ進捗をディスクへ書き出し、reload() で reset パケットとして再送する。
+            playerAdv.getClass().getMethod("save").invoke(playerAdv);
+            Object server = Class.forName("net.minecraft.server.MinecraftServer").getMethod("getServer").invoke(null);
+            Object manager = server.getClass().getMethod("getAdvancements").invoke(server);
+            java.lang.reflect.Method reload = findMethod(playerAdv.getClass(), "reload", 1);
+            if (reload == null) return false;
+            reload.invoke(playerAdv, manager);
+            return true;
+        } catch (Exception e) {
+            log.warning("進捗のサイレント再同期に失敗 (" + player.getName() + "): " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** NMS AdvancementProgress に対し criterion を付与/剥奪する（パケット送信なし）。*/
+    private void setCriterionSilently(Object nmsProgress, String criterion, boolean grant) throws Exception {
+        java.lang.reflect.Method m = findMethod(nmsProgress.getClass(), grant ? "grantProgress" : "revokeProgress", 1);
+        if (m != null) m.invoke(nmsProgress, criterion);
+    }
+
+    /** NMS リフレクション不可時のフォールバック。Bukkit API で進捗を同期する（トーストが出る場合あり）。*/
+    private void fallbackBukkitSync(Player player) {
         grantRootCriterion(player);
         String playerUuid = player.getUniqueId().toString();
         for (Quest quest : questManager.loadAll()) {
@@ -185,9 +259,22 @@ public class AdvancementSyncManager {
                 ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
                 applyProgressToPlayer(player, adv, quest, rec != null ? rec.progress() : null);
             } catch (Exception e) {
-                log.warning("syncAllQuestsForPlayer error for quest " + quest.id + ": " + e.getMessage());
+                log.warning("fallbackBukkitSync error for quest " + quest.id + ": " + e.getMessage());
             }
         }
+    }
+
+    /** クラス階層を遡って名前と引数の数が一致するメソッドを探し setAccessible して返す。*/
+    private static java.lang.reflect.Method findMethod(Class<?> clazz, String name, int paramCount) {
+        for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
+            for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+                if (m.getName().equals(name) && m.getParameterCount() == paramCount) {
+                    m.setAccessible(true);
+                    return m;
+                }
+            }
+        }
+        return null;
     }
 
     // ---- private helpers ----
@@ -298,10 +385,12 @@ public class AdvancementSyncManager {
         String title = escapeJson(quest.title != null ? quest.title : "クエスト #" + quest.id);
         String description = escapeJson(buildDescription(quest));
 
+        // show_toast=true: クエスト完了時にトーストを表示する。
+        // ログイン/リロード時の一括同期は reset パケットで送るためトーストは出ない（バニラ挙動）。
         return "{\"display\":{\"icon\":{\"id\":\"" + iconId + "\"}," +
                "\"title\":{\"text\":\"" + title + "\"}," +
                "\"description\":{\"text\":\"" + description + "\"}," +
-               "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false,\"hidden\":false}," +
+               "\"frame\":\"task\",\"show_toast\":true,\"announce_to_chat\":false,\"hidden\":false}," +
                "\"parent\":\"" + parentKey + "\"," +
                "\"criteria\":{" + criteriaJson + "}," +
                "\"requirements\":[" + requirements + "]}";
