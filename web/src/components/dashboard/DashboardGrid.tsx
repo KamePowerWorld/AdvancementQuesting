@@ -55,10 +55,33 @@ export function DashboardGrid({ config, canEdit, width, onLayoutChange, onWidget
     onLayoutChange(updatedWidgets)
   }
 
-  if (config.widgets.length === 0) {
+  const isEmpty = config.widgets.length === 0
+  const isMobile = width < 640
+
+  if (isEmpty) {
     return (
       <div className="flex items-center justify-center h-40 text-gray-500 text-sm">
         {canEdit ? 'ウィジェットを追加してください' : 'ダッシュボードが未設定です'}
+      </div>
+    )
+  }
+
+  // モバイル: グリッドを無視して縦積み
+  if (isMobile) {
+    return (
+      <div className="flex flex-col gap-2 p-2">
+        {config.widgets.map((w) => (
+          <div key={w.id} style={{ height: w.layout.h * 60 }}>
+            <WidgetWrapper
+              widget={w}
+              canEdit={canEdit}
+              onConfigOpen={() => onConfigOpen(w)}
+              onRemove={() => onWidgetRemove(w.id)}
+            >
+              {renderWidgetContent(w)}
+            </WidgetWrapper>
+          </div>
+        ))}
       </div>
     )
   }
