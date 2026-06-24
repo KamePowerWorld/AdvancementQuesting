@@ -105,6 +105,19 @@ public class NotificationRoutes {
         ));
     }
 
+    /**
+     * 全 SSE クライアントを閉じてマップをクリアする。
+     * app.stop() の前に呼ぶことで Jetty がクライアント参照を保持しなくなる。
+     */
+    public void closeAll() {
+        for (Set<SseClient> set : clients.values()) {
+            for (SseClient c : set) {
+                try { c.close(); } catch (Exception ignored) {}
+            }
+        }
+        clients.clear();
+    }
+
     /** 指定プレイヤーの全 SSE クライアントへイベントを送信する共通処理 */
     private void send(String playerUuid, String event, Map<String, Object> payloadMap) {
         Set<SseClient> targets = clients.get(playerUuid);

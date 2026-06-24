@@ -39,6 +39,7 @@ public final class AdvancementQuesting extends JavaPlugin {
     private DatabaseManager db;
     private ScoreboardListener scoreboardListener;
     private RepeatScheduler repeatScheduler;
+    private NotificationRoutes notificationRoutes;
 
     @Override
     public void onEnable() {
@@ -113,7 +114,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         });
 
         // API ルート登録
-        NotificationRoutes notificationRoutes = new NotificationRoutes(sessionDao);
+        notificationRoutes = new NotificationRoutes(sessionDao);
         progressManager.setNotificationRoutes(notificationRoutes);
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new ConfigRoutes(this).register(app);
@@ -163,7 +164,15 @@ public final class AdvancementQuesting extends JavaPlugin {
     public void onDisable() {
         if (repeatScheduler != null) repeatScheduler.stop();
         if (scoreboardListener != null) scoreboardListener.stop();
+        // SSE クライアントを先に閉じてから Javalin を停止する。
+        // keepAlive() 中のクライアントが Jetty 内に残ると ClassLoader が解放されない。
+        if (notificationRoutes != null) notificationRoutes.closeAll();
         if (app != null) app.stop();
         if (db != null) db.close();
+        // SQLite NativeDB は finalize() を持つため、明示的に close() しても
+        // ファイナライザキューに残り ClassLoader が解放されない。
+        // ここで GC + finalization を促してメモリリークを防ぐ。
+        System.gc();
+        System.runFinalization(); // NOSONAR: プラグインリロード時に限定した使用
     }
 }

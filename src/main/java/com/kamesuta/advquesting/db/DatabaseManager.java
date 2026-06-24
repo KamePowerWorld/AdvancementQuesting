@@ -4,6 +4,8 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DatabaseManager {
 
@@ -120,6 +122,28 @@ public class DatabaseManager {
             if (conn != null && !conn.isClosed()) conn.close();
         } catch (SQLException e) {
             // ignore on shutdown
+        }
+        // リロード時のClassLoaderリーク防止: このClassLoaderが登録したJDBCドライバを解除する。
+        // DriverManager (bootstrap CL) が SQLite JDBCインスタンス (plugin CL) を強参照するため。
+        deregisterJdbcDrivers();
+    }
+
+    private void deregisterJdbcDrivers() {
+        ClassLoader myCl = getClass().getClassLoader();
+        List<Driver> toRemove = new ArrayList<>();
+        try {
+            java.util.Enumeration<Driver> drivers = DriverManager.getDrivers();
+            while (drivers.hasMoreElements()) {
+                Driver d = drivers.nextElement();
+                if (d.getClass().getClassLoader() == myCl) {
+                    toRemove.add(d);
+                }
+            }
+            for (Driver d : toRemove) {
+                DriverManager.deregisterDriver(d);
+            }
+        } catch (Exception e) {
+            // ignore
         }
     }
 }
