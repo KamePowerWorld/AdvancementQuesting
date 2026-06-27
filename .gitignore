@@ -168,7 +168,7 @@ buildNumber.properties
 # End of https://www.toptal.com/developers/gitignore/api/maven,intellij+all,intellij+iml
 
 # Minecraft アセット (ビルド時にダウンロード)
-web/public/mc/
+web/public
 
 # ブロックレンダリングキャッシュ (大容量ファイル)
 web/scripts/render-blocks-cache/
@@ -182,3 +182,9 @@ tmp/
 # Test Console ログ・ロック
 mc-tests/test-console.log
 mc-tests/.console-*.lock
+
+# Claude Worktree
+.claude/worktrees/
+
+# マイクラテストサーバー
+run/
