@@ -33,7 +33,7 @@ $info = [ordered]@{
     taskName     = $TaskName
     verified     = $false
 } | ConvertTo-Json
-[System.IO.File]::WriteAllText("$projectDir\target\WORKTREE_INFO.json", $info, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText((Join-Path $projectDir 'target' 'WORKTREE_INFO.json'), $info, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "-> Worktree build complete. Deploy via test-console." -ForegroundColor Yellow
 Write-Host "   Task: $TaskName" -ForegroundColor Gray

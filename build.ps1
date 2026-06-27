@@ -29,9 +29,9 @@ if ($LASTEXITCODE -ne 0) {
 # ---- コピー ----
 Write-Host "-> Copying to run/plugins/..." -ForegroundColor Cyan
 
-New-Item -ItemType Directory -Force -Path "$Root\run\plugins" | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $Root 'run' 'plugins') | Out-Null
 
-Get-ChildItem -Path "$Root\target\*.jar" -Exclude 'original-*.jar' |
+Get-ChildItem -Path (Join-Path $Root 'target' '*.jar') -Exclude 'original-*.jar' |
 Where-Object { $_.Name -cNotMatch '-[a-z]+\.jar' } |
 Sort-Object LastWriteTime -Descending |
 Select-Object -Property *, @{
@@ -44,9 +44,9 @@ Select-Object -Property *, @{
 Group-Object -Property PluginName |
 ForEach-Object { $_.Group | Select-Object -First 1 } |
 ForEach-Object {
-    $dest = "$Root\run\plugins\$($_.PluginName).jar"
+    $dest = Join-Path $Root 'run' 'plugins' "$($_.PluginName).jar"
     Copy-Item $_.FullName -Destination $dest -Force
-    Write-Host "  $($_.Name) -> run\plugins\$($_.PluginName).jar" -ForegroundColor Green
+    Write-Host "  $($_.Name) -> run/plugins/$($_.PluginName).jar" -ForegroundColor Green
 }
 
 Write-Host "-> Done!" -ForegroundColor Cyan

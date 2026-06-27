@@ -1,16 +1,13 @@
 /**
  * ブロックアトラス生成スクリプト
  *
- * WSL 上で @blackblockrocks/minecraft-render を使い Minecraft の全ブロックを
+ * @blackblockrocks/minecraft-render を使い Minecraft の全ブロックを
  * 64x64 PNG にレンダリングし、アイテムレジストリとマッチしたものを
  * 1枚のアトラス PNG に合成して public/mc/atlas/blocks.png と
  * blocks.json (座標マップ) を出力する。
  *
- * 前提:
- *   - WSL (Ubuntu 等) がインストールされていること
- *   - WSL 内に xvfb が入っていること (sudo apt install xvfb)
- *   - Minecraft client.jar を asset-atlas-builder/render-blocks-cache/minecraft.jar に配置するか
- *     MC_JAR 環境変数で指定すること（未指定の場合は自動ダウンロード）
+ * Windows: WSL (Ubuntu) + xvfb-run を使用
+ * macOS/Linux: ネイティブ実行（仮想ディスプレイ不要）
  *
  * 使用方法:
  *   npm run render-blocks
@@ -28,8 +25,13 @@ const ATLAS_DIR = join(PUBLIC_MC, 'atlas')
 const CACHE_DIR = join(__dirname, 'render-blocks-cache')
 const JAR_PATH = process.env['MC_JAR'] ?? join(CACHE_DIR, 'minecraft.jar')
 
-// WSL 内の作業ディレクトリ（WSL パスで指定）
+const IS_WINDOWS = process.platform === 'win32'
+
+// Windows (WSL) 用
 const WSL_WORK_DIR = '/tmp/mc-render-atlas'
+// macOS/Linux 用（ローカルに npm パッケージをインストール）
+const NATIVE_WORK_DIR = join(CACHE_DIR, 'native')
+
 const TILE_SIZE = 128
 
 function toWslPath(winPath: string): string {
@@ -44,6 +46,10 @@ function wsl(cmd: string): string {
   })
   if (result.error) throw result.error
   return (result.stdout + result.stderr).trim()
+}
+
+function sh(cmd: string, cwd?: string): string {
+  return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd }).trim()
 }
 
 async function downloadJar(): Promise<void> {
@@ -64,9 +70,10 @@ async function downloadJar(): Promise<void> {
   console.log('  ダウンロード完了')
 }
 
+// ---- Windows (WSL) ----
+
 function setupWsl(): void {
   console.log('\n[WSL セットアップ]')
-  // xvfb の有無確認
   const xvfb = wsl('which xvfb-run 2>/dev/null || echo ""')
   if (!xvfb) {
     console.log('  xvfb をインストール中...')
@@ -74,7 +81,6 @@ function setupWsl(): void {
   } else {
     console.log('  xvfb: OK')
   }
-  // 作業ディレクトリと npm パッケージの準備
   wsl(`mkdir -p ${WSL_WORK_DIR}`)
   const pkgExists = wsl(`[ -d ${WSL_WORK_DIR}/node_modules/@blackblockrocks ] && echo yes || echo no`)
   if (pkgExists.includes('no')) {
@@ -86,13 +92,11 @@ function setupWsl(): void {
   }
 }
 
-function renderBlocks(): string {
-  console.log('\n[ブロックレンダリング]')
+function renderBlocksWsl(): string {
+  console.log('\n[ブロックレンダリング (WSL)]')
   const wslJar = toWslPath(JAR_PATH)
   const outDir = `${WSL_WORK_DIR}/out`
   wsl(`mkdir -p ${outDir}/block '${outDir}/minecraft:block' '${outDir}/minecraft:item'`)
-
-  // minecraft-render を xvfb-run で実行
   console.log('  レンダリング実行中（数秒かかります）...')
   const log = wsl(
     `cd ${WSL_WORK_DIR} && ` +
@@ -100,7 +104,6 @@ function renderBlocks(): string {
     `./node_modules/.bin/minecraft-render ${wslJar} ${outDir}/ ` +
     `--no-animation --width ${TILE_SIZE} --height ${TILE_SIZE} 2>&1`
   )
-
   const rendered = (log.match(/\[\d+ \/ \d+\] .+ rendered/g) || []).length
   const skipped = (log.match(/skipped due to/g) || []).length
   console.log(`  完了: ${rendered} 枚レンダリング, ${skipped} 件スキップ`)
@@ -108,7 +111,6 @@ function renderBlocks(): string {
 }
 
 function copyRenderedToWindows(wslOutDir: string): string {
-  // WSL の出力ディレクトリを Windows 側にコピー
   const winOutDir = join(CACHE_DIR, 'rendered')
   mkdirSync(winOutDir, { recursive: true })
   const wslWinOutDir = toWslPath(winOutDir)
@@ -116,10 +118,50 @@ function copyRenderedToWindows(wslOutDir: string): string {
   return winOutDir
 }
 
+// ---- macOS / Linux ----
+
+function setupNative(): void {
+  console.log('\n[ネイティブセットアップ]')
+  mkdirSync(NATIVE_WORK_DIR, { recursive: true })
+  const pkgDir = join(NATIVE_WORK_DIR, 'node_modules', '@blackblockrocks')
+  if (!existsSync(pkgDir)) {
+    console.log('  @blackblockrocks/minecraft-render をインストール中...')
+    execSync('npm install @blackblockrocks/minecraft-render', {
+      cwd: NATIVE_WORK_DIR,
+      stdio: 'inherit',
+    })
+    console.log('  インストール完了')
+  } else {
+    console.log('  @blackblockrocks/minecraft-render: OK')
+  }
+}
+
+function renderBlocksNative(): string {
+  console.log('\n[ブロックレンダリング (ネイティブ)]')
+  const outDir = join(NATIVE_WORK_DIR, 'out')
+  mkdirSync(join(outDir, 'block'), { recursive: true })
+  const renderBin = join(NATIVE_WORK_DIR, 'node_modules', '.bin', 'minecraft-render')
+  console.log('  レンダリング実行中（数秒かかります）...')
+  let log = ''
+  try {
+    log = sh(
+      `"${renderBin}" "${JAR_PATH}" "${outDir}/" --no-animation --width ${TILE_SIZE} --height ${TILE_SIZE} 2>&1`,
+      NATIVE_WORK_DIR
+    )
+  } catch (e: unknown) {
+    // minecraft-render exits non-zero sometimes even on success; collect output
+    if (e && typeof e === 'object' && 'stdout' in e) log = String((e as { stdout: string }).stdout)
+    if (e && typeof e === 'object' && 'stderr' in e) log += String((e as { stderr: string }).stderr)
+  }
+  const rendered = (log.match(/\[\d+ \/ \d+\] .+ rendered/g) || []).length
+  const skipped = (log.match(/skipped due to/g) || []).length
+  console.log(`  完了: ${rendered} 枚レンダリング, ${skipped} 件スキップ`)
+  return outDir
+}
+
+// ---- Atlas 合成 (共通) ----
+
 function collectPngs(outDir: string, itemIds: Set<string>): Map<string, string> {
-  // アイテムID → PNGファイルパス のマップを構築
-  // minecraft-render の出力は "blockName.png" 形式
-  // blockName は "minecraft:block/oak_log" → ファイルは "out/minecraft:block/oak_log.png"
   const result = new Map<string, string>()
 
   function scanDir(dir: string) {
@@ -129,7 +171,6 @@ function collectPngs(outDir: string, itemIds: Set<string>): Map<string, string> 
         scanDir(join(dir, f.name))
       } else if (f.name.endsWith('.png')) {
         const baseName = f.name.replace('.png', '')
-        // baseName がアイテムIDと一致するか確認
         if (itemIds.has(baseName)) {
           result.set(baseName, join(dir, f.name))
         }
@@ -152,7 +193,6 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
 
   console.log(`  ${count} 枚 → ${cols}x${rows} グリッド (${atlasW}x${atlasH}px)`)
 
-  // 各タイルを trim → TILE_SIZE にリサイズして composites として配置
   const composites: sharp.OverlayOptions[] = []
   const coordMap: Record<string, [number, number, number, number]> = {}
 
@@ -178,7 +218,6 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
     .png()
     .toFile(atlasPath)
 
-  // メタ情報を先頭に付与（ItemIcon の backgroundSize 計算用）
   const output = { _meta: { atlasW, atlasH, tileSize: TILE_SIZE }, ...coordMap }
   writeFileSync(jsonPath, JSON.stringify(output, null, 2))
   console.log(`  → ${atlasPath}`)
@@ -189,8 +228,8 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
 
 async function main() {
   console.log('ブロックアトラス生成を開始します...')
+  console.log(`  プラットフォーム: ${process.platform}`)
 
-  // アイテムレジストリを読み込む
   const registryPath = join(PUBLIC_MC, 'registry', 'item.json')
   if (!existsSync(registryPath)) {
     throw new Error(`item.json が見つかりません。先に "npm run download-assets" を実行してください: ${registryPath}`)
@@ -198,22 +237,27 @@ async function main() {
   const itemIds: string[] = JSON.parse(readFileSync(registryPath, 'utf8'))
   const itemIdSet = new Set(itemIds)
 
-  // キャッシュ済みの rendered ディレクトリがあればスキップ
-  const cachedOutDir = join(CACHE_DIR, 'rendered')
+  const cachedOutDir = IS_WINDOWS
+    ? join(CACHE_DIR, 'rendered')
+    : join(NATIVE_WORK_DIR, 'out')
+
   let outDir: string
 
   if (existsSync(cachedOutDir) && readdirSync(cachedOutDir).length > 0) {
     console.log(`\n  レンダリングキャッシュ使用: ${cachedOutDir}`)
-    console.log('  再レンダリングする場合は asset-atlas-builder/render-blocks-cache/rendered/ を削除してください')
+    console.log('  再レンダリングする場合は該当 out/ ディレクトリを削除してください')
     outDir = cachedOutDir
-  } else {
+  } else if (IS_WINDOWS) {
     await downloadJar()
     setupWsl()
-    const wslOutDir = renderBlocks()
+    const wslOutDir = renderBlocksWsl()
     outDir = copyRenderedToWindows(wslOutDir)
+  } else {
+    await downloadJar()
+    setupNative()
+    outDir = renderBlocksNative()
   }
 
-  // PNG を収集してアトラス化
   const pngMap = collectPngs(outDir, itemIdSet)
   console.log(`\n  アイテムIDとマッチした PNG: ${pngMap.size} / ${itemIds.length}`)
 
