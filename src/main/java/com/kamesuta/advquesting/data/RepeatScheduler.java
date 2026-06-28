@@ -85,7 +85,7 @@ public class RepeatScheduler {
                         }
                         String newProgressJson;
                         try {
-                            newProgressJson = ProgressManager.buildResetProgressJson(quest, completedProgress);
+                            newProgressJson = ProgressUpdater.buildResetProgressJson(quest, completedProgress);
                         } catch (Exception ex) {
                             newProgressJson = "[]";
                         }
