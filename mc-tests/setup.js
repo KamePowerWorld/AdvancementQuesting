@@ -15,7 +15,7 @@
  */
 
 import { execSync, spawn } from 'node:child_process'
-import { existsSync, copyFileSync, mkdirSync, readdirSync, cpSync } from 'node:fs'
+import { existsSync, copyFileSync, mkdirSync, readdirSync, cpSync, readFileSync, writeFileSync } from 'node:fs'
 import { createWriteStream } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
@@ -81,6 +81,29 @@ function applyTemplate() {
   console.log('[setup] run-template/ → run/ に設定ファイルを上書きコピー中...')
   cpSync(TEMPLATE, RUN_DIR, { recursive: true, force: true })
   console.log('[setup] テンプレート適用完了。')
+}
+
+// PORT_OFFSET を server.properties / config.yml に反映
+function patchPorts() {
+  if (PORT_OFFSET === 0) return
+  const serverProps = path.join(RUN_DIR, 'server.properties')
+  if (existsSync(serverProps)) {
+    const text = readFileSync(serverProps, 'utf8')
+    const replaced = text
+      .replace(/^server-port=.*$/m, `server-port=${MC_PORT}`)
+      .replace(/^rcon\.port=.*$/m, `rcon.port=${RCON_PORT}`)
+      .replace(/^query\.port=.*$/m, `query.port=${MC_PORT}`)
+    writeFileSync(serverProps, replaced)
+  }
+  const pluginCfg = path.join(RUN_DIR, 'plugins', 'AdvancementQuesting', 'config.yml')
+  if (existsSync(pluginCfg)) {
+    const text = readFileSync(pluginCfg, 'utf8')
+    const replaced = text
+      .replace(/^web-port:.*$/m, `web-port: ${API_PORT}`)
+      .replace(/^web-url:.*$/m, `web-url: "http://localhost:${API_PORT}"`)
+    writeFileSync(pluginCfg, replaced)
+  }
+  console.log(`[setup] PORT_OFFSET=${PORT_OFFSET} を反映 (MC=${MC_PORT}, API=${API_PORT}, RCON=${RCON_PORT})`)
 }
 
 // ─────────────────────────────────────────────
@@ -229,6 +252,7 @@ async function main() {
   try {
     await downloadPaper()
     applyTemplate()
+    patchPorts()
     buildPlugin()
     copyPlugin()
     serverProc = await startServer()
