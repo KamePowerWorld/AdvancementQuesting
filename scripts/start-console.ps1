@@ -4,6 +4,11 @@ $projectDir = $env:CLAUDE_PROJECT_DIR
 if (-not $projectDir) { $projectDir = (git rev-parse --show-toplevel) }
 $projectDir = (Resolve-Path $projectDir).Path
 
+# Always use the main worktree (run/ and mc-tests/ live there, not in worktree branches)
+$mainPath = (git -C $projectDir worktree list --porcelain |
+    Select-String '^worktree ' | Select-Object -First 1).Line -replace '^worktree ', ''
+$projectDir = (Resolve-Path $mainPath).Path
+
 $portOffset = [int]($env:PORT_OFFSET ?? '0')
 $port = 7890 + $portOffset
 
