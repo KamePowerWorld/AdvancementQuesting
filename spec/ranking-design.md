@@ -293,7 +293,7 @@ Mock にクリアログ投入フック（例: `POST /api/test/add-completion`）
 4. **Mock**: スキーマ・マイグレーション・ランキング route・テスト用フック。
 5. **フロント**: 型・API クライアント・ランキングタブ UI・SSE 連動。
 6. **テスト**: フロント E2E（RK-1〜7） → mc-tests（MC-RK-1〜3）。
-7. ステップごとに `./build.ps1` → フロント E2E → mc-tests → コミット（CLAUDE.md 準拠）。
+7. ステップごとに `./scripts/build.ps1` → フロント E2E → mc-tests → コミット（CLAUDE.md 準拠）。
 
 ---
 

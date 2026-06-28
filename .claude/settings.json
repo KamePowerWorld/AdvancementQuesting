@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -File .claude/scripts/setup.ps1",
+            "command": "pwsh -File scripts/setup.ps1",
             "shell": "bash",
             "statusMessage": "Setting up project environment...",
             "timeout": 120

@@ -1,6 +1,6 @@
 ---
 name: worktree-build
-description: Run build.ps1 with -Worktree flag to build the current worktree without deploying to run/. Use when the user says "ビルドして", "build して", "worktreeビルド", or at the end of a task in a worktree session.
+description: Build the worktree JAR (Maven, no deploy). Use when the user says "ビルドして", "worktreeビルド", or at the end of a task.
 ---
 
 # worktree-build skill

@@ -2,7 +2,7 @@
 
 ## Setup
 
-Setup runs automatically at session start (symlinks `web/public` and runs `npm install`). Script: `.claude/scripts/setup.ps1`.
+Setup runs automatically at session start (symlinks `web/public` and runs `npm install`). Script: `scripts/setup.ps1`.
 
 At the end of a session, run `/worktree-build` to build without deploying to `run/`.
 

@@ -8,7 +8,7 @@
 - MCサーバーと `dev:console`（port 7890）は**常時稼働**前提
 - 操作対象は**ベースプロジェクト（main）の `run/` フォルダ**のみ
 - worktreeのJARは `POST /api/worktrees/deploy` 時に `run/plugins/` にコピー → autoreload が自動検知
-- Claude の Stop フックで `build.ps1 -Worktree $CLAUDE_PROJECT_DIR` を呼んでビルド + `WORKTREE_INFO.txt` 書き込み
+- Claude の Stop フックで `scripts/build.ps1 -Worktree $CLAUDE_PROJECT_DIR` を呼んでビルド + `WORKTREE_INFO.txt` 書き込み
 
 ---
 
@@ -25,7 +25,7 @@
         └── チャットログ (SSE リアルタイム)
 
 Claude Stop フック（worktreeセッション時）:
-  build.ps1 -Worktree $CLAUDE_PROJECT_DIR -SkipTests
+  scripts/build.ps1 -Worktree $CLAUDE_PROJECT_DIR -SkipTests
   → ビルドのみ (run/ へのコピーなし)
   → target/WORKTREE_INFO.txt にworktreeパスを書き込む
 ```
@@ -53,7 +53,7 @@ Claude Stop フック（worktreeセッション時）:
 
 `.claude/settings.json` のコマンドも `npx tsx start-console.ts` に更新。
 
-### 2. `build.ps1` の拡張
+### 2. `scripts/build.ps1` の拡張
 
 `-Worktree` パラメータを追加：
 
@@ -151,7 +151,7 @@ WORKTREE  [main (現在) / feature/C-6 (タスクXXX) ▼]  [デプロイ]
 ### 5. `.claude/settings.json` Stop フック更新
 
 **start-console の自動起動は不要**（つけっぱなし想定）。
-Stop フックは `build.ps1 -Worktree` の呼び出しのみ：
+Stop フックは `scripts/build.ps1 -Worktree` の呼び出しのみ：
 
 ```json
 {
@@ -162,7 +162,7 @@ Stop フックは `build.ps1 -Worktree` の呼び出しのみ：
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -File \"$CLAUDE_PROJECT_DIR/build.ps1\" -SkipTests -Worktree \"$CLAUDE_PROJECT_DIR\"",
+            "command": "powershell -File \"$CLAUDE_PROJECT_DIR/scripts/build.ps1\" -SkipTests -Worktree \"$CLAUDE_PROJECT_DIR\"",
             "async": true,
             "statusMessage": "Worktree ビルド中…"
           }
@@ -174,7 +174,7 @@ Stop フックは `build.ps1 -Worktree` の呼び出しのみ：
 ```
 
 ベースプロジェクトでも worktreeでも同じフックが発火する。
-`build.ps1` は `-Worktree` の有無ではなく「そのパスがベースかworktreeか」で動作を変える：
+`scripts/build.ps1` は `-Worktree` の有無ではなく「そのパスがベースかworktreeか」で動作を変える：
 - ベース（`$Root == $Worktree`）: 既存の `run/` コピー + WORKTREE_INFO.json 書き込み
 - worktree（`$Root != $Worktree`）: ビルドのみ + WORKTREE_INFO.json 書き込み（`run/` コピーなし）
 
@@ -183,10 +183,10 @@ Stop フックは `build.ps1 -Worktree` の呼び出しのみ：
 ## 実装順序
 
 1. `start-console.mjs` を `start-console.ts` に変換（内容は同じ、拡張子だけ変更）
-2. `build.ps1` に `-Worktree` パラメータ + `WORKTREE_INFO.txt` 書き込みを追加
+2. `scripts/build.ps1` に `-Worktree` パラメータ + `WORKTREE_INFO.txt` 書き込みを追加
 3. `test-server.ts` に `/api/worktrees` + `/api/worktrees/deploy` を追加
 4. `test-console.html` に worktree プルダウン UI を追加
-5. `.claude/settings.json` の Stop フックを更新（start-console.ts + build.ps1 呼び出し）
+5. `.claude/settings.json` の Stop フックを更新（start-console.ts + scripts/build.ps1 呼び出し）
 6. `CLAUDE.md` 更新（worktree Stop フックの説明）
 7. 型チェック確認
 
@@ -197,5 +197,5 @@ Stop フックは `build.ps1 -Worktree` の呼び出しのみ：
 1. `cd mc-tests && npm run dev:console` でサーバー起動 → `http://localhost:7890/test-console`
 2. worktreeプルダウンに `main` が表示されることを確認
 3. worktreeを作成: `git worktree add ../AQ-wt2 -b feature/test`
-4. Claude Stop フック発火で `build.ps1 -Worktree ../AQ-wt2 -SkipTests` が実行される
+4. Claude Stop フック発火で `scripts/build.ps1 -Worktree ../AQ-wt2 -SkipTests` が実行される
 5. プルダウンに `feature/test` が現れ、デプロイボタン → JARコピー → autoreload → iframe更新

@@ -69,7 +69,7 @@ mvn clean package -DskipTests
 Minecraft サーバーへのデプロイも含めてビルドする場合は PowerShell スクリプトを使用します。
 
 ```powershell
-pwsh build.ps1
+pwsh scripts/build.ps1
 ```
 
 ---
