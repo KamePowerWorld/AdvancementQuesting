@@ -13,10 +13,11 @@
 import { test, expect } from '@playwright/test'
 import {
   loginAs, openQuestModal, resetProgress, setConditionProgress,
-  PLAYER_UUID, MOCK,
+  PLAYER_UUID, MOCK, resetAll,
 } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })

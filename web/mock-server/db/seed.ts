@@ -1,6 +1,6 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { db } from './client.js'
-import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes } from './schema.js'
+import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes, questCompletions, rewardClaims } from './schema.js'
 
 const DEMO_PLAYER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const DEMO_PLAYER_NAME = 'Steve'
@@ -26,7 +26,7 @@ const QUEST_ID_6 = 6
 const QUEST_ID_7 = 7
 const QUEST_ID_8 = 8
 
-async function seed() {
+export async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
   console.log('Seeding database...')
 
@@ -36,6 +36,8 @@ async function seed() {
   await db.delete(playerProgress)
   await db.delete(authCodes)
   await db.delete(playerSessions)
+  await db.delete(questCompletions)
+  await db.delete(rewardClaims)
   await db.delete(quests)
 
   // クエストデータ — id を明示して連番を強制（AUTOINCREMENT だが seed 時は上書き）

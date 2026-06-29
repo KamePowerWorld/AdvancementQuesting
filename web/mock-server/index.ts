@@ -18,6 +18,7 @@ import dashboardRoutes from './routes/dashboard.js'
 import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions, rewardClaims } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 import { insertQuestRewards } from './rewardLog.js'
+import { seed } from './db/seed.js'
 
 config()
 
@@ -93,6 +94,13 @@ app.get('/api/notifications/stream', (req, res) => {
     const idx = list.indexOf(res)
     if (idx !== -1) list.splice(idx, 1)
   })
+})
+
+// テスト用: DB全体を seed 状態に戻す (quests/sessions/progress/completions/rewards 全部)
+// 各テストの beforeEach で呼ぶことでテスト間の状態漏れを防ぐ Fixture 役
+app.post('/api/test/reset-all', async (_req, res) => {
+  await seed()
+  res.json({ ok: true })
 })
 
 // テスト用: 指定トークン(playerUuid)へ quest_complete イベントを送信

@@ -13,9 +13,10 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, loggedInBtn, resetProposals, MOCK } from './helpers.js'
+import { loginAs, loggedInBtn, resetProposals, MOCK, resetAll } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })

@@ -12,7 +12,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, MOCK } from './helpers.js'
+import { loginAs, MOCK, resetAll } from './helpers.js'
 
 async function resetDashboard(page: import('@playwright/test').Page) {
   await page.request.put(`${MOCK}/api/dashboard`, {
@@ -29,6 +29,7 @@ async function openStatsTab(page: import('@playwright/test').Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await resetDashboard(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })

@@ -12,7 +12,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   resetProgress, setProgress, setConditionProgress, notifyProgressUpdate,
-  EDITOR_UUID, MOCK, PLAYER_UUID,
+  EDITOR_UUID, MOCK, PLAYER_UUID, resetAll,
 } from './helpers.js'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,7 @@ async function loginAs(page: Page, token: 'demo-editor-token' | 'demo-player-tok
 test.use({ viewport: { width: 375, height: 667 } })
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })

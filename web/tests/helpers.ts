@@ -35,6 +35,12 @@ export async function resetProgress(page: Page) {
   await page.request.post(`${MOCK}/api/test/reset-progress`)
 }
 
+/** テスト用: DB全体を seed 状態に戻す (quests/sessions/progress/completions/rewards/proposals/comments 全部)
+ *  各 spec の beforeEach で呼ぶことでテスト間の状態漏れを防ぐ Fixture 役 */
+export async function resetAll(page: Page) {
+  await page.request.post(`${MOCK}/api/test/reset-all`)
+}
+
 /** テスト用: 提案・proposed クエストをすべて削除 */
 export async function resetProposals(page: Page) {
   await page.request.post(`${MOCK}/api/test/reset-proposals`)

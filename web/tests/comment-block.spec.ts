@@ -13,7 +13,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test'
-import { loginAs, MOCK } from './helpers.js'
+import { loginAs, MOCK, resetAll } from './helpers.js'
 
 /** ノードの style から world 座標 (left/top) を取り出す */
 async function nodePos(page: Page, nodeId: string): Promise<{ left: number; top: number }> {
@@ -41,7 +41,8 @@ async function createCommentOverNode1(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // コメントデータをリセット
+  // コメントは in-memory なので resetAll の後に個別にリセット
+  await resetAll(page)
   await page.request.post(`${MOCK}/api/test/reset-comments`)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })

@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, openQuestModal, PLAYER_UUID, MOCK } from './helpers.js'
+import { loginAs, openQuestModal, PLAYER_UUID, MOCK, resetAll } from './helpers.js'
 
 // クリアログを投入する
 async function addCompletions(
@@ -18,10 +18,6 @@ async function addCompletions(
   entries: Array<{ playerUuid: string; playerName: string; completedAt: string }>,
 ) {
   await page.request.post(`${MOCK}/api/test/add-completion`, { data: { questId, entries } })
-}
-
-async function resetCompletions(page: import('@playwright/test').Page) {
-  await page.request.post(`${MOCK}/api/test/reset-completions`)
 }
 
 // quest の repeat 設定を変更する (テスト間で状態が漏れるため明示設定)
@@ -50,9 +46,8 @@ function topSix(questId: number) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await resetCompletions(page)
-  // 既定では quest 1 を非繰り返しに戻す (RK-4 だけが繰り返しに設定する)
-  await setRepeat(page, 1, null)
+  // resetAll が seed を再投入して quest 1 もデフォルト (非繰り返し) に戻る
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })

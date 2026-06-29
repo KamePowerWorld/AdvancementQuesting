@@ -22,10 +22,11 @@ import {
   loginAs, openQuestModal,
   resetProgress, setProgress, setConditionProgress,
   notifyQuestComplete, notifyProgressUpdate,
-  EDITOR_UUID, MOCK,
+  EDITOR_UUID, MOCK, resetAll,
 } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })

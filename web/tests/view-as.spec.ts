@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, openQuestModal, setProgress, resetProgress, PLAYER_UUID, MOCK } from './helpers.js'
+import { loginAs, openQuestModal, setProgress, resetProgress, PLAYER_UUID, MOCK, resetAll } from './helpers.js'
 
 const OTHER_UUID = 'dddddddd-eeee-ffff-aaaa-bbbbbbbbbbbb'
 const OTHER_NAME = 'Notch'
@@ -22,14 +22,6 @@ async function addCompletions(
   await page.request.post(`${MOCK}/api/test/add-completion`, { data: { questId, entries } })
 }
 
-async function resetCompletions(page: import('@playwright/test').Page) {
-  await page.request.post(`${MOCK}/api/test/reset-completions`)
-}
-
-async function resetRewardClaims(page: import('@playwright/test').Page) {
-  await page.request.post(`${MOCK}/api/test/reset-reward-claims`)
-}
-
 async function addRewardClaim(
   page: import('@playwright/test').Page,
   data: { questId: number; questTitle: string; playerUuid: string; playerName: string; rewards: object[]; source?: string },
@@ -38,9 +30,8 @@ async function addRewardClaim(
 }
 
 test.beforeEach(async ({ page }) => {
-  await resetCompletions(page)
-  await resetRewardClaims(page)
-  await page.request.post(`${MOCK}/api/test/reset-progress`)
+  // resetAll で quests/sessions/progress/completions/rewards 全部を seed 状態に戻す
+  await resetAll(page)
   // 他プレイヤー Notch をランキングに載せ、quest 1,2 をクリア済みにする
   await addCompletions(page, 1, [
     { playerUuid: OTHER_UUID, playerName: OTHER_NAME, completedAt: '2026-06-19T09:00:00' },

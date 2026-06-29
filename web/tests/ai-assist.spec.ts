@@ -9,9 +9,10 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, openQuestModal } from './helpers.js'
+import { loginAs, openQuestModal, resetAll } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })
