@@ -67,8 +67,10 @@ describe('Minecraft⇔ブラウザ 統合: リンゴ拾得でブラウザ演出'
     }
     console.log(`apple クエスト: id=${appleQuest.id} title=${appleQuest.title}`)
 
-    // ブラウザを起動して Web UI にトークンを注入してログイン
-    browser = await chromium.launch({ headless: false, slowMo: 200 })
+    // ブラウザを起動して Web UI にトークンを注入してログイン。
+    // CI には X server が無いためヘッドレスで起動する (ローカルは演出確認用にヘッド付き)。
+    const ci = !!process.env.CI
+    browser = await chromium.launch({ headless: ci, slowMo: ci ? 0 : 200 })
     page = await browser.newPage()
     page.on('pageerror', (e: Error) => console.log('  [browser pageerror]', e.message))
     await page.goto(API_BASE + '/', { waitUntil: 'domcontentloaded' })
