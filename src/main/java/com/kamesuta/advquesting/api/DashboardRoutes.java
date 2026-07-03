@@ -5,8 +5,6 @@ import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
 import io.javalin.http.ForbiddenResponse;
 
-import java.sql.SQLException;
-
 /**
  * ダッシュボード設定 API。
  *
@@ -26,12 +24,7 @@ public class DashboardRoutes {
     public void register(Javalin app) {
 
         app.get("/api/dashboard", ctx -> {
-            String json;
-            try {
-                json = dashboardConfigDao.getConfigJson();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            String json = dashboardConfigDao.getConfigJson();
             ctx.contentType("application/json").result(json);
         });
 
@@ -47,11 +40,7 @@ public class DashboardRoutes {
                 return;
             }
 
-            try {
-                dashboardConfigDao.setConfigJson(body);
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            dashboardConfigDao.setConfigJson(body);
             ctx.json(java.util.Map.of("ok", true));
         });
     }

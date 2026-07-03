@@ -118,7 +118,7 @@ public class AiRoutes {
         });
     }
 
-    private void requireEditor(io.javalin.http.Context ctx) {
+    private void requireEditor(io.javalin.http.Context ctx) throws java.sql.SQLException {
         SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
         if (!session.isEditor()) throw new ForbiddenResponse();
     }
