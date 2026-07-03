@@ -52,7 +52,7 @@ public class AiRoutes {
 
     private final JavaPlugin plugin;
     private final SessionDao sessionDao;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = ApiSupport.MAPPER;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();

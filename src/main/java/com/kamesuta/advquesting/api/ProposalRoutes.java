@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.api;
 
+import static com.kamesuta.advquesting.api.ApiSupport.parseId;
+
 import com.kamesuta.advquesting.data.Quest;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.db.ProposalDao;
@@ -165,11 +167,4 @@ public class ProposalRoutes {
         });
     }
 
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
-    }
 }

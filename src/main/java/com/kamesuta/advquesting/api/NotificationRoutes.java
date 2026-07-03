@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class NotificationRoutes {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = ApiSupport.MAPPER;
 
     /** playerUuid → 接続中の SSE クライアント (複数タブ対応) */
     private final Map<String, Set<SseClient>> clients = new ConcurrentHashMap<>();

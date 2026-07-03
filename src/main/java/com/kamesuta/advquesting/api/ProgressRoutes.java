@@ -1,12 +1,13 @@
 package com.kamesuta.advquesting.api;
 
+import static com.kamesuta.advquesting.api.ApiSupport.parseId;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 
@@ -17,7 +18,7 @@ import java.util.Map;
 
 public class ProgressRoutes {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = ApiSupport.MAPPER;
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final ProgressDao progressDao;
@@ -110,11 +111,4 @@ public class ProgressRoutes {
         return m;
     }
 
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
-    }
 }
