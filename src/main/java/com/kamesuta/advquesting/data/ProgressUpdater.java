@@ -1,17 +1,15 @@
 package com.kamesuta.advquesting.data;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.kamesuta.advquesting.db.ProgressDao;
 
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** 条件別の進捗更新ロジックと判定ヘルパー。 */
+/** 条件別の進捗更新ロジック。純粋評価は {@link ConditionEvaluator} へ委譲する。 */
 class ProgressUpdater {
 
     private final ProgressManager manager;
@@ -36,63 +34,60 @@ class ProgressUpdater {
         return true;
     }
 
-    // ---- 条件達成判定 ----
+    // ---- 条件達成判定（ProgressManager から呼ばれる委譲メソッド） ----
 
     boolean isAllConditionsMet(Quest quest, List<Map<String, Object>> progress) {
-        if (quest.conditions == null || quest.conditions.isEmpty()) return false;
-        for (Map<String, Object> cond : quest.conditions) {
-            String condType = (String) cond.get("type");
-            if ("checkmark".equals(condType) || "delivery".equals(condType)) continue;
-            String condId = (String) cond.get("id");
-            boolean done = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (!done) return false;
-        }
-        return true;
+        return ConditionEvaluator.isAllConditionsMet(quest, progress);
     }
 
     boolean isAllConditionsMetIncludingCheckmarks(Quest quest, List<Map<String, Object>> progress) {
-        if (quest.conditions == null || quest.conditions.isEmpty()) return false;
-        for (Map<String, Object> cond : quest.conditions) {
-            String condId = (String) cond.get("id");
-            boolean done = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (!done) return false;
-        }
-        return true;
+        return ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
     }
 
     /**
      * 繰り返しリセット用の新しい進捗JSONを生成する。
-     * stat/scoreboard 条件は前回クリア時の rawValue を新しい baseValue として引き継ぐ。
+     * CompletionNotifier / RepeatScheduler から呼ばれる。
      */
     static String buildResetProgressJson(Quest quest, List<Map<String, Object>> completedProgress) throws Exception {
-        if (quest.conditions == null) return "[]";
-        List<Map<String, Object>> newProgress = new ArrayList<>();
-        for (Map<String, Object> cond : quest.conditions) {
-            String condType = (String) cond.get("type");
-            String condId = (String) cond.get("id");
-            if (condId == null) continue;
-            if (!"stat".equals(condType) && !"scoreboard".equals(condType)) continue;
+        List<Map<String, Object>> list = ConditionEvaluator.buildResetProgressList(quest, completedProgress);
+        return ProgressManager.MAPPER.writeValueAsString(list);
+    }
 
-            Map<String, Object> existing = completedProgress.stream()
-                .filter(p -> condId.equals(p.get("conditionId")))
-                .findFirst().orElse(null);
-            int rawValue = existing != null && existing.get("rawValue") instanceof Number n ? n.intValue() : 0;
-            int required = "stat".equals(condType)
-                ? ((Number) cond.getOrDefault("count", 1)).intValue()
-                : ((Number) cond.getOrDefault("score", 1)).intValue();
+    // ---- 共通 persist ヘルパー ----
 
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("conditionId", condId);
-            entry.put("current", 0);
-            entry.put("required", required);
-            entry.put("baseValue", rawValue);
-            entry.put("rawValue", rawValue);
-            entry.put("completed", false);
-            newProgress.add(entry);
+    /**
+     * 変更があった場合に進捗を永続化し、アドバンスメント同期・通知を行う。
+     *
+     * @param playerUuid        プレイヤーUUID文字列
+     * @param quest             クエスト定義
+     * @param progress          更新後の進捗リスト
+     * @param changed           条件の変更フラグ
+     * @param checkmarkFallback true の場合、isAllConditionsMet が false でも
+     *                          isAllConditionsMetIncludingCheckmarks を追加チェックする
+     *                          （location 更新のみ使用）
+     */
+    private void persistIfChanged(
+            String playerUuid,
+            Quest quest,
+            List<Map<String, Object>> progress,
+            boolean changed,
+            boolean checkmarkFallback) throws Exception {
+        if (!changed) return;
+        boolean allDone = ConditionEvaluator.isAllConditionsMet(quest, progress);
+        if (!allDone && checkmarkFallback) {
+            allDone = ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
         }
-        return ProgressManager.MAPPER.writeValueAsString(newProgress);
+        String completedAt = allDone ? Instant.now().toString() : null;
+        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
+        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        if (manager.advancementSyncManager != null) {
+            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
+        }
+        if (allDone) {
+            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
+        } else if (manager.notificationRoutes != null) {
+            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+        }
     }
 
     // ---- 各条件タイプの進捗更新 ----
@@ -102,43 +97,11 @@ class ProgressUpdater {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
-            ? new ArrayList<>()
-            : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
+                ? new ArrayList<>()
+                : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
-        boolean changed = false;
-        for (Map<String, Object> cond : quest.conditions) {
-            if (!condType.equals(cond.get("type"))) continue;
-            if ("advancement".equals(condType)) {
-                String condAdvId = (String) cond.get("advancementId");
-                if (condAdvId == null) continue;
-                String condNoNs = condAdvId.contains(":") ? condAdvId.substring(condAdvId.indexOf(':') + 1) : condAdvId;
-                if (!condValue.equals(condNoNs)) continue;
-            } else {
-                if (!condValue.equals(cond.get("advancementId"))) continue;
-            }
-            String condId = (String) cond.get("id");
-            boolean alreadyDone = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (!alreadyDone) {
-                progress.removeIf(p -> condId.equals(p.get("conditionId")));
-                progress.add(Map.of("conditionId", condId, "completed", true));
-                changed = true;
-            }
-        }
-        if (!changed) return;
-
-        boolean allDone = isAllConditionsMet(quest, progress);
-        String completedAt = allDone ? Instant.now().toString() : null;
-        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (manager.advancementSyncManager != null) {
-            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
-        }
-        if (allDone) {
-            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
-        } else if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
-        }
+        boolean changed = ConditionEvaluator.applyAdvancement(quest.conditions, progress, condType, condValue);
+        persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 
     void updateItemProgress(String playerUuid, Quest quest, String itemType, int inventoryCount)
@@ -146,41 +109,11 @@ class ProgressUpdater {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
-            ? new ArrayList<>()
-            : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
+                ? new ArrayList<>()
+                : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
-        String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
-        boolean changed = false;
-        for (Map<String, Object> cond : quest.conditions) {
-            if (!"item".equals(cond.get("type"))) continue;
-            String condItemType = (String) cond.get("itemType");
-            if (condItemType == null) continue;
-            String condNoNs = condItemType.contains(":") ? condItemType.substring(condItemType.indexOf(':') + 1) : condItemType;
-            if (!itemTypeNoNs.equals(condNoNs)) continue;
-            String condId = (String) cond.get("id");
-            int required = ((Number) cond.getOrDefault("count", 1)).intValue();
-            boolean wasCompleted = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (wasCompleted) continue;
-            if (inventoryCount < required) continue;
-            progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "completed", true));
-            changed = true;
-        }
-        if (!changed) return;
-
-        boolean allDone = isAllConditionsMet(quest, progress);
-        String completedAt = allDone ? Instant.now().toString() : null;
-        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (manager.advancementSyncManager != null) {
-            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
-        }
-        if (allDone) {
-            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
-        } else if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
-        }
+        boolean changed = ConditionEvaluator.applyItem(quest.conditions, progress, itemType, inventoryCount);
+        persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 
     void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
@@ -188,50 +121,12 @@ class ProgressUpdater {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
-            ? new ArrayList<>()
-            : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
+                ? new ArrayList<>()
+                : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
-        boolean changed = false;
-        for (Map<String, Object> cond : quest.conditions) {
-            if (!"stat".equals(cond.get("type"))) continue;
-            if (!statType.equals(cond.get("statType"))) continue;
-            if (!statId.equals(cond.get("statId"))) continue;
-            String condId = (String) cond.get("id");
-            int required = ((Number) cond.getOrDefault("count", 1)).intValue();
-            Map<String, Object> existing = progress.stream()
-                .filter(p -> condId.equals(p.get("conditionId")))
-                .findFirst().orElse(null);
-            boolean wasCompleted = existing != null && Boolean.TRUE.equals(existing.get("completed"));
-            if (wasCompleted) continue;
-            int baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
-            int diff = currentValue - baseValue;
-            int capped = Math.min(diff, required);
-            boolean nowDone = diff >= required;
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("conditionId", condId);
-            entry.put("current", capped);
-            entry.put("required", required);
-            entry.put("completed", nowDone);
-            if (isRepeat) { entry.put("baseValue", baseValue); entry.put("rawValue", currentValue); }
-            progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(entry);
-            changed = true;
-        }
-        if (!changed) return;
-
-        boolean allDone = isAllConditionsMet(quest, progress);
-        String completedAt = allDone ? Instant.now().toString() : null;
-        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (manager.advancementSyncManager != null) {
-            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
-        }
-        if (allDone) {
-            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
-        } else if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
-        }
+        boolean changed = ConditionEvaluator.applyStat(quest.conditions, progress, statType, statId, currentValue, isRepeat);
+        persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 
     void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
@@ -239,49 +134,12 @@ class ProgressUpdater {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
-            ? new ArrayList<>()
-            : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
+                ? new ArrayList<>()
+                : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
-        boolean changed = false;
-        for (Map<String, Object> cond : quest.conditions) {
-            if (!"scoreboard".equals(cond.get("type"))) continue;
-            if (!objective.equals(cond.get("objective"))) continue;
-            String condId = (String) cond.get("id");
-            int required = ((Number) cond.getOrDefault("score", 1)).intValue();
-            Map<String, Object> existing = progress.stream()
-                .filter(p -> condId.equals(p.get("conditionId")))
-                .findFirst().orElse(null);
-            boolean alreadyDone = existing != null && Boolean.TRUE.equals(existing.get("completed"));
-            if (alreadyDone) continue;
-            int baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
-            int diff = score - baseValue;
-            int capped = Math.min(diff, required);
-            boolean nowDone = diff >= required;
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("conditionId", condId);
-            entry.put("current", capped);
-            entry.put("required", required);
-            entry.put("completed", nowDone);
-            if (isRepeat) { entry.put("baseValue", baseValue); entry.put("rawValue", score); }
-            progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(entry);
-            changed = true;
-        }
-        if (!changed) return;
-
-        boolean allDone = isAllConditionsMet(quest, progress);
-        String completedAt = allDone ? Instant.now().toString() : null;
-        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (manager.advancementSyncManager != null) {
-            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
-        }
-        if (allDone) {
-            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
-        } else if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
-        }
+        boolean changed = ConditionEvaluator.applyScoreboard(quest.conditions, progress, objective, score, isRepeat);
+        persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 
     void updateLocationProgress(String playerUuid, Quest quest, int px, int py, int pz, String dimension)
@@ -289,40 +147,10 @@ class ProgressUpdater {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
-            ? new ArrayList<>()
-            : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
+                ? new ArrayList<>()
+                : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
-        boolean changed = false;
-        for (Map<String, Object> cond : quest.conditions) {
-            if (!"location".equals(cond.get("type"))) continue;
-            if (!dimension.equals(cond.get("dimension"))) continue;
-            String condId = (String) cond.get("id");
-            int cx = ((Number) cond.getOrDefault("x", 0)).intValue();
-            int cz = ((Number) cond.getOrDefault("z", 0)).intValue();
-            int radius = ((Number) cond.getOrDefault("radius", 10)).intValue();
-            boolean alreadyDone = progress.stream()
-                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (alreadyDone) continue;
-            int dx = px - cx, dz = pz - cz;
-            if ((dx * dx + dz * dz) > (radius * radius)) continue;
-            progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "completed", true));
-            changed = true;
-        }
-        if (!changed) return;
-
-        boolean allDone = isAllConditionsMet(quest, progress);
-        if (!allDone) allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
-        String completedAt = allDone ? Instant.now().toString() : null;
-        String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (manager.advancementSyncManager != null) {
-            manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
-        }
-        if (allDone) {
-            manager.completionNotifier.notifyQuestComplete(playerUuid, quest);
-        } else if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
-        }
+        boolean changed = ConditionEvaluator.applyLocation(quest.conditions, progress, px, py, pz, dimension);
+        persistIfChanged(playerUuid, quest, progress, changed, true);
     }
 }
