@@ -1,7 +1,5 @@
 package com.kamesuta.advquesting.data;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.db.ProgressDao;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
@@ -11,13 +9,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.logging.Logger;
 
 /**
@@ -28,19 +21,23 @@ import java.util.logging.Logger;
 public class AdvancementSyncManager {
 
     private static final String NAMESPACE = "advquesting";
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final JavaPlugin plugin;
     private final QuestManager questManager;
     private final ProgressDao progressDao;
     private final Logger log;
+    private final AdvancementJsonBuilder jsonBuilder;
+    private final NmsAdvancementBridge nmsBridge;
 
     public AdvancementSyncManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
         this.log = plugin.getLogger();
+        this.jsonBuilder = new AdvancementJsonBuilder(
+                questManager,
+                () -> plugin.getConfig().getString("web-url", ""));
+        this.nmsBridge = new NmsAdvancementBridge(questManager, progressDao, log);
     }
 
     /** サーバー起動時・プラグインリロード時: root と public クエスト全件を Advancement 登録する。
@@ -97,26 +94,7 @@ public class AdvancementSyncManager {
     private void cleanAllPlayerAdvancementFiles() {
         if (Bukkit.getWorlds().isEmpty()) return;
         File advFolder = new File(Bukkit.getWorlds().get(0).getWorldFolder(), "advancements");
-        if (!advFolder.isDirectory()) return;
-        File[] files = advFolder.listFiles((dir, name) -> name.endsWith(".json"));
-        if (files == null) return;
-        for (File file : files) {
-            try {
-                removeAdvQuestingKeysFromFile(file);
-            } catch (Exception e) {
-                log.warning("進捗ファイルのクリーンアップ失敗 " + file.getName() + ": " + e.getMessage());
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void removeAdvQuestingKeysFromFile(File file) throws Exception {
-        String content = Files.readString(file.toPath());
-        Map<String, Object> data = MAPPER.readValue(content, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-        boolean changed = data.entrySet().removeIf(e -> e.getKey().startsWith(NAMESPACE + ":"));
-        if (changed) {
-            Files.writeString(file.toPath(), MAPPER.writeValueAsString(data));
-        }
+        AdvancementFileCleaner.cleanFolder(advFolder, NAMESPACE, log);
     }
 
     /**
@@ -180,70 +158,9 @@ public class AdvancementSyncManager {
      * （定義の再送）も同時に達成される。
      */
     public void syncAllQuestsForPlayer(Player player) {
-        if (resyncPlayerSilently(player)) return;
+        if (nmsBridge.resyncPlayerSilently(player)) return;
         // NMS リフレクションが失敗した場合は Bukkit API でフォールバック（トーストが出る可能性あり）
         fallbackBukkitSync(player);
-    }
-
-    /**
-     * DB の進捗を NMS 経由でサイレントに反映し、reset パケットで再送する（トーストなし）。
-     * 成功時 true。
-     */
-    private boolean resyncPlayerSilently(Player player) {
-        try {
-            Object serverPlayer = player.getClass().getMethod("getHandle").invoke(player);
-            Object playerAdv = serverPlayer.getClass().getMethod("getAdvancements").invoke(serverPlayer);
-            java.lang.reflect.Method getOrStart = findMethod(playerAdv.getClass(), "getOrStartProgress", 1);
-            if (getOrStart == null) return false;
-
-            // root を付与
-            Advancement root = Bukkit.getAdvancement(rootKey());
-            if (root != null) {
-                Object holder = root.getClass().getMethod("getHandle").invoke(root);
-                Object progress = getOrStart.invoke(playerAdv, holder);
-                setCriterionSilently(progress, "root", true);
-            }
-
-            // 各クエストの criterion を DB の状態に合わせて付与/剥奪
-            String playerUuid = player.getUniqueId().toString();
-            for (Quest quest : questManager.loadAll()) {
-                if (!"public".equals(quest.status)) continue;
-                Advancement adv = Bukkit.getAdvancement(questKey(quest.id));
-                if (adv == null) continue;
-                Object holder = adv.getClass().getMethod("getHandle").invoke(adv);
-                Object progress = getOrStart.invoke(playerAdv, holder);
-                ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
-                Map<String, Boolean> done = parseProgress(rec != null ? rec.progress() : null);
-                if (quest.conditions == null || quest.conditions.isEmpty()) {
-                    setCriterionSilently(progress, "_root", false);
-                    continue;
-                }
-                for (Map<String, Object> cond : quest.conditions) {
-                    String condId = (String) cond.get("id");
-                    if (condId == null) continue;
-                    String crit = "c_" + sanitizeCriterionName(condId);
-                    setCriterionSilently(progress, crit, done.getOrDefault(condId, false));
-                }
-            }
-
-            // save() で在メモリ進捗をディスクへ書き出し、reload() で reset パケットとして再送する。
-            playerAdv.getClass().getMethod("save").invoke(playerAdv);
-            Object server = Class.forName("net.minecraft.server.MinecraftServer").getMethod("getServer").invoke(null);
-            Object manager = server.getClass().getMethod("getAdvancements").invoke(server);
-            java.lang.reflect.Method reload = findMethod(playerAdv.getClass(), "reload", 1);
-            if (reload == null) return false;
-            reload.invoke(playerAdv, manager);
-            return true;
-        } catch (Exception e) {
-            log.warning("進捗のサイレント再同期に失敗 (" + player.getName() + "): " + e.getMessage());
-            return false;
-        }
-    }
-
-    /** NMS AdvancementProgress に対し criterion を付与/剥奪する（パケット送信なし）。*/
-    private void setCriterionSilently(Object nmsProgress, String criterion, boolean grant) throws Exception {
-        java.lang.reflect.Method m = findMethod(nmsProgress.getClass(), grant ? "grantProgress" : "revokeProgress", 1);
-        if (m != null) m.invoke(nmsProgress, criterion);
     }
 
     /** NMS リフレクション不可時のフォールバック。Bukkit API で進捗を同期する（トーストが出る場合あり）。*/
@@ -264,26 +181,13 @@ public class AdvancementSyncManager {
         }
     }
 
-    /** クラス階層を遡って名前と引数の数が一致するメソッドを探し setAccessible して返す。*/
-    private static java.lang.reflect.Method findMethod(Class<?> clazz, String name, int paramCount) {
-        for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
-            for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
-                if (m.getName().equals(name) && m.getParameterCount() == paramCount) {
-                    m.setAccessible(true);
-                    return m;
-                }
-            }
-        }
-        return null;
-    }
-
     // ---- private helpers ----
 
     private void loadRoot() {
         NamespacedKey key = rootKey();
         removeAdvancementSafe(key);
         try {
-            Bukkit.getUnsafe().loadAdvancement(key, buildRootJson());
+            Bukkit.getUnsafe().loadAdvancement(key, jsonBuilder.buildRootJson());
         } catch (Exception e) {
             log.warning("Failed to load root advancement: " + e.getMessage());
         }
@@ -292,7 +196,7 @@ public class AdvancementSyncManager {
     private void loadQuestAdvancement(Quest quest) {
         removeAdvancementSafe(questKey(quest.id));
         try {
-            Bukkit.getUnsafe().loadAdvancement(questKey(quest.id), buildAdvancementJson(quest));
+            Bukkit.getUnsafe().loadAdvancement(questKey(quest.id), jsonBuilder.buildAdvancementJson(quest));
         } catch (Exception e) {
             log.warning("Failed to load advancement for quest " + quest.id + ": " + e.getMessage());
         }
@@ -315,12 +219,12 @@ public class AdvancementSyncManager {
 
     private void applyProgressToPlayer(Player player, Advancement adv, Quest quest, String progressJson) {
         if (quest.conditions == null || quest.conditions.isEmpty()) return;
-        Map<String, Boolean> completedMap = parseProgress(progressJson);
+        Map<String, Boolean> completedMap = AdvancementJsonBuilder.parseProgress(progressJson);
         AdvancementProgress ap = player.getAdvancementProgress(adv);
         for (Map<String, Object> cond : quest.conditions) {
             String condId = (String) cond.get("id");
             if (condId == null) continue;
-            String criterionName = "c_" + sanitizeCriterionName(condId);
+            String criterionName = "c_" + AdvancementJsonBuilder.sanitizeCriterionName(condId);
             boolean shouldAward = completedMap.getOrDefault(condId, false);
             boolean isAwarded = ap.getAwardedCriteria().contains(criterionName);
             if (shouldAward && !isAwarded) {
@@ -331,165 +235,13 @@ public class AdvancementSyncManager {
         }
     }
 
-    private Map<String, Boolean> parseProgress(String progressJson) {
-        if (progressJson == null || progressJson.isBlank()) return Map.of();
-        try {
-            List<Map<String, Object>> list = MAPPER.readValue(progressJson, LIST_MAP_TYPE);
-            Map<String, Boolean> result = new HashMap<>();
-            for (Map<String, Object> entry : list) {
-                String condId = (String) entry.get("conditionId");
-                if (condId == null) continue;
-                result.put(condId, Boolean.TRUE.equals(entry.get("completed")));
-            }
-            return result;
-        } catch (Exception e) {
-            return Map.of();
-        }
-    }
-
-    private String buildRootJson() {
-        return "{\"display\":{\"icon\":{\"id\":\"minecraft:writable_book\"},\"title\":{\"text\":\"クエスト\"}," +
-               "\"description\":{\"text\":\"クエスト一覧\"}," +
-               "\"background\":\"minecraft:block/smooth_stone\"," +
-               "\"frame\":\"task\",\"show_toast\":false,\"announce_to_chat\":false}," +
-               "\"criteria\":{\"root\":{\"trigger\":\"minecraft:impossible\"}}}";
-    }
-
-    private String buildAdvancementJson(Quest quest) {
-        List<String> criteriaNames = new ArrayList<>();
-        StringBuilder criteriaJson = new StringBuilder();
-
-        if (quest.conditions != null) {
-            for (Map<String, Object> cond : quest.conditions) {
-                String condId = (String) cond.get("id");
-                if (condId == null) continue;
-                String criterionName = "c_" + sanitizeCriterionName(condId);
-                criteriaNames.add(criterionName);
-                if (criteriaJson.length() > 0) criteriaJson.append(",");
-                criteriaJson.append("\"").append(criterionName).append("\":{\"trigger\":\"minecraft:impossible\"}");
-            }
-        }
-
-        if (criteriaNames.isEmpty()) {
-            criteriaJson.append("\"_root\":{\"trigger\":\"minecraft:impossible\"}");
-            criteriaNames.add("_root");
-        }
-
-        String requirements = criteriaNames.stream()
-            .map(n -> "[\"" + n + "\"]")
-            .collect(Collectors.joining(","));
-
-        // 依存クエストを parent に設定（Minecraft advancement は parent が1つのみのため先頭を使用）
-        String parentKey = resolveParentKey(quest);
-
-        String iconId = toMinecraftItem(quest.icon);
-        String title = escapeJson(quest.title != null ? quest.title : "クエスト #" + quest.id);
-        String description = escapeJson(buildDescription(quest));
-
-        // show_toast=true: クエスト完了時にトーストを表示する。
-        // ログイン/リロード時の一括同期は reset パケットで送るためトーストは出ない（バニラ挙動）。
-        return "{\"display\":{\"icon\":{\"id\":\"" + iconId + "\"}," +
-               "\"title\":{\"text\":\"" + title + "\"}," +
-               "\"description\":{\"text\":\"" + description + "\"}," +
-               "\"frame\":\"task\",\"show_toast\":true,\"announce_to_chat\":false,\"hidden\":false}," +
-               "\"parent\":\"" + parentKey + "\"," +
-               "\"criteria\":{" + criteriaJson + "}," +
-               "\"requirements\":[" + requirements + "]}";
-    }
-
-    /**
-     * クエストの parent advancement key を解決する。
-     * prerequisites があれば先頭の public クエストを親にし、なければ root を返す。
-     */
-    private String resolveParentKey(Quest quest) {
-        if (quest.prerequisites == null || quest.prerequisites.isEmpty()) {
-            return "advquesting:root";
-        }
-        for (int prereqId : quest.prerequisites) {
-            Quest prereq = questManager.findById(prereqId);
-            if (prereq != null && "public".equals(prereq.status)) {
-                return "advquesting:q" + prereqId;
-            }
-        }
-        return "advquesting:root";
-    }
-
-    private String buildDescription(Quest quest) {
-        StringBuilder sb = new StringBuilder();
-        if (quest.subtitle != null && !quest.subtitle.isBlank()) {
-            sb.append(quest.subtitle).append("\n");
-        }
-        int condCount = quest.conditions == null ? 0 : quest.conditions.size();
-        if (condCount > 0) {
-            sb.append("全").append(condCount).append("つの条件を達成しよう\n");
-        }
-        String displayUrl = getDisplayUrl();
-        sb.append("詳細・報酬は" + (displayUrl.isBlank() ? "ブラウザ" : displayUrl) + " で確認");
-        return sb.toString();
-    }
-
-    /** config の web-url から https:// / http:// を省いた表示用 URL を返す。*/
-    private String getDisplayUrl() {
-        String url = plugin.getConfig().getString("web-url", "");
-        return url.replaceFirst("^https?://", "");
-    }
-
     private void removeAdvancementSafe(NamespacedKey key) {
         // Bukkit API で削除を試みる (ディスクのデータパックファイルを削除するだけ)
         try {
             Bukkit.getUnsafe().removeAdvancement(key);
         } catch (Exception ignored) {}
         // Paper 1.21+ の removeAdvancement はファイル削除のみで in-memory レジストリに反映されない。
-        // loadAdvancement() は ServerAdvancementManager.advancements (ImmutableMap) を
-        // putAll + 新エントリ で差し替えるため、除去も同様に新しいマップで差し替える必要がある。
-        try {
-            Object server = Class.forName("net.minecraft.server.MinecraftServer")
-                    .getMethod("getServer").invoke(null);
-            Object advManager = server.getClass().getMethod("getAdvancements").invoke(server);
-            // Paper 1.21 では ResourceLocation は net.minecraft.resources.Identifier として再マップされる。
-            // CraftNamespacedKey.toMinecraft() を経由して正しいクラスのインスタンスを取得する。
-            Object resourceLocation = Class.forName("org.bukkit.craftbukkit.util.CraftNamespacedKey")
-                    .getMethod("toMinecraft", NamespacedKey.class)
-                    .invoke(null, key);
-            // "advancements" フィールドをクラス階層から探す
-            java.lang.reflect.Field advField = null;
-            for (Class<?> c = advManager.getClass(); c != null; c = c.getSuperclass()) {
-                try {
-                    advField = c.getDeclaredField("advancements");
-                    break;
-                } catch (NoSuchFieldException ignored2) {}
-            }
-            if (advField == null) return;
-            advField.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            java.util.Map<Object, Object> existing = (java.util.Map<Object, Object>) advField.get(advManager);
-            if (existing == null || !existing.containsKey(resourceLocation)) return;
-            // ImmutableMap は変更不可なので新しい LinkedHashMap に差し替える
-            java.util.Map<Object, Object> newMap = new java.util.LinkedHashMap<>(existing);
-            newMap.remove(resourceLocation);
-            advField.set(advManager, newMap);
-        } catch (Exception e) {
-            log.fine("NMS advancement removal skipped: " + e.getMessage());
-        }
-    }
-
-    private static String toMinecraftItem(String icon) {
-        if (icon == null || icon.isBlank()) return "minecraft:map";
-        if (icon.contains(":")) return icon;
-        return "minecraft:" + icon.toLowerCase();
-    }
-
-    private static String sanitizeCriterionName(String condId) {
-        return condId.replaceAll("[^a-zA-Z0-9_\\-]", "_");
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        NmsAdvancementBridge.removeFromRegistry(key, log);
     }
 
     private NamespacedKey questKey(int questId) {
