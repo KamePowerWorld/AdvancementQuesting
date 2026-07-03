@@ -1,16 +1,21 @@
 import { useCallback, useEffect } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import type { EditorNode, EditorEdge } from '@/components/editor/types.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { questsApi } from '@/api/quests.js'
 import { nodeToApiBody } from '../utils/conversions.js'
+import {
+  useVoteProposal,
+  useApproveProposal,
+  useRejectProposal,
+  useDeleteProposal,
+} from '@/hooks/mutations.js'
 
 interface UseProposalHandlersParams {
   proposalNodes: EditorNode[]
   proposalEdges: EditorEdge[]
   myProposalEdits: Map<number, EditorNode>
   existingProposals: any[] | undefined
-  queryClient: QueryClient
   setSubmitting: (v: boolean) => void
   setSubmitProposals: (fn: () => (() => Promise<void>)) => void
   setProposalNodes: React.Dispatch<React.SetStateAction<EditorNode[]>>
@@ -22,12 +27,20 @@ interface UseProposalHandlersParams {
 
 export function useProposalHandlers({
   proposalNodes, proposalEdges, myProposalEdits,
-  existingProposals, queryClient,
+  existingProposals,
   setSubmitting, setSubmitProposals,
   setProposalNodes, setProposalEdges, setMyProposalEdits,
   setEditingProposalNodeId,
   showToast,
 }: UseProposalHandlersParams) {
+  const queryClient = useQueryClient()
+  const voteProposal = useVoteProposal()
+  const approveProposal = useApproveProposal()
+  const rejectProposal = useRejectProposal()
+  const deleteProposal = useDeleteProposal()
+
+  // submitProposals is a multi-step sequence (create many + update many) that
+  // does not map cleanly to a single useMutation — kept as a manual async fn.
   const submitProposals = useCallback(async () => {
     if (proposalNodes.length === 0 && myProposalEdits.size === 0) return
     setSubmitting(true)
@@ -62,27 +75,22 @@ export function useProposalHandlers({
   }, [submitProposals, setSubmitProposals])
 
   const handleVote = async (proposalId: number, type: 'up' | 'down') => {
-    await proposalsApi.vote(proposalId, { type })
-    queryClient.invalidateQueries({ queryKey: ['proposals'] })
+    await voteProposal.mutateAsync({ proposalId, type })
   }
 
   const handleApprove = async (proposalId: number) => {
-    await proposalsApi.approve(proposalId)
-    queryClient.invalidateQueries({ queryKey: ['proposals'] })
-    queryClient.invalidateQueries({ queryKey: ['quests'] })
+    await approveProposal.mutateAsync(proposalId)
     setEditingProposalNodeId(null)
   }
 
   const handleReject = async (proposalId: number) => {
-    await proposalsApi.reject(proposalId, { reason: '' })
-    queryClient.invalidateQueries({ queryKey: ['proposals'] })
+    await rejectProposal.mutateAsync(proposalId)
     setEditingProposalNodeId(null)
   }
 
   const handleDeleteProposal = async (proposalId: number) => {
     if (!confirm('この提案を取り下げますか？')) return
-    await proposalsApi.delete(proposalId)
-    queryClient.invalidateQueries({ queryKey: ['proposals'] })
+    await deleteProposal.mutateAsync(proposalId)
     setEditingProposalNodeId(null)
   }
 

@@ -23,6 +23,7 @@ import { commentsApi } from '@/api/comments.js'
 import { progressApi } from '@/api/progress.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMcLang } from '@/hooks/useMcData.js'
+import { useClaimReward, useCompleteCheckmark, useDeliverItems, useToggleQuestStatus } from '@/hooks/mutations.js'
 import { CommentBlockEl, COMMENT_COLORS } from '@/components/editor/CommentBlockEl.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { DashboardPage } from '../Dashboard.js'
@@ -47,6 +48,11 @@ export default function EditorPage() {
   const { setSubmitProposals } = useEditor()
   const queryClient = useQueryClient()
   const isEditor = isEditorRole && viewMode === 'edit' && !viewAs
+
+  const claimRewardMutation = useClaimReward()
+  const completeCheckmarkMutation = useCompleteCheckmark()
+  const deliverItemsMutation = useDeliverItems()
+  const toggleQuestStatusMutation = useToggleQuestStatus()
 
   const { data: questsData } = useQuery({ queryKey: ['quests'], queryFn: () => questsApi.list() })
   const { data: progressData } = useQuery({
@@ -250,7 +256,7 @@ export default function EditorPage() {
 
   const { handleVote, handleApprove, handleReject, handleDeleteProposal } = useProposalHandlers({
     proposalNodes: s.proposalNodes, proposalEdges: s.proposalEdges, myProposalEdits: s.myProposalEdits,
-    existingProposals, queryClient, setSubmitting, setSubmitProposals,
+    existingProposals, setSubmitting, setSubmitProposals,
     setProposalNodes: s.setProposalNodes, setProposalEdges: s.setProposalEdges,
     setMyProposalEdits: s.setMyProposalEdits, setEditingProposalNodeId: s.setEditingProposalNodeId, showToast,
   })
@@ -494,23 +500,23 @@ export default function EditorPage() {
                   if (!p) return undefined
                   const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
                   if (!claimable) return undefined
-                  return async () => { await progressApi.claim(s.editingNodeId!); await queryClient.refetchQueries({ queryKey: ['progress'] }); showToast('報酬を受け取りました！') }
+                  return async () => { await claimRewardMutation.mutateAsync(s.editingNodeId!); showToast('報酬を受け取りました！') }
                 })()}
-                onCheckmarkComplete={!viewAs && isReadOnlyNode(s.editingNodeId!) && me ? async (conditionId) => { await progressApi.completeCondition(s.editingNodeId!, conditionId); await queryClient.invalidateQueries({ queryKey: ['progress'] }) } : undefined}
+                onCheckmarkComplete={!viewAs && isReadOnlyNode(s.editingNodeId!) && me ? async (conditionId) => { await completeCheckmarkMutation.mutateAsync({ questId: s.editingNodeId!, conditionId }) } : undefined}
                 onDeliver={(() => {
                   if (viewAs) return undefined
                   const node = s.editingNodeId ? s.nodes.find((n) => n.id === s.editingNodeId) : null
                   const hasDelivery = node?.tasks?.some((t) => t.type === 'delivery')
                   const p = progressData?.find((pr) => String(pr.questId) === s.editingNodeId)
                   if (!hasDelivery || !isReadOnlyNode(s.editingNodeId!) || !me || p?.completed) return undefined
-                  return async () => { const result = await progressApi.deliver(s.editingNodeId!); await queryClient.invalidateQueries({ queryKey: ['progress'] }); showToast(Object.keys(result.delivered ?? {}).length > 0 ? '納品しました！' : '納品できるアイテムがありませんでした') }
+                  return async () => { const result = await deliverItemsMutation.mutateAsync(s.editingNodeId!); showToast(Object.keys(result.delivered ?? {}).length > 0 ? '納品しました！' : '納品できるアイテムがありませんでした') }
                 })()}
                 questStatus={(() => { if (!isEditor || !s.editingNodeId) return undefined; return questsData?.find((q) => String(q.id) === s.editingNodeId)?.status })()}
                 onToggleStatus={(() => {
                   if (!isEditor || !s.editingNodeId) return undefined
                   const q = questsData?.find((q) => String(q.id) === s.editingNodeId)
                   if (!q || q.status === 'proposed') return undefined
-                  return async () => { const newStatus = q.status === 'public' ? 'hidden' : 'public'; await questsApi.update(q.id, { status: newStatus }); await queryClient.invalidateQueries({ queryKey: ['quests'] }); showToast(newStatus === 'public' ? '公開しました' : '非公開にしました') }
+                  return async () => { const { newStatus } = await toggleQuestStatusMutation.mutateAsync({ id: q.id, currentStatus: q.status }); showToast(newStatus === 'public' ? '公開しました' : '非公開にしました') }
                 })()}
               />
             )}
