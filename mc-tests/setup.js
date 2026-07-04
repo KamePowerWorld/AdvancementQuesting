@@ -41,7 +41,7 @@ const RCON_PASS = process.env.RCON_PASS ?? 'testpass'
 const noBuild = process.argv.includes('--no-build')
 
 // ─────────────────────────────────────────────
-// 1. Paper JAR ダウンロード
+// 1. Paper JAR ダウンロード (Fill API v3)
 // ─────────────────────────────────────────────
 async function downloadPaper() {
   const paperJar = path.join(RUN_DIR, 'paper.jar')
@@ -51,24 +51,36 @@ async function downloadPaper() {
     return
   }
 
-  const buildsUrl = `https://api.papermc.io/v2/projects/paper/versions/${PAPER_MC_VERSION}/builds`
-  console.log(`[setup] Paper ${PAPER_MC_VERSION} のビルド一覧を取得中...`)
-  const buildsRes = await fetch(buildsUrl)
-  if (!buildsRes.ok) throw new Error(`Paper API エラー: ${buildsRes.status}`)
-  const buildsData = await buildsRes.json()
+  // Fill API v3 は User-Agent が必須（generic なものは拒否される）
+  const headers = {
+    'User-Agent': 'advancement-questing-mc-tests/setup.js (https://github.com/Kamesuta/AdvancementQuesting)',
+  }
 
-  const builds = buildsData.builds
-  if (!builds || builds.length === 0) throw new Error('ビルドが見つかりません')
+  const buildsUrl = `https://fill.papermc.io/v3/projects/paper/versions/${PAPER_MC_VERSION}/builds`
+  console.log(`[setup] Paper ${PAPER_MC_VERSION} のビルド一覧を取得中 (Fill API v3)...`)
+  const buildsRes = await fetch(buildsUrl, { headers })
+  if (!buildsRes.ok) {
+    const err = await buildsRes.text()
+    throw new Error(`Paper API エラー (${buildsRes.status}): ${err}`)
+  }
+
+  // 新しいAPIは配列形式（channel でフィルタ可能）
+  const builds = await buildsRes.json()
+  if (!Array.isArray(builds) || builds.length === 0) throw new Error('ビルドが見つかりません')
+
+  // STABLE チャンネルの最新ビルドを探す
+  const stableBuild = builds.find(b => b.channel === 'STABLE')
+  if (!stableBuild) throw new Error(`${PAPER_MC_VERSION} の安定版ビルドが見つかりません`)
+
   const build = PAPER_BUILD === 'latest'
-    ? builds[builds.length - 1]
-    : builds.find(b => b.build === parseInt(PAPER_BUILD))
-  if (!build) throw new Error(`ビルド ${PAPER_BUILD} が見つかりません`)
+    ? stableBuild
+    : builds.find(b => b.channel === 'STABLE' && b.id === parseInt(PAPER_BUILD))
+  if (!build) throw new Error(`安定版ビルド ${PAPER_BUILD} が見つかりません`)
 
-  const fileName = build.downloads.application.name
-  const dlUrl = `https://api.papermc.io/v2/projects/paper/versions/${PAPER_MC_VERSION}/builds/${build.build}/downloads/${fileName}`
-  console.log(`[setup] Paper ${PAPER_MC_VERSION} build ${build.build} をダウンロード中...`)
+  const dlUrl = build.downloads['server:default'].url
+  console.log(`[setup] Paper ${PAPER_MC_VERSION} build ${build.name || build.id} をダウンロード中...`)
 
-  const res = await fetch(dlUrl)
+  const res = await fetch(dlUrl, { headers })
   if (!res.ok) throw new Error(`ダウンロードエラー: ${res.status}`)
   await pipeline(res.body, createWriteStream(paperJar))
   console.log('[setup] paper.jar をダウンロードしました。')
@@ -104,6 +116,39 @@ function patchPorts() {
     writeFileSync(pluginCfg, replaced)
   }
   console.log(`[setup] PORT_OFFSET=${PORT_OFFSET} を反映 (MC=${MC_PORT}, API=${API_PORT}, RCON=${RCON_PORT})`)
+}
+
+// ─────────────────────────────────────────────
+// DB/quests クリーンアップ (flaky対策)
+// ─────────────────────────────────────────────
+async function cleanupDB() {
+  const pluginDataDir = path.join(RUN_DIR, 'plugins', 'AdvancementQuesting')
+  const questDb = path.join(pluginDataDir, 'quest.db')
+  const questsDir = path.join(pluginDataDir, 'quests')
+
+  let cleaned = false
+  if (existsSync(questDb)) {
+    const { unlinkSync } = await import('node:fs')
+    unlinkSync(questDb)
+    console.log('[setup] quest.db を削除しました (DB蓄積flaky対策)')
+    cleaned = true
+  }
+
+  if (existsSync(questsDir)) {
+    const { readdirSync, unlinkSync } = await import('node:fs')
+    const questFiles = readdirSync(questsDir).filter(f => f.endsWith('.json'))
+    for (const f of questFiles) {
+      unlinkSync(path.join(questsDir, f))
+    }
+    if (questFiles.length > 0) {
+      console.log(`[setup] quests/*.json を ${questFiles.length} 件削除しました (DB蓄積flaky対策)`)
+      cleaned = true
+    }
+  }
+
+  if (!cleaned) {
+    console.log('[setup] DB/quests は既にクリーンです。')
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -261,6 +306,7 @@ async function main() {
   try {
     await downloadPaper()
     applyTemplate()
+    await cleanupDB()  // DB/quests を毎回クリーンナップ (flaky対策)
     patchPorts()
     buildPlugin()
     copyPlugin()
