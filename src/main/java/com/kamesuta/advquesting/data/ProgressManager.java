@@ -227,10 +227,7 @@ public class ProgressManager {
                     int stillNeeded = required - alreadyDelivered;
                     if (stillNeeded <= 0) continue;
 
-                    String matName = itemType.contains(":")
-                        ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase()
-                        : itemType.toUpperCase();
-                    org.bukkit.Material mat = org.bukkit.Material.matchMaterial(matName);
+                    org.bukkit.Material mat = RewardManager.resolveMaterial(itemType);
                     if (mat == null) { failed.put(condId, stillNeeded); continue; }
 
                     int haveCount = 0;

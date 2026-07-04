@@ -14,7 +14,7 @@ class ProgressEventHandler {
      * 一致する条件を持つクエストの進捗を更新し、全条件達成ならクエスト完了とする。
      */
     public void onAdvancement(String playerUuid, String advancementKey) {
-        String advKeyNoNs = advancementKey.contains(":") ? advancementKey.substring(advancementKey.indexOf(':') + 1) : advancementKey;
+        String advKeyNoNs = McIds.stripNamespace(advancementKey);
         try {
             for (Quest quest : manager.questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
@@ -23,7 +23,7 @@ class ProgressEventHandler {
                     if (!"advancement".equals(c.get("type"))) return false;
                     String condAdvId = (String) c.get("advancementId");
                     if (condAdvId == null) return false;
-                    String condNoNs = condAdvId.contains(":") ? condAdvId.substring(condAdvId.indexOf(':') + 1) : condAdvId;
+                    String condNoNs = McIds.stripNamespace(condAdvId);
                     return advKeyNoNs.equals(condNoNs);
                 });
                 if (matched) {
@@ -39,7 +39,7 @@ class ProgressEventHandler {
      * アイテム獲得時に呼ぶ。inventoryCount はそのアイテムのインベントリ内現在所持数。
      */
     public void onItemPickup(String playerUuid, String itemType, int inventoryCount) {
-        String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
+        String itemTypeNoNs = McIds.stripNamespace(itemType);
         try {
             for (Quest quest : manager.questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
@@ -48,7 +48,7 @@ class ProgressEventHandler {
                     if (!"item".equals(c.get("type"))) return false;
                     String condItemType = (String) c.get("itemType");
                     if (condItemType == null) return false;
-                    String condNoNs = condItemType.contains(":") ? condItemType.substring(condItemType.indexOf(':') + 1) : condItemType;
+                    String condNoNs = McIds.stripNamespace(condItemType);
                     return itemTypeNoNs.equals(condNoNs);
                 });
                 if (hasMatch) {

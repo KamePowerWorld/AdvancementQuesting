@@ -39,30 +39,7 @@ public class ProposalRoutes {
             for (ProposalDao.ProposalRecord p : proposals) {
                 Quest quest = questManager.findById(p.questId());
                 String myVote = proposalDao.getMyVote(p.id(), session.playerUuid());
-                Map<String, Object> map = new HashMap<>();
-                map.put("id", p.id());
-                map.put("questId", p.questId());
-                map.put("proposerUuid", p.proposerUuid());
-                map.put("proposerName", p.proposerName());
-                map.put("status", p.status());
-                map.put("votesUp", p.votesUp());
-                map.put("votesDown", p.votesDown());
-                map.put("rejectReason", p.rejectReason());
-                map.put("createdAt", p.createdAt());
-                map.put("myVote", myVote);
-                if (quest != null) {
-                    map.put("mapPosition", quest.mapPosition);
-                    Map<String, Object> snapshot = new HashMap<>();
-                    snapshot.put("title", quest.title != null ? quest.title : "");
-                    snapshot.put("subtitle", quest.subtitle != null ? quest.subtitle : "");
-                    snapshot.put("description", quest.description != null ? quest.description : "");
-                    snapshot.put("icon", quest.icon != null ? quest.icon : "");
-                    snapshot.put("prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of());
-                    snapshot.put("conditions", quest.conditions != null ? quest.conditions : List.of());
-                    snapshot.put("rewards", quest.rewards != null ? quest.rewards : List.of());
-                    map.put("questSnapshot", snapshot);
-                }
-                result.add(map);
+                result.add(toResponse(p, quest, myVote));
             }
             ctx.json(result);
         });
@@ -77,27 +54,7 @@ public class ProposalRoutes {
             ProposalDao.ProposalRecord proposal = proposalDao.create(
                 created.id, session.playerUuid(), session.playerName()
             );
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("id", proposal.id());
-            resp.put("questId", created.id);
-            resp.put("proposerUuid", proposal.proposerUuid());
-            resp.put("proposerName", proposal.proposerName());
-            resp.put("status", "pending");
-            resp.put("votesUp", 0);
-            resp.put("votesDown", 0);
-            resp.put("rejectReason", null);
-            resp.put("createdAt", proposal.createdAt());
-            resp.put("myVote", null);
-            resp.put("mapPosition", created.mapPosition);
-            Map<String, Object> snapshot = new HashMap<>();
-            snapshot.put("title", created.title != null ? created.title : "");
-            snapshot.put("description", created.description != null ? created.description : "");
-            snapshot.put("icon", created.icon != null ? created.icon : "");
-            snapshot.put("prerequisites", created.prerequisites != null ? created.prerequisites : List.of());
-            snapshot.put("conditions", created.conditions != null ? created.conditions : List.of());
-            snapshot.put("rewards", created.rewards != null ? created.rewards : List.of());
-            resp.put("questSnapshot", snapshot);
-            ctx.status(201).json(resp);
+            ctx.status(201).json(toResponse(proposal, created, null));
         });
 
         // DELETE /api/proposals/:id — 取り下げ (自分の提案 or editor)
@@ -167,4 +124,31 @@ public class ProposalRoutes {
         });
     }
 
+    /** 提案レコード (+ 対応クエストのスナップショット) を API レスポンス形式へ変換する */
+    private Map<String, Object> toResponse(ProposalDao.ProposalRecord p, Quest quest, String myVote) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", p.id());
+        map.put("questId", p.questId());
+        map.put("proposerUuid", p.proposerUuid());
+        map.put("proposerName", p.proposerName());
+        map.put("status", p.status());
+        map.put("votesUp", p.votesUp());
+        map.put("votesDown", p.votesDown());
+        map.put("rejectReason", p.rejectReason());
+        map.put("createdAt", p.createdAt());
+        map.put("myVote", myVote);
+        if (quest != null) {
+            map.put("mapPosition", quest.mapPosition);
+            Map<String, Object> snapshot = new HashMap<>();
+            snapshot.put("title", quest.title != null ? quest.title : "");
+            snapshot.put("subtitle", quest.subtitle != null ? quest.subtitle : "");
+            snapshot.put("description", quest.description != null ? quest.description : "");
+            snapshot.put("icon", quest.icon != null ? quest.icon : "");
+            snapshot.put("prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of());
+            snapshot.put("conditions", quest.conditions != null ? quest.conditions : List.of());
+            snapshot.put("rewards", quest.rewards != null ? quest.rewards : List.of());
+            map.put("questSnapshot", snapshot);
+        }
+        return map;
+    }
 }

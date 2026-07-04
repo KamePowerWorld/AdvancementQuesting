@@ -20,6 +20,11 @@ class RewardManager {
         this.manager = manager;
     }
 
+    /** itemType ("minecraft:diamond" / "diamond") から Material を解決する。見つからなければ null。 */
+    static Material resolveMaterial(String itemType) {
+        return Material.matchMaterial(McIds.stripNamespace(itemType).toUpperCase());
+    }
+
     String playerUuidToName(String playerUuid) {
         UUID uuid = UUID.fromString(playerUuid);
         Player online = Bukkit.getPlayer(uuid);
@@ -42,10 +47,7 @@ class RewardManager {
                         itemStack = PlayerRoutes.deserializeItem(nbtJson, itemType, count);
                     }
                     if (itemStack == null) {
-                        String matName = itemType.contains(":")
-                            ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase()
-                            : itemType.toUpperCase();
-                        Material mat = Material.matchMaterial(matName);
+                        Material mat = resolveMaterial(itemType);
                         if (mat != null) itemStack = new ItemStack(mat, count);
                     }
                     if (itemStack != null) {

@@ -40,9 +40,7 @@ final class ConditionEvaluator {
             if ("advancement".equals(condType)) {
                 String condAdvId = (String) cond.get("advancementId");
                 if (condAdvId == null) continue;
-                String condNoNs = condAdvId.contains(":")
-                        ? condAdvId.substring(condAdvId.indexOf(':') + 1)
-                        : condAdvId;
+                String condNoNs = McIds.stripNamespace(condAdvId);
                 if (!condValue.equals(condNoNs)) continue;
             } else {
                 if (!condValue.equals(cond.get("advancementId"))) continue;
@@ -76,17 +74,13 @@ final class ConditionEvaluator {
             List<Map<String, Object>> progress,
             String itemType,
             int inventoryCount) {
-        String itemTypeNoNs = itemType.contains(":")
-                ? itemType.substring(itemType.indexOf(':') + 1)
-                : itemType;
+        String itemTypeNoNs = McIds.stripNamespace(itemType);
         boolean changed = false;
         for (Map<String, Object> cond : conditions) {
             if (!"item".equals(cond.get("type"))) continue;
             String condItemType = (String) cond.get("itemType");
             if (condItemType == null) continue;
-            String condNoNs = condItemType.contains(":")
-                    ? condItemType.substring(condItemType.indexOf(':') + 1)
-                    : condItemType;
+            String condNoNs = McIds.stripNamespace(condItemType);
             if (!itemTypeNoNs.equals(condNoNs)) continue;
             String condId = (String) cond.get("id");
             int required = ((Number) cond.getOrDefault("count", 1)).intValue();
