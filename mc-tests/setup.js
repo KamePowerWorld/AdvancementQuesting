@@ -201,9 +201,18 @@ function startServer() {
 function runTests() {
   return new Promise((resolve) => {
     console.log('\n[setup] テストを実行中...\n')
+    // node --test はテストファイルごとにサブプロセスを起動し、親が IPC パイプ経由で
+    // 結果をデシリアライズする。負荷/timingによって親が "Unable to deserialize cloned
+    // data due to invalid or unsupported version." を投げてファイル全体を fail させる
+    // 既知のバグがあるため、Node 22+ では単一プロセスで全ファイルを実行して IPC を
+    // 経由しないようにする (CI の mc-tests を安定化)。
+    const nodeArgs = ['--import', 'tsx/esm']
+    const nodeMajor = parseInt(process.versions.node.split('.')[0], 10)
+    if (nodeMajor >= 22) nodeArgs.push('--experimental-test-isolation=none')
+    nodeArgs.push('--test', ...(process.env.TEST_GLOB ?? 'tests/*.test.ts').split(' '))
     const proc = spawn(
       'node',
-      ['--import', 'tsx/esm', '--test', ...(process.env.TEST_GLOB ?? 'tests/*.test.ts').split(' ')],
+      nodeArgs,
       {
         cwd: __dirname,
         stdio: 'inherit',

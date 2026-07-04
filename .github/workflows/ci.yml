@@ -135,7 +135,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Node 22+ で --experimental-test-isolation=none を有効化するため
+          # (setup.js が nodeMajor >= 22 でフラグを付与する)
+          node-version: '22'
           cache: npm
           cache-dependency-path: mc-tests/package-lock.json
 

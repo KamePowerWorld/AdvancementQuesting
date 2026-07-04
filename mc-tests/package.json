@@ -6,7 +6,7 @@
   "scripts": {
     "test": "node setup.js",
     "test:no-build": "node setup.js --no-build",
-    "test:direct": "node --import tsx/esm --test tests/*.test.ts",
+    "test:direct": "node --import tsx/esm --experimental-test-isolation=none --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "dev:console": "npx tsx test-server.ts"
   },
