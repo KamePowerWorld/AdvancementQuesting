@@ -203,7 +203,7 @@ function runTests() {
     console.log('\n[setup] テストを実行中...\n')
     const proc = spawn(
       'node',
-      ['--import', 'tsx/esm', '--test', 'tests/*.test.ts'],
+      ['--import', 'tsx/esm', '--test', ...(process.env.TEST_GLOB ?? 'tests/*.test.ts').split(' ')],
       {
         cwd: __dirname,
         stdio: 'inherit',
