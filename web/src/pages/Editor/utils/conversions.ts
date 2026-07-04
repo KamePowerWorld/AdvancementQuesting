@@ -1,5 +1,7 @@
 import type { EditorNode, EditorEdge } from '@/components/editor/types.js'
 import type { Quest, Condition, Reward } from '@/types/quest.js'
+import type { Proposal } from '@/types/proposal.js'
+import type { ProposalNode } from '../types.js'
 
 export function questToNode(q: Quest): EditorNode {
   const sid = String(q.id)
@@ -69,6 +71,39 @@ export function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     rewards,
     repeat: node.repeat && node.repeat.type !== 'none' ? node.repeat : null,
   }
+}
+
+/** 既存提案 (GET /api/proposals の1件) を ProposalNode へ変換する */
+export function proposalToNode(p: Proposal, localEdit?: EditorNode): ProposalNode {
+  const snap = p.questSnapshot ?? {}
+  const sid = `existing-proposal-${p.id}`
+  const tasks = (snap.conditions ?? []).map((c: any, i: number) => ({
+    id: `${sid}-t${i}`, type: c.type,
+    value: c.type === 'advancement' ? (c.advancementId ?? '') : (c.label ?? c.value ?? ''),
+    ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+  }))
+  const rewards = (snap.rewards ?? []).map((r: any, i: number) => {
+    const base = { id: `${sid}-r${i}`, value: '' }
+    if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
+    if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
+    return { ...base, type: r.type }
+  })
+  const base: ProposalNode = {
+    id: sid, x: p.mapPosition?.x ?? 100, y: p.mapPosition?.y ?? 100,
+    icon: snap.icon ?? 'stone', title: snap.title ?? '提案', subtitle: snap.subtitle ?? '',
+    description: snap.description ?? '', tasks, rewards,
+    proposalId: p.id, proposerName: p.proposerName ?? '', votesUp: p.votesUp ?? 0, myVote: p.myVote ?? null,
+  }
+  return localEdit
+    ? { ...base, ...localEdit, id: sid, proposalId: p.id, proposerName: base.proposerName, votesUp: base.votesUp, myVote: base.myVote }
+    : base
+}
+
+/** pending の既存提案一覧を ProposalNode 一覧へ変換する (ローカル編集をマージ) */
+export function proposalsToNodes(proposals: Proposal[] | undefined, localEdits: Map<number, EditorNode>): ProposalNode[] {
+  return (proposals ?? [])
+    .filter((p) => p.status === 'pending')
+    .map((p) => proposalToNode(p, localEdits.get(p.id)))
 }
 
 export function questsToEdges(quests: Quest[]): EditorEdge[] {

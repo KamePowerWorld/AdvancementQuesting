@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { questToNode, nodeToApiBody, questsToEdges } from './conversions.js'
+import { questToNode, nodeToApiBody, questsToEdges, proposalToNode, proposalsToNodes } from './conversions.js'
 import type { Quest } from '@/types/quest.js'
+import type { Proposal } from '@/types/proposal.js'
 import type { EditorNode, EditorEdge } from '@/components/editor/types.js'
 
 // Minimal Quest factory — omits optional fields to pin fallback behaviour
@@ -247,5 +248,130 @@ describe('nodeToApiBody', () => {
     const node = makeNode({ repeat: { type: 'cooldown', cooldownHours: 12 } })
     const body = nodeToApiBody(node, [])
     expect(body.repeat).toEqual({ type: 'cooldown', cooldownHours: 12 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// proposalToNode / proposalsToNodes
+// ---------------------------------------------------------------------------
+function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
+  return {
+    id: 5,
+    questId: 10,
+    proposerUuid: 'uuid-1',
+    proposerName: 'Steve',
+    status: 'pending',
+    votesUp: 3,
+    votesDown: 0,
+    rejectReason: null,
+    createdAt: '2024-01-01T00:00:00Z',
+    myVote: null,
+    ...overrides,
+  }
+}
+
+describe('proposalToNode', () => {
+  it('builds id as existing-proposal-<id> and carries proposal meta', () => {
+    const node = proposalToNode(makeProposal())
+    expect(node.id).toBe('existing-proposal-5')
+    expect(node.proposalId).toBe(5)
+    expect(node.proposerName).toBe('Steve')
+    expect(node.votesUp).toBe(3)
+    expect(node.myVote).toBeNull()
+  })
+
+  it('falls back to (100,100) / stone / 提案 when snapshot and position are missing', () => {
+    const node = proposalToNode(makeProposal())
+    expect(node.x).toBe(100)
+    expect(node.y).toBe(100)
+    expect(node.icon).toBe('stone')
+    expect(node.title).toBe('提案')
+    expect(node.subtitle).toBe('')
+    expect(node.description).toBe('')
+    expect(node.tasks).toEqual([])
+    expect(node.rewards).toEqual([])
+  })
+
+  it('uses mapPosition and snapshot fields when present', () => {
+    const node = proposalToNode(makeProposal({
+      mapPosition: { x: 250, y: 300 },
+      questSnapshot: { title: 'T', subtitle: 'S', description: 'D', icon: 'diamond' },
+    }))
+    expect(node.x).toBe(250)
+    expect(node.y).toBe(300)
+    expect(node.title).toBe('T')
+    expect(node.subtitle).toBe('S')
+    expect(node.description).toBe('D')
+    expect(node.icon).toBe('diamond')
+  })
+
+  it('maps advancement condition value to advancementId', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { conditions: [{ type: 'advancement', advancementId: 'minecraft:story/mine_stone' }] },
+    }))
+    expect(node.tasks).toEqual([
+      { id: 'existing-proposal-5-t0', type: 'advancement', value: 'minecraft:story/mine_stone' },
+    ])
+  })
+
+  it('maps item condition with defaults count=1 / itemType=stone', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { conditions: [{ type: 'item', itemType: undefined as any }] },
+    }))
+    expect(node.tasks[0]).toMatchObject({ type: 'item', itemType: 'stone', count: 1 })
+  })
+
+  it('maps checkmark condition value from label', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { conditions: [{ type: 'checkmark', label: 'やること' }] },
+    }))
+    expect(node.tasks[0]).toMatchObject({ type: 'checkmark', value: 'やること' })
+  })
+
+  it('maps item reward with itemId→itemType and count default 1', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { rewards: [{ type: 'item', itemId: 'diamond' } as any] },
+    }))
+    expect(node.rewards[0]).toMatchObject({ id: 'existing-proposal-5-r0', type: 'item', itemType: 'diamond', count: 1 })
+  })
+
+  it('maps experience reward to xp with amount as value', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { rewards: [{ type: 'experience', amount: 50, isLevel: false }] },
+    }))
+    expect(node.rewards[0]).toMatchObject({ type: 'xp', value: '50' })
+  })
+
+  it('merges localEdit but preserves id and proposal meta', () => {
+    const localEdit = { id: 'local', title: 'Edited', x: 999, proposerName: 'Hacker' } as any
+    const node = proposalToNode(makeProposal(), localEdit)
+    expect(node.title).toBe('Edited')
+    expect(node.x).toBe(999)
+    expect(node.id).toBe('existing-proposal-5')
+    expect(node.proposalId).toBe(5)
+    expect(node.proposerName).toBe('Steve')
+    expect(node.votesUp).toBe(3)
+  })
+})
+
+describe('proposalsToNodes', () => {
+  it('filters out non-pending proposals', () => {
+    const nodes = proposalsToNodes([
+      makeProposal({ id: 1, status: 'pending' }),
+      makeProposal({ id: 2, status: 'approved' }),
+      makeProposal({ id: 3, status: 'rejected' }),
+    ], new Map())
+    expect(nodes.map((n) => n.proposalId)).toEqual([1])
+  })
+
+  it('returns empty array for undefined input', () => {
+    expect(proposalsToNodes(undefined, new Map())).toEqual([])
+  })
+
+  it('applies localEdits by proposal id', () => {
+    const edits = new Map([[2, { title: 'Local' } as any]])
+    const nodes = proposalsToNodes([makeProposal({ id: 1 }), makeProposal({ id: 2 })], edits)
+    expect(nodes[0].title).toBe('提案')
+    expect(nodes[1].title).toBe('Local')
   })
 })

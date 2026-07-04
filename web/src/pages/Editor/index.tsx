@@ -38,7 +38,7 @@ import { NodeEl } from './components/NodeEl.js'
 import { OtherProposalNodeEl } from './components/OtherProposalNodeEl.js'
 import { ModeToast } from './components/ModeToast.js'
 import { NodeRewardChip } from './components/NodeRewardChip.js'
-import { questToNode, questsToEdges } from './utils/conversions.js'
+import { questToNode, questsToEdges, proposalsToNodes } from './utils/conversions.js'
 import { modeLabel, type ProposalNode } from './types.js'
 
 export default function EditorPage() {
@@ -214,31 +214,9 @@ export default function EditorPage() {
   }
 
   // --- other proposal nodes ---
-  const otherProposalNodes: ProposalNode[] = useMemo(() => (existingProposals ?? [])
-    .filter((p: any) => p.status === 'pending')
-    .map((p: any) => {
-      const snap = p.questSnapshot ?? {}
-      const sid = `existing-proposal-${p.id}`
-      const tasks = (snap.conditions ?? []).map((c: any, i: number) => ({
-        id: `${sid}-t${i}`, type: c.type,
-        value: c.type === 'advancement' ? (c.advancementId ?? '') : (c.label ?? c.value ?? ''),
-        ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
-      }))
-      const rewards = (snap.rewards ?? []).map((r: any, i: number) => {
-        const base = { id: `${sid}-r${i}`, value: '' }
-        if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
-        if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
-        return { ...base, type: r.type }
-      })
-      const base: ProposalNode = {
-        id: sid, x: p.mapPosition?.x ?? 100, y: p.mapPosition?.y ?? 100,
-        icon: snap.icon ?? 'stone', title: snap.title ?? '提案', subtitle: snap.subtitle ?? '',
-        description: snap.description ?? '', tasks, rewards,
-        proposalId: p.id, proposerName: p.proposerName ?? '', votesUp: p.votesUp ?? 0, myVote: p.myVote ?? null,
-      }
-      const localEdit = s.myProposalEdits.get(p.id)
-      return localEdit ? { ...base, ...localEdit, id: sid, proposalId: p.id, proposerName: base.proposerName, votesUp: base.votesUp, myVote: base.myVote } : base
-    }), [existingProposals, s.myProposalEdits])
+  const otherProposalNodes: ProposalNode[] = useMemo(
+    () => proposalsToNodes(existingProposals, s.myProposalEdits),
+    [existingProposals, s.myProposalEdits])
 
   // --- hooks ---
   useHashSync({ nodes: s.nodes, editingNodeId: s.editingNodeId, setEditingNodeId: s.setEditingNodeId })
@@ -494,7 +472,7 @@ export default function EditorPage() {
             )}
 
             {editingProposalNode && (() => {
-              const p = existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any
+              const p = existingProposals?.find((p) => p.id === editingProposalNode.proposalId)
               const canEdit = isEditor
               return (
                 <QuestEditorModal node={editingProposalNode} updateNode={canEdit ? updateNode : () => {}} close={() => s.setEditingProposalNodeId(null)} openItemSelector={s.setItemSelectorConfig} openTaskRewardEditor={s.setEditingTaskReward}
