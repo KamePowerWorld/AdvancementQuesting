@@ -41,6 +41,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
           description: quest.description,
           icon: quest.icon,
           prerequisites: quest.prerequisites,
+          conditions: quest.conditions,
+          rewards: quest.rewards,
         } : null,
       }
     }),
