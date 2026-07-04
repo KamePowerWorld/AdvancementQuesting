@@ -161,9 +161,11 @@ public class ProgressManager {
         if (claimed == 0) return 0;
 
         try {
+            var entries = RewardInterpreter.toLogEntries(quest.rewards);
+            String playerName = rewardManager.playerUuidToName(playerUuid);
             for (int i = 0; i < claimed; i++) {
-                rewardClaimDao.insertQuestRewards(playerUuid, rewardManager.playerUuidToName(playerUuid),
-                    quest.id, quest.title, quest.rewards, Instant.now().toString(), "claim");
+                rewardClaimDao.insertEntries(playerUuid, playerName,
+                    quest.id, quest.title, entries, Instant.now().toString(), "claim");
             }
         } catch (Exception e) {
             log.warning("reward claim log insert error: " + e.getMessage());

@@ -44,30 +44,15 @@ public class RewardClaimDao extends BaseDao {
             """, playerUuid, playerName, questId, questTitle, rewardType, rewardLabel, itemType, amount, claimedAt, source);
     }
 
-    /**
-     * 1クエスト分の報酬 (rewards 配列) をまとめて追記する。
-     * giveRewards と同じ解釈で type/label/amount/itemType を抽出する。
-     */
-    public void insertQuestRewards(String playerUuid, String playerName, int questId, String questTitle,
-                                   List<Map<String, Object>> rewards, String claimedAt, String source) throws SQLException {
-        if (rewards == null) return;
-        for (Map<String, Object> reward : rewards) {
-            String type = (String) reward.get("type");
-            if (type == null) continue;
-            String label = reward.get("label") instanceof String s ? s : null;
-            String itemType = null;
-            long amount = 1;
-            if ("item".equals(type)) {
-                Object it = reward.getOrDefault("itemType", reward.get("itemId"));
-                itemType = it instanceof String s ? s : null;
-                amount = ((Number) reward.getOrDefault("count", 1)).longValue();
-            } else if ("experience".equals(type) || "point".equals(type)) {
-                amount = ((Number) reward.getOrDefault("amount", 0)).longValue();
-            } else {
-                // command 等は実行回数として 1
-                amount = 1;
-            }
-            insert(playerUuid, playerName, questId, questTitle, type, label, itemType, amount, claimedAt, source);
+    /** 解釈済み報酬1行 (解釈は data.RewardInterpreter.toLogEntries が行う)。 */
+    public record LogEntry(String rewardType, String rewardLabel, String itemType, long amount) {}
+
+    /** 1クエスト分の解釈済み報酬をまとめて追記する。 */
+    public void insertEntries(String playerUuid, String playerName, int questId, String questTitle,
+                              List<LogEntry> entries, String claimedAt, String source) throws SQLException {
+        for (LogEntry e : entries) {
+            insert(playerUuid, playerName, questId, questTitle,
+                e.rewardType(), e.rewardLabel(), e.itemType(), e.amount(), claimedAt, source);
         }
     }
 
@@ -130,7 +115,7 @@ public class RewardClaimDao extends BaseDao {
             String claimedAt = (t.completedAt() == null || t.completedAt().isEmpty())
                 ? Instant.now().toString() : t.completedAt();
             QuestRewards qr = rewardsResolver.apply(t.questId());
-            if (qr == null || qr.rewards() == null || qr.rewards().isEmpty()) continue; // 解決不可・報酬なしはスキップ
+            if (qr == null || qr.entries() == null || qr.entries().isEmpty()) continue; // 解決不可・報酬なしはスキップ
             String name = t.playerUuid();
             if (nameResolver != null) {
                 try {
@@ -138,12 +123,12 @@ public class RewardClaimDao extends BaseDao {
                     if (resolved != null && !resolved.isEmpty()) name = resolved;
                 } catch (Exception ignored) {}
             }
-            insertQuestRewards(t.playerUuid(), name, t.questId(), qr.title(), qr.rewards(), claimedAt, "migrated");
+            insertEntries(t.playerUuid(), name, t.questId(), qr.title(), qr.entries(), claimedAt, "migrated");
             migrated++;
         }
         return migrated;
     }
 
-    /** 移行時に解決するクエストのタイトルと報酬。 */
-    public record QuestRewards(String title, List<Map<String, Object>> rewards) {}
+    /** 移行時に解決するクエストのタイトルと解釈済み報酬。 */
+    public record QuestRewards(String title, List<LogEntry> entries) {}
 }

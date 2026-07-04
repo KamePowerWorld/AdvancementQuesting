@@ -99,7 +99,8 @@ public final class AdvancementQuesting extends JavaPlugin {
                 questId -> {
                     var q = questManager.findById(questId);
                     if (q == null) return null;
-                    return new RewardClaimDao.QuestRewards(q.title, q.rewards);
+                    return new RewardClaimDao.QuestRewards(q.title,
+                        com.kamesuta.advquesting.data.RewardInterpreter.toLogEntries(q.rewards));
                 },
                 uuid -> {
                     try {

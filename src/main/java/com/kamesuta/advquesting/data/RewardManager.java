@@ -36,42 +36,37 @@ class RewardManager {
     void giveRewards(Player player, List<Map<String, Object>> rewards) {
         Logger log = manager.log;
         for (Map<String, Object> reward : rewards) {
-            String type = (String) reward.get("type");
-            if ("item".equals(type)) {
-                String itemType = (String) reward.getOrDefault("itemType", reward.get("itemId"));
-                int count = ((Number) reward.getOrDefault("count", 1)).intValue();
-                String nbtJson = reward.get("nbt") instanceof String s ? s : null;
+            RewardInterpreter.ParsedReward p = RewardInterpreter.parse(reward);
+            if (p == null) continue;
+            if ("item".equals(p.type())) {
                 try {
                     ItemStack itemStack = null;
-                    if (nbtJson != null) {
-                        itemStack = PlayerRoutes.deserializeItem(nbtJson, itemType, count);
+                    if (p.nbt() != null) {
+                        itemStack = PlayerRoutes.deserializeItem(p.nbt(), p.itemType(), p.count());
                     }
                     if (itemStack == null) {
-                        Material mat = resolveMaterial(itemType);
-                        if (mat != null) itemStack = new ItemStack(mat, count);
+                        Material mat = resolveMaterial(p.itemType());
+                        if (mat != null) itemStack = new ItemStack(mat, p.count());
                     }
                     if (itemStack != null) {
                         player.getWorld().dropItem(player.getLocation(), itemStack);
                     }
                 } catch (Exception e) {
-                    log.warning("Failed to give item reward: " + itemType + " - " + e.getMessage());
+                    log.warning("Failed to give item reward: " + p.itemType() + " - " + e.getMessage());
                 }
-            } else if ("experience".equals(type)) {
-                int amount = ((Number) reward.getOrDefault("amount", 0)).intValue();
-                player.giveExp(amount);
-            } else if ("command".equals(type)) {
-                String cmd = (String) reward.get("command");
-                if (cmd != null) {
+            } else if ("experience".equals(p.type())) {
+                player.giveExp(p.amount());
+            } else if ("command".equals(p.type())) {
+                if (p.command() != null) {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                        cmd.replace("{player}", player.getName()));
+                        p.command().replace("{player}", player.getName()));
                 }
-            } else if ("point".equals(type)) {
-                int amount = ((Number) reward.getOrDefault("amount", 0)).intValue();
+            } else if ("point".equals(p.type())) {
                 String template = manager.plugin.getConfig().getString(
                     "point-command", "scoreboard players add {player} point {amount}");
                 String cmd = template
                     .replace("{player}", player.getName())
-                    .replace("{amount}", String.valueOf(amount));
+                    .replace("{amount}", String.valueOf(p.amount()));
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
             }
         }
