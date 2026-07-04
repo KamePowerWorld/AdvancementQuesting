@@ -80,6 +80,10 @@ describe('納品 (delivery) 進捗 (MC-DV)', () => {
   it('MC-DV-1: 手持ちが無い状態で納品すると failed に必要数が返る', async () => {
     if (!questId) { console.warn('questId 未設定 — スキップ'); return }
 
+    // インベントリをクリア
+    bot.chat('/clear @s')
+    await new Promise(r => setTimeout(r, 1000))
+
     const { status, body } = await apiRequest<{ delivered: Record<string, number>; failed: Record<string, number> }>(
       'POST', `/api/progress/${questId}/deliver`, { token },
     )

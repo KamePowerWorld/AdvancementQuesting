@@ -75,7 +75,8 @@ export async function apiRequest<T = unknown>(
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, {
     method,
     headers,
     body: body != null ? JSON.stringify(body) : undefined,
