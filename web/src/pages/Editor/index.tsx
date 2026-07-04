@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import type { ToolMode } from '@/components/editor/types.js'
-import { INITIAL_NODES, INITIAL_EDGES } from '@/components/editor/constants.js'
+import { INITIAL_NODES, INITIAL_EDGES, DEFAULT_ITEM_ID } from '@/components/editor/constants.js'
 import { EdgePattern } from '@/components/editor/EdgePattern.js'
 import { useAuth } from '@/contexts/AuthContext.js'
 import { ViewAsContext } from '@/contexts/ViewAsContext.js'
@@ -194,7 +194,7 @@ export default function EditorPage() {
   const addProposalNode = useCallback((wx: number, wy: number) => {
     s.setProposalNodes((prev) => [...prev, {
       id: `proposal-${Date.now()}`, x: wx, y: wy,
-      icon: 'stone', title: '新規提案クエスト', subtitle: '', description: '',
+      icon: DEFAULT_ITEM_ID, title: '新規提案クエスト', subtitle: '', description: '',
       tasks: [], rewards: [],
     }])
   }, [])

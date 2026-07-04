@@ -1,8 +1,9 @@
 import type { FC, CSSProperties } from 'react'
 import { useMcAtlas } from '@/hooks/useMcData.js'
+import type { NamespacedId } from '@/util/NamespacedId.js'
 
 interface ItemIconProps {
-  type: string
+  type: NamespacedId
   size?: number
 }
 
@@ -21,9 +22,10 @@ const FALLBACK_COLORS: Record<string, string> = {
   sword:    '#8b5a2b',
 }
 
-function getFallbackColor(type: string): string {
+function getFallbackColor(type: NamespacedId): string {
+  const typeStr = type.toString()
   for (const [key, color] of Object.entries(FALLBACK_COLORS)) {
-    if (type.includes(key)) return color
+    if (typeStr.includes(key)) return color
   }
   return '#888888'
 }
@@ -42,8 +44,8 @@ export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
   }
 
   // item/ → block/ の順で座標を探す
-  const itemEntry = atlas.coords['item/' + type]
-  const blockEntry = atlas.coords['block/' + type]
+  const itemEntry = atlas.coords[type.atlasKey('item')]
+  const blockEntry = atlas.coords[type.atlasKey('block')]
   const entry = itemEntry ?? blockEntry
   const isItem = !!itemEntry
 
@@ -85,13 +87,13 @@ export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
       }
     }
 
-    return <div style={style} title={type} aria-label={type} />
+    return <div style={style} title={type.toString()} aria-label={type.toString()} />
   }
 
   // アトラスに存在しない: SVG カラーフォールバック
   const color = getFallbackColor(type)
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" style={{ flexShrink: 0 }} aria-label={type}>
+    <svg width={size} height={size} viewBox="0 0 32 32" style={{ flexShrink: 0 }} aria-label={type.toString()}>
       <rect x="2" y="2" width="28" height="28" fill={color} stroke="rgba(0,0,0,0.4)" strokeWidth="2" rx="2" />
     </svg>
   )

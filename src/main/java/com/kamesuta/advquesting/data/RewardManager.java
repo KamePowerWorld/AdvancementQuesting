@@ -20,11 +20,6 @@ class RewardManager {
         this.manager = manager;
     }
 
-    /** itemType ("minecraft:diamond" / "diamond") から Material を解決する。見つからなければ null。 */
-    static Material resolveMaterial(String itemType) {
-        return Material.matchMaterial(McIds.stripNamespace(itemType).toUpperCase());
-    }
-
     String playerUuidToName(String playerUuid) {
         UUID uuid = UUID.fromString(playerUuid);
         Player online = Bukkit.getPlayer(uuid);
@@ -42,17 +37,17 @@ class RewardManager {
                 try {
                     ItemStack itemStack = null;
                     if (p.nbt() != null) {
-                        itemStack = PlayerRoutes.deserializeItem(p.nbt(), p.itemType(), p.count());
+                        itemStack = PlayerRoutes.deserializeItem(p.nbt(), p.itemType().toString(), p.count());
                     }
                     if (itemStack == null) {
-                        Material mat = resolveMaterial(p.itemType());
+                        Material mat = p.itemType() != null ? p.itemType().resolveMaterial() : null;
                         if (mat != null) itemStack = new ItemStack(mat, p.count());
                     }
                     if (itemStack != null) {
                         player.getWorld().dropItem(player.getLocation(), itemStack);
                     }
                 } catch (Exception e) {
-                    log.warning("Failed to give item reward: " + p.itemType() + " - " + e.getMessage());
+                    log.warning("Failed to give item reward: " + (p.itemType() != null ? p.itemType().toString() : "null") + " - " + e.getMessage());
                 }
             } else if ("experience".equals(p.type())) {
                 player.giveExp(p.amount());

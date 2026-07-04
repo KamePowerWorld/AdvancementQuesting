@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.data;
 
+import com.kamesuta.advquesting.util.NamespacedId;
+
 /** Bukkit イベント起点の進捗チェック (Advancement・アイテム・統計・スコアボード・座標)。 */
 class ProgressEventHandler {
 
@@ -14,7 +16,7 @@ class ProgressEventHandler {
      * 一致する条件を持つクエストの進捗を更新し、全条件達成ならクエスト完了とする。
      */
     public void onAdvancement(String playerUuid, String advancementKey) {
-        String advKeyNoNs = McIds.stripNamespace(advancementKey);
+        NamespacedId eventId = NamespacedId.parse(advancementKey);
         try {
             for (Quest quest : manager.questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
@@ -23,11 +25,11 @@ class ProgressEventHandler {
                     if (!"advancement".equals(c.get("type"))) return false;
                     String condAdvId = (String) c.get("advancementId");
                     if (condAdvId == null) return false;
-                    String condNoNs = McIds.stripNamespace(condAdvId);
-                    return advKeyNoNs.equals(condNoNs);
+                    NamespacedId condId = NamespacedId.parse(condAdvId);
+                    return eventId.equals(condId);
                 });
                 if (matched) {
-                    manager.progressUpdater.markConditionComplete(playerUuid, quest, "advancement", advKeyNoNs);
+                    manager.progressUpdater.markConditionComplete(playerUuid, quest, "advancement", advancementKey);
                 }
             }
         } catch (Exception e) {
@@ -39,7 +41,7 @@ class ProgressEventHandler {
      * アイテム獲得時に呼ぶ。inventoryCount はそのアイテムのインベントリ内現在所持数。
      */
     public void onItemPickup(String playerUuid, String itemType, int inventoryCount) {
-        String itemTypeNoNs = McIds.stripNamespace(itemType);
+        NamespacedId eventId = NamespacedId.parse(itemType);
         try {
             for (Quest quest : manager.questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
@@ -48,8 +50,8 @@ class ProgressEventHandler {
                     if (!"item".equals(c.get("type"))) return false;
                     String condItemType = (String) c.get("itemType");
                     if (condItemType == null) return false;
-                    String condNoNs = McIds.stripNamespace(condItemType);
-                    return itemTypeNoNs.equals(condNoNs);
+                    NamespacedId condId = NamespacedId.parse(condItemType);
+                    return eventId.equals(condId);
                 });
                 if (hasMatch) {
                     manager.progressUpdater.updateItemProgress(playerUuid, quest, itemType, inventoryCount);

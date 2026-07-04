@@ -3,6 +3,7 @@ import { questToNode, nodeToApiBody, questsToEdges, proposalToNode, proposalsToN
 import type { Quest } from '@/types/quest.js'
 import type { Proposal } from '@/types/proposal.js'
 import type { EditorNode, EditorEdge } from '@/components/editor/types.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 // Minimal Quest factory — omits optional fields to pin fallback behaviour
 function makeQuest(overrides: Partial<Quest> = {}): Quest {
@@ -47,14 +48,19 @@ describe('questToNode', () => {
     expect(node.y).toBe(300)
   })
 
-  it('falls back icon to "stone" when null', () => {
+  it('falls back icon to minecraft:stone when null', () => {
     const node = questToNode(makeQuest({ icon: null }))
-    expect(node.icon).toBe('stone')
+    expect(node.icon).toEqual(NamespacedId.parse('minecraft:stone'))
   })
 
-  it('uses provided icon', () => {
+  it('uses provided icon (fullId)', () => {
+    const node = questToNode(makeQuest({ icon: 'minecraft:diamond' }))
+    expect(node.icon).toEqual(NamespacedId.parse('minecraft:diamond'))
+  })
+
+  it('legacy short-form icon is normalized to fullId', () => {
     const node = questToNode(makeQuest({ icon: 'diamond' }))
-    expect(node.icon).toBe('diamond')
+    expect(node.icon).toEqual(NamespacedId.parse('minecraft:diamond'))
   })
 
   it('falls back description to empty string when null', () => {
@@ -64,17 +70,17 @@ describe('questToNode', () => {
 
   it('maps item condition with count fallback to 1', () => {
     const node = questToNode(makeQuest({
-      conditions: [{ id: 'c1', type: 'item', itemType: 'apple' }],
+      conditions: [{ id: 'c1', type: 'item', itemType: 'minecraft:apple' }],
     }))
     const task = node.tasks[0]
     expect(task.type).toBe('item')
-    expect(task.itemType).toBe('apple')
+    expect(task.itemType).toEqual(NamespacedId.parse('minecraft:apple'))
     expect(task.count).toBe(1)   // count ?? 1 fallback
   })
 
   it('respects explicit count on item condition', () => {
     const node = questToNode(makeQuest({
-      conditions: [{ id: 'c1', type: 'item', itemType: 'diamond', count: 5 }],
+      conditions: [{ id: 'c1', type: 'item', itemType: 'minecraft:diamond', count: 5 }],
     }))
     expect(node.tasks[0].count).toBe(5)
   })
@@ -85,16 +91,16 @@ describe('questToNode', () => {
     }))
     const task = node.tasks[0]
     expect(task.type).toBe('advancement')
-    expect(task.advancementId).toBe('minecraft:story/mine_stone')
+    expect(task.advancementId).toEqual(NamespacedId.parse('minecraft:story/mine_stone'))
   })
 
   it('maps item reward with count fallback to 1', () => {
     const node = questToNode(makeQuest({
-      rewards: [{ type: 'item', itemId: 'bread', count: undefined as unknown as number, nbt: undefined, displayName: undefined }],
+      rewards: [{ type: 'item', itemId: 'minecraft:bread', count: undefined as unknown as number, nbt: undefined, displayName: undefined }],
     }))
     const reward = node.rewards[0]
     expect(reward.type).toBe('item')
-    expect(reward.itemType).toBe('bread')
+    expect(reward.itemType).toEqual(NamespacedId.parse('minecraft:bread'))
     expect(reward.count).toBe(1)  // count ?? 1 fallback
   })
 
@@ -186,7 +192,7 @@ describe('nodeToApiBody', () => {
       id: '1',
       x: 100,
       y: 200,
-      icon: 'stone',
+      icon: NamespacedId.parse('minecraft:stone'),
       title: 'Node',
       subtitle: '',
       description: '',
@@ -219,12 +225,12 @@ describe('nodeToApiBody', () => {
 
   it('maps item reward with count fallback to 1', () => {
     const node = makeNode({
-      rewards: [{ id: 'r1', type: 'item', itemType: undefined as unknown as string, count: undefined, value: '' }],
+      rewards: [{ id: 'r1', type: 'item', itemType: undefined, count: undefined, value: '' }],
     })
     const body = nodeToApiBody(node, [])
     const reward = body.rewards[0] as any
     expect(reward.type).toBe('item')
-    expect(reward.itemId).toBe('stone')  // itemType ?? 'stone' fallback
+    expect(reward.itemId).toBe('minecraft:stone')  // itemType デフォルトは minecraft:stone
     expect(reward.count).toBe(1)         // count ?? 1 fallback
   })
 
@@ -284,7 +290,7 @@ describe('proposalToNode', () => {
     const node = proposalToNode(makeProposal())
     expect(node.x).toBe(100)
     expect(node.y).toBe(100)
-    expect(node.icon).toBe('stone')
+    expect(node.icon).toEqual(NamespacedId.parse('minecraft:stone'))
     expect(node.title).toBe('提案')
     expect(node.subtitle).toBe('')
     expect(node.description).toBe('')
@@ -295,14 +301,14 @@ describe('proposalToNode', () => {
   it('uses mapPosition and snapshot fields when present', () => {
     const node = proposalToNode(makeProposal({
       mapPosition: { x: 250, y: 300 },
-      questSnapshot: { title: 'T', subtitle: 'S', description: 'D', icon: 'diamond' },
+      questSnapshot: { title: 'T', subtitle: 'S', description: 'D', icon: 'minecraft:diamond' },
     }))
     expect(node.x).toBe(250)
     expect(node.y).toBe(300)
     expect(node.title).toBe('T')
     expect(node.subtitle).toBe('S')
     expect(node.description).toBe('D')
-    expect(node.icon).toBe('diamond')
+    expect(node.icon).toEqual(NamespacedId.parse('minecraft:diamond'))
   })
 
   it('maps advancement condition value to advancementId', () => {
@@ -310,7 +316,7 @@ describe('proposalToNode', () => {
       questSnapshot: { conditions: [{ type: 'advancement', advancementId: 'minecraft:story/mine_stone' }] },
     }))
     expect(node.tasks).toEqual([
-      { id: 'existing-proposal-5-t0', type: 'advancement', value: 'minecraft:story/mine_stone' },
+      { id: 'existing-proposal-5-t0', type: 'advancement', value: 'minecraft:story/mine_stone', advancementId: NamespacedId.parse('minecraft:story/mine_stone') },
     ])
   })
 
@@ -318,7 +324,7 @@ describe('proposalToNode', () => {
     const node = proposalToNode(makeProposal({
       questSnapshot: { conditions: [{ type: 'item', itemType: undefined as any }] },
     }))
-    expect(node.tasks[0]).toMatchObject({ type: 'item', itemType: 'stone', count: 1 })
+    expect(node.tasks[0]).toMatchObject({ type: 'item', itemType: NamespacedId.parse('minecraft:stone'), count: 1 })
   })
 
   it('maps checkmark condition value from label', () => {
@@ -330,9 +336,9 @@ describe('proposalToNode', () => {
 
   it('maps item reward with itemId→itemType and count default 1', () => {
     const node = proposalToNode(makeProposal({
-      questSnapshot: { rewards: [{ type: 'item', itemId: 'diamond' } as any] },
+      questSnapshot: { rewards: [{ type: 'item', itemId: 'minecraft:diamond' } as any] },
     }))
-    expect(node.rewards[0]).toMatchObject({ id: 'existing-proposal-5-r0', type: 'item', itemType: 'diamond', count: 1 })
+    expect(node.rewards[0]).toMatchObject({ id: 'existing-proposal-5-r0', type: 'item', itemType: NamespacedId.parse('minecraft:diamond'), count: 1 })
   })
 
   it('maps experience reward to xp with amount as value', () => {
@@ -353,18 +359,18 @@ describe('proposalToNode', () => {
     const node = proposalToNode(makeProposal({
       questSnapshot: { conditions: [{ type: 'stat', statType: 'minecraft.mined', statId: 'minecraft:stone', count: 32 }] },
     }))
-    expect(node.tasks[0]).toMatchObject({ type: 'stat', statType: 'minecraft.mined', statId: 'minecraft:stone', count: 32 })
+    expect(node.tasks[0]).toMatchObject({ type: 'stat', statType: 'minecraft.mined', statId: NamespacedId.parse('minecraft:stone'), count: 32 })
   })
 
   it('maps delivery/location/scoreboard conditions', () => {
     const node = proposalToNode(makeProposal({
       questSnapshot: { conditions: [
-        { type: 'delivery', itemType: 'diamond', count: 3 },
+        { type: 'delivery', itemType: 'minecraft:diamond', count: 3 },
         { type: 'location', x: 1, y: 2, z: 3, dimension: 'the_nether', radius: 20 },
         { type: 'scoreboard', objective: 'pts', score: 5 },
       ] },
     }))
-    expect(node.tasks[0]).toMatchObject({ type: 'delivery', itemType: 'diamond', count: 3 })
+    expect(node.tasks[0]).toMatchObject({ type: 'delivery', itemType: NamespacedId.parse('minecraft:diamond'), count: 3 })
     expect(node.tasks[1]).toMatchObject({ type: 'location', locX: 1, locY: 2, locZ: 3, dimension: 'the_nether', radius: 20 })
     expect(node.tasks[2]).toMatchObject({ type: 'scoreboard', objective: 'pts', score: 5 })
   })

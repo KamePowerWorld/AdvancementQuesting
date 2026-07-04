@@ -214,7 +214,7 @@ public class ProgressManager {
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
                 for (ConditionEvaluator.DeliveryNeed need : ConditionEvaluator.computeDeliveryNeeds(deliveryConds, progress)) {
-                    org.bukkit.Material mat = RewardManager.resolveMaterial(need.itemType());
+                    org.bukkit.Material mat = need.itemType().resolveMaterial();
                     if (mat == null) { failed.put(need.conditionId(), need.stillNeeded()); continue; }
 
                     int haveCount = 0;

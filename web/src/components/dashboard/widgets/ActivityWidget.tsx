@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { statsApi } from '@/api/stats.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -52,7 +53,7 @@ export function ActivityWidget() {
                 <span className="text-xs font-bold text-gray-200 truncate">{item.playerName}</span>
               </div>
               <div className="flex items-center gap-1 mt-0.5">
-                <ItemIcon type={item.questIcon} size={12} />
+                <ItemIcon type={NamespacedId.parseUserInput(item.questIcon)} size={12} />
                 <span className="text-xs text-gray-400 truncate">{item.questTitle}</span>
               </div>
               {item.rewards.length > 0 && (
@@ -60,7 +61,7 @@ export function ActivityWidget() {
                   {item.rewards.map((r, i) => (
                     r.type === 'item' ? (
                       <span key={i} className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-black/30 border border-gray-700 text-gray-300">
-                        <ItemIcon type={r.itemType ?? 'stone'} size={10} />
+                        <ItemIcon type={NamespacedId.parseUserInput(r.itemType ?? 'minecraft:stone')} size={10} />
                         {r.amount > 1 && <span>×{r.amount}</span>}
                       </span>
                     ) : (

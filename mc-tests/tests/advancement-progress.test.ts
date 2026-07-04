@@ -18,7 +18,6 @@ import type { Bot } from 'mineflayer'
 
 const BOT_NAME = 'AdvBot' + Math.floor(Math.random() * 100000)
 // テストに使う advancement (フロントエンドが保存する "名前空間なし" 形式)
-const TEST_ADV = 'story/mine_stone'
 // RCON コマンド用 (minecraft: プレフィックス付き)
 const TEST_ADV_MC = 'minecraft:story/mine_stone'
 
@@ -64,7 +63,7 @@ describe('advancement 条件達成', () => {
           status: 'public',
           icon: 'stone',
           prerequisites: [],
-          conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV, requiredCount: 1 }],
+          conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV_MC, requiredCount: 1 }],
           rewards: [],
           mapPosition: { x: 850, y: 850 },
           category: null,
@@ -74,7 +73,7 @@ describe('advancement 条件達成', () => {
     )
     assert.ok(cs === 200 || cs === 201, `クエスト作成失敗(${cs}): ${JSON.stringify(created)}`)
     questId = created.id
-    console.log(`advancementテストクエスト作成: id=${questId}, advancement=${TEST_ADV}`)
+    console.log(`advancementテストクエスト作成: id=${questId}, advancement=${TEST_ADV_MC}`)
 
     // 前回の advancement を revoke してリセット
     await rcon(`advancement revoke ${BOT_NAME} only ${TEST_ADV_MC}`).catch(() => {})

@@ -10,7 +10,6 @@ import assert from 'node:assert/strict'
 import { createBot, quitBot, waitForChat, apiRequest, rcon } from './helpers.js'
 import type { Bot } from 'mineflayer'
 
-const TEST_ADV = 'story/mine_stone'
 const TEST_ADV_MC = 'minecraft:story/mine_stone'
 
 interface ProgressRow { questId: number; completed: boolean }
@@ -57,7 +56,7 @@ describe('view-as (MC-VA)', () => {
         status: 'public',
         icon: 'stone',
         prerequisites: [],
-        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV, requiredCount: 1 }],
+        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV_MC, requiredCount: 1 }],
         rewards: [
           { id: 'r-point', type: 'point', label: '達成ポイント', amount: 50 },
           { id: 'r-exp', type: 'experience', label: '経験値', amount: 100 },

@@ -3,6 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcCustomStats } from '@/hooks/useMcData.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { useMcItems } from '@/hooks/useMcData.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 /** カテゴリ毎の表示設定 */
 const STAT_CATEGORIES = [
@@ -19,7 +20,7 @@ const STAT_CATEGORIES = [
 
 export interface StatSelection {
   statType: string
-  statId: string
+  statId: NamespacedId
 }
 
 interface StatSelectorModalProps {
@@ -42,14 +43,14 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
     if (!items) return []
     const q = search.toLowerCase()
     if (!q) return items
-    return items.filter((it) => it.id.includes(q) || it.name.toLowerCase().includes(q))
+    return items.filter((it) => it.id.toString().includes(q) || it.name.toLowerCase().includes(q))
   }, [items, search])
 
   const filteredStats = useMemo(() => {
     if (!stats) return []
     const q = search.toLowerCase()
     if (!q) return stats
-    return stats.filter((s) => s.id.includes(q) || s.name.toLowerCase().includes(q))
+    return stats.filter((s) => s.id.toString().includes(q) || s.name.toLowerCase().includes(q))
   }, [stats, search])
 
   const handleCategorySelect = (cat: typeof STAT_CATEGORIES[number]) => {
@@ -61,7 +62,7 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
     setStep('id')
   }
 
-  const handleIdSelect = (statId: string) => {
+  const handleIdSelect = (statId: NamespacedId) => {
     if (!selectedCategory) return
     onSelect({ statType: selectedCategory.id, statId })
     close()
@@ -112,10 +113,10 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
       ) : (
         filteredItems.map((item) => (
           <div
-            key={item.id}
-            onClick={() => handleIdSelect(`minecraft:${item.id}`)}
+            key={item.id.toString()}
+            onClick={() => handleIdSelect(item.id)}
             className="w-10 h-10 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 flex items-center justify-center cursor-pointer active:bg-gray-300"
-            title={`${item.name} (${item.id})`}
+            title={`${item.name} (${item.id.toString()})`}
           >
             <ItemIcon type={item.id} size={36} />
           </div>
@@ -134,12 +135,12 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
       ) : (
         filteredStats.map((stat) => (
           <div
-            key={stat.id}
+            key={stat.id.toString()}
             onClick={() => handleIdSelect(stat.id)}
             className="px-4 py-2.5 cursor-pointer hover:bg-blue-600/30 border-b border-gray-700/50 last:border-0"
           >
             <div className="text-sm font-medium text-white">📊 {stat.name}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{stat.id}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{stat.id.toString()}</div>
           </div>
         ))
       )}
@@ -154,12 +155,12 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && search) handleIdSelect(search) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && search) handleIdSelect(NamespacedId.parseUserInput(search)) }}
         placeholder="minecraft:zombie"
         className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
       />
       <button
-        onClick={() => { if (search) handleIdSelect(search) }}
+        onClick={() => { if (search) handleIdSelect(NamespacedId.parseUserInput(search)) }}
         className="self-start bg-blue-600 hover:bg-blue-500 border border-blue-700 px-4 py-1.5 text-sm font-bold"
       >
         選択

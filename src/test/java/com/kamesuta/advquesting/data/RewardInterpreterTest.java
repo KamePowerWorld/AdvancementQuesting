@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting.data;
 
 import com.kamesuta.advquesting.db.RewardClaimDao;
+import com.kamesuta.advquesting.util.NamespacedId;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,17 +20,17 @@ class RewardInterpreterTest {
 
     @Test
     void parseはitem報酬のitemTypeとcountを解釈する() {
-        var p = RewardInterpreter.parse(Map.of("type", "item", "itemType", "diamond", "count", 3));
+        var p = RewardInterpreter.parse(Map.of("type", "item", "itemType", "minecraft:diamond", "count", 3));
         assertEquals("item", p.type());
-        assertEquals("diamond", p.itemType());
+        assertEquals(NamespacedId.parse("minecraft:diamond"), p.itemType());
         assertEquals(3, p.count());
         assertEquals(3, p.logAmount());
     }
 
     @Test
     void parseはitemTypeが無ければitemIdへフォールバックする() {
-        var p = RewardInterpreter.parse(Map.of("type", "item", "itemId", "gold_ingot"));
-        assertEquals("gold_ingot", p.itemType());
+        var p = RewardInterpreter.parse(Map.of("type", "item", "itemId", "minecraft:gold_ingot"));
+        assertEquals(NamespacedId.parse("minecraft:gold_ingot"), p.itemType());
         assertEquals(1, p.count()); // count デフォルト 1
     }
 
@@ -53,12 +54,12 @@ class RewardInterpreterTest {
     @Test
     void toLogEntriesはtypeなし要素をスキップしitem以外のitemTypeをnullにする() {
         List<RewardClaimDao.LogEntry> entries = RewardInterpreter.toLogEntries(List.of(
-            Map.of("type", "item", "itemType", "diamond", "count", 2),
+            Map.of("type", "item", "itemType", "minecraft:diamond", "count", 2),
             Map.of("count", 9),                                  // type なし → スキップ
             Map.of("type", "experience", "amount", 30, "itemType", "junk")  // item 以外は itemType null
         ));
         assertEquals(2, entries.size());
-        assertEquals(new RewardClaimDao.LogEntry("item", null, "diamond", 2), entries.get(0));
+        assertEquals(new RewardClaimDao.LogEntry("item", null, "minecraft:diamond", 2), entries.get(0));
         assertEquals(new RewardClaimDao.LogEntry("experience", null, null, 30), entries.get(1));
     }
 

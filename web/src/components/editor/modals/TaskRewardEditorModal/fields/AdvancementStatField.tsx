@@ -4,6 +4,7 @@ import { getItemName, getCustomStatName } from '@/hooks/useMcData.js'
 import { AdvancementSelectorModal } from '../../AdvancementSelectorModal.js'
 import { StatSelectorModal } from '../../StatSelectorModal.js'
 import type { StatSelection } from '../../StatSelectorModal.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 const STAT_CATEGORY_LABELS: Record<string, string> = {
   'minecraft:mined':     '採掘',
@@ -19,16 +20,16 @@ const STAT_CATEGORY_LABELS: Record<string, string> = {
 
 interface AdvancementFieldProps {
   item: EditorTask | EditorReward
-  advancements?: { id: string; name: string }[]
+  advancements?: { id: NamespacedId; name: string }[]
   handleChange: (changes: Partial<EditorTask> | Partial<EditorReward>) => void
 }
 
 export function AdvancementField({ item, advancements, handleChange }: AdvancementFieldProps) {
   const [showAdvSelector, setShowAdvSelector] = useState(false)
-  const currentAdvId = (item as EditorTask).advancementId ?? ''
-  const currentAdvName = advancements?.find((a) => a.id === currentAdvId)?.name ?? currentAdvId
+  const currentAdvId = (item as EditorTask).advancementId
+  const currentAdvName = (currentAdvId && advancements?.find((a) => a.id.equals(currentAdvId))?.name) ?? currentAdvId?.toString() ?? ''
 
-  const handleAdvancementSelect = (advId: string) => {
+  const handleAdvancementSelect = (advId: NamespacedId) => {
     handleChange({ advancementId: advId })
     setShowAdvSelector(false)
   }
@@ -45,7 +46,7 @@ export function AdvancementField({ item, advancements, handleChange }: Advanceme
           {currentAdvId ? (
             <>
               <span className="text-sm font-bold text-white truncate">{currentAdvName}</span>
-              <span className="text-xs text-gray-400 truncate">{currentAdvId}</span>
+              <span className="text-xs text-gray-400 truncate">{currentAdvId.toString()}</span>
             </>
           ) : (
             <span className="text-sm text-gray-400">クリックして選択...</span>
@@ -57,8 +58,12 @@ export function AdvancementField({ item, advancements, handleChange }: Advanceme
         <label className="text-xs text-gray-400">カスタムID (直接入力)</label>
         <input
           type="text"
-          value={currentAdvId}
-          onChange={(e) => handleChange({ advancementId: e.target.value })}
+          defaultValue={currentAdvId?.toString() ?? ''}
+          onBlur={(e) => {
+            // ユーザー入力境界: 省略形は minecraft: を補完して NamespacedId 化
+            const v = e.target.value.trim()
+            handleChange({ advancementId: v ? NamespacedId.parseUserInput(v) : undefined })
+          }}
           placeholder="minecraft:story/mine_wood"
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
         />
@@ -82,15 +87,14 @@ interface StatFieldProps {
 export function StatField({ item, lang, handleChange }: StatFieldProps) {
   const [showStatSelector, setShowStatSelector] = useState(false)
   const currentStatType = (item as EditorTask).statType ?? ''
-  const currentStatId = (item as EditorTask).statId ?? ''
+  const currentStatId = (item as EditorTask).statId
   const statCategoryLabel = STAT_CATEGORY_LABELS[currentStatType] ?? currentStatType
   const statIdLabel = (() => {
     if (!currentStatId) return ''
     if (currentStatType === 'minecraft:custom') {
       return getCustomStatName(lang ? { ja: lang.ja, en: lang.en } : undefined, currentStatId)
     }
-    const idPart = currentStatId.includes(':') ? currentStatId.split(':')[1] : currentStatId
-    return getItemName(lang, idPart)
+    return getItemName(lang, currentStatId)
   })()
 
   const handleStatSelect = (sel: StatSelection) => {
@@ -110,10 +114,10 @@ export function StatField({ item, lang, handleChange }: StatFieldProps) {
           {currentStatType ? (
             <>
               <span className="text-sm font-bold text-white truncate">
-                {statCategoryLabel}: {statIdLabel || currentStatId}
+                {statCategoryLabel}: {statIdLabel || (currentStatId?.toString() ?? '')}
               </span>
               <span className="text-xs text-gray-400 truncate">
-                {currentStatType} / {currentStatId}
+                {currentStatType} / {currentStatId?.toString() ?? ''}
               </span>
             </>
           ) : (

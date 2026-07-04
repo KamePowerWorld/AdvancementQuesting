@@ -2,6 +2,7 @@
  * クエストエディタ内部で使うローカル型定義
  * APIの型 (src/types/) とは別物 — エディタの操作状態・描画データを表す
  */
+import type { NamespacedId } from '@/util/NamespacedId.js'
 
 /**
  * ツールバーで選べる操作モード
@@ -24,15 +25,15 @@ export interface EditorTask {
   id: string
   type: string        // TASK_TYPES の id
   value: string       // 表示テキスト / コマンド文字列など
-  itemType?: string   // type === 'item' / type === 'stat' (アイテムベース統計) の場合のアイテム種別
+  itemType?: NamespacedId // type === 'item' / type === 'stat' (アイテムベース統計) の場合のアイテム種別
   count?: number
   nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
   // type === 'advancement' の場合
-  advancementId?: string
+  advancementId?: NamespacedId
   // type === 'stat' の場合
-  statType?: string   // "minecraft:mined" など
-  statId?: string     // "minecraft:diamond" など (カスタム統計は statType 自体に含む)
+  statType?: string   // "minecraft:mined" など (閉じた選択肢のカテゴリキー)
+  statId?: NamespacedId // "minecraft:diamond" など (カスタム統計は statType 自体に含む)
   // type === 'location' の場合
   locX?: number
   locY?: number
@@ -49,7 +50,7 @@ export interface EditorReward {
   id: string
   type: string        // REWARD_TYPES の id
   value: string
-  itemType?: string
+  itemType?: NamespacedId
   count?: number      // type === 'item' の場合の個数
   nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
@@ -68,7 +69,7 @@ export interface EditorNode {
   id: string
   x: number
   y: number
-  icon: string
+  icon: NamespacedId
   title: string
   subtitle: string
   description: string

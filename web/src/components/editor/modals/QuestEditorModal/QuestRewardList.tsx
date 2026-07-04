@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { EditorNode, ItemSelectorConfig, EditingTaskReward } from '../../types.js'
-import { REWARD_TYPES } from '../../constants.js'
+import { REWARD_TYPES , DEFAULT_ITEM_ID} from '../../constants.js'
 import { ItemIcon } from '../../ItemIcon.js'
 import { getDisplayText } from '../../utils.js'
 interface QuestRewardListProps {
@@ -58,7 +58,7 @@ export function QuestRewardList({
           >
             <div className="shrink-0">
               {reward.type === 'item' ? (
-                <ItemIcon type={reward.itemType ?? 'stone'} size={24} />
+                <ItemIcon type={reward.itemType ?? DEFAULT_ITEM_ID} size={24} />
               ) : (
                 <span className="text-xl w-6 text-center block">
                   {REWARD_TYPES.find((r) => r.id === reward.type)?.icon}

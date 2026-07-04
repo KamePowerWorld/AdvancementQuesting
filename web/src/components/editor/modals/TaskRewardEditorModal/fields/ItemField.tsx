@@ -3,6 +3,8 @@ import type { EditorNode, EditorTask, EditorReward, ItemSelectorConfig } from '.
 import { ItemIcon } from '../../../ItemIcon.js'
 import { playerApi } from '@/api/player.js'
 import { getItemName } from '@/hooks/useMcData.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
+import { DEFAULT_ITEM_ID } from '../../../constants.js'
 
 interface ItemFieldProps {
   node: EditorNode
@@ -18,7 +20,7 @@ export function ItemField({ node, item, category, lang, handleChange, openItemSe
   const [heldError, setHeldError] = useState<string | null>(null)
 
   const itemWithExtra = item as EditorTask & EditorReward
-  const currentItemId = itemWithExtra.itemType ?? 'stone'
+  const currentItemId = itemWithExtra.itemType ?? DEFAULT_ITEM_ID
   const currentItemName = getItemName(lang, currentItemId)
   const hasNbt = !!itemWithExtra.nbt
   const hasDisplayName = !!itemWithExtra.displayName
@@ -37,7 +39,8 @@ export function ItemField({ node, item, category, lang, handleChange, openItemSe
     try {
       const held = await playerApi.getHeldItem()
       handleChange({
-        itemType: held.itemId,
+        // API境界: held.itemId は完全形式 ("minecraft:xxx")
+        itemType: NamespacedId.parse(held.itemId),
         count: held.count,
         nbt: held.nbt ?? undefined,
         displayName: held.displayName ?? undefined,
@@ -65,7 +68,7 @@ export function ItemField({ node, item, category, lang, handleChange, openItemSe
             <span className="text-sm text-yellow-300 font-bold truncate">{itemWithExtra.displayName}</span>
           )}
           <span className="text-sm text-white font-bold truncate">{currentItemName}</span>
-          <span className="text-xs text-gray-400 truncate">{currentItemId}</span>
+          <span className="text-xs text-gray-400 truncate">{currentItemId.toString()}</span>
           {hasNbt && (
             <span className="text-xs text-purple-400 truncate" title={itemWithExtra.nbt}>
               NBT付き ✦

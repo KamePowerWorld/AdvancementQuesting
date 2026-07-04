@@ -4,6 +4,7 @@ import { COMMENT_COLORS } from '@/components/editor/CommentBlockEl.js'
 import type { ProposalNode } from '../types.js'
 import { CLICK_MAX_DIST } from '../types.js'
 import type { EditorState } from './useEditorState.js'
+import { DEFAULT_ITEM_ID } from '@/components/editor/constants.js'
 
 interface UseCanvasHandlersDeps {
   proposalMode: boolean
@@ -46,7 +47,7 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
       } else if (isEditor) {
         s.setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
-          icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+          icon: DEFAULT_ITEM_ID, title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
       }
@@ -179,7 +180,7 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
       } else if (isEditor) {
         s.setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
-          icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+          icon: DEFAULT_ITEM_ID, title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
         s.touchJustPlacedNode.current = true

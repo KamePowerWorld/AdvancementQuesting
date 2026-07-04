@@ -1,5 +1,5 @@
 import type { EditorTask, EditorReward } from './types.js'
-import { TASK_TYPES, REWARD_TYPES } from './constants.js'
+import { TASK_TYPES, REWARD_TYPES, DEFAULT_ITEM_ID } from './constants.js'
 import { getItemName, getAdvancementName, getCustomStatName } from '@/hooks/useMcData.js'
 
 const STAT_CATEGORY_SHORT: Record<string, string> = {
@@ -25,22 +25,22 @@ export function getDisplayText(
 
   let detail: string
   if (item.type === 'item' || item.type === 'delivery') {
-    const itemId = item.itemType ?? 'stone'
+    const itemId = item.itemType ?? DEFAULT_ITEM_ID
     const count = item.count ?? 1
     const name = item.value || getItemName(lang, itemId)
     detail = count > 1 ? `${name} ×${count}` : name
   } else if (item.type === 'advancement') {
-    const advId = (item as EditorTask).advancementId ?? item.value ?? ''
+    const advId = (item as EditorTask).advancementId
     detail = advId ? (getAdvancementName(lang, advId)) : '未設定'
   } else if (item.type === 'stat') {
     const statType = (item as EditorTask).statType ?? ''
-    const statId = (item as EditorTask).statId ?? ''
+    const statId = (item as EditorTask).statId
     const count = (item as EditorTask).count ?? 1
     const catLabel = STAT_CATEGORY_SHORT[statType] ?? statType
-    const idLabel = statType === 'minecraft:custom'
+    const idLabel = !statId ? '' : statType === 'minecraft:custom'
       ? getCustomStatName(lang, statId)
-      : getItemName(lang, statId.includes(':') ? statId.split(':')[1] : statId)
-    detail = statType ? `${catLabel}: ${idLabel || statId} ×${count}` : '未設定'
+      : getItemName(lang, statId)
+    detail = statType ? `${catLabel}: ${idLabel || (statId?.toString() ?? '')} ×${count}` : '未設定'
   } else if (item.type === 'point') {
     const amount = (item as EditorReward).amount ?? 0
     detail = `${amount} pt`
