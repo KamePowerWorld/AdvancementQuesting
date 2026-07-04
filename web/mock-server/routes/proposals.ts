@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db/client.js'
 import { questProposals, proposalVotes, quests } from '../db/schema.js'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, ne } from 'drizzle-orm'
 import type { AuthRequest } from '../middleware/auth.js'
 import { requireAuth } from '../middleware/auth.js'
 
@@ -12,6 +12,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   const rows = await db
     .select()
     .from(questProposals)
+    .where(ne(questProposals.status, 'rejected'))
     .orderBy(desc(questProposals.createdAt))
 
   // クエスト情報と投票状態を付加

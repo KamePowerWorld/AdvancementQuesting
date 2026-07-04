@@ -24,7 +24,7 @@ public class ProposalDao extends BaseDao {
     }
 
     public List<ProposalRecord> findAll() throws SQLException {
-        return queryList("SELECT * FROM quest_proposals ORDER BY created_at DESC", this::fromRow);
+        return queryList("SELECT * FROM quest_proposals WHERE status != 'rejected' ORDER BY created_at DESC", this::fromRow);
     }
 
     public List<ProposalRecord> findPending() throws SQLException {
