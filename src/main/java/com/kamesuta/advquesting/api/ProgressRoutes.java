@@ -1,16 +1,16 @@
 package com.kamesuta.advquesting.api;
 
+import static com.kamesuta.advquesting.api.ApiSupport.parseId;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 
-import java.sql.SQLException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.Map;
 
 public class ProgressRoutes {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = ApiSupport.MAPPER;
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final ProgressDao progressDao;
@@ -36,36 +36,24 @@ public class ProgressRoutes {
         // GET /api/progress — 自分の全進捗
         app.get("/api/progress", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
-            try {
-                List<ProgressDao.ProgressRecord> records = progressDao.findByPlayer(session.playerUuid());
-                ctx.json(records.stream().map(this::toMap).toList());
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            List<ProgressDao.ProgressRecord> records = progressDao.findByPlayer(session.playerUuid());
+            ctx.json(records.stream().map(this::toMap).toList());
         });
 
         // GET /api/players/:uuid/progress — 任意プレイヤーの全進捗 (view-as 用・認証不要・全員閲覧可)
         app.get("/api/players/{uuid}/progress", ctx -> {
             String uuid = ctx.pathParam("uuid");
-            try {
-                List<ProgressDao.ProgressRecord> records = progressDao.findByPlayer(uuid);
-                ctx.json(records.stream().map(this::toMap).toList());
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            List<ProgressDao.ProgressRecord> records = progressDao.findByPlayer(uuid);
+            ctx.json(records.stream().map(this::toMap).toList());
         });
 
         // GET /api/progress/:questId — 特定クエストの進捗
         app.get("/api/progress/{questId}", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             int questId = parseId(ctx.pathParam("questId"));
-            try {
-                ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(session.playerUuid(), questId);
-                if (record == null) throw new NotFoundResponse("No progress record");
-                ctx.json(toMap(record));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(session.playerUuid(), questId);
+            if (record == null) throw new NotFoundResponse("No progress record");
+            ctx.json(toMap(record));
         });
 
         // POST /api/progress/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
@@ -73,41 +61,29 @@ public class ProgressRoutes {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             int questId = parseId(ctx.pathParam("questId"));
             String conditionId = ctx.pathParam("conditionId");
-            try {
-                boolean ok = progressManager.completeCheckmarkCondition(session.playerUuid(), questId, conditionId);
-                if (!ok) throw new ForbiddenResponse("Condition not found, not a checkmark, or already completed");
-                ctx.json(Map.of("status", "completed"));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            boolean ok = progressManager.completeCheckmarkCondition(session.playerUuid(), questId, conditionId);
+            if (!ok) throw new ForbiddenResponse("Condition not found, not a checkmark, or already completed");
+            ctx.json(Map.of("status", "completed"));
         });
 
         // POST /api/progress/:questId/deliver — 納品 (インベントリからアイテム消費して進捗更新)
         app.post("/api/progress/{questId}/deliver", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             int questId = parseId(ctx.pathParam("questId"));
-            try {
-                ProgressManager.DeliveryResult result = progressManager.deliverItems(session.playerUuid(), questId);
-                ctx.json(Map.of(
-                    "delivered", result.delivered(),
-                    "failed", result.failed()
-                ));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            ProgressManager.DeliveryResult result = progressManager.deliverItems(session.playerUuid(), questId);
+            ctx.json(Map.of(
+                "delivered", result.delivered(),
+                "failed", result.failed()
+            ));
         });
 
         // POST /api/progress/:questId/claim — 報酬受け取り
         app.post("/api/progress/{questId}/claim", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             int questId = parseId(ctx.pathParam("questId"));
-            try {
-                int claimed = progressManager.claimReward(session.playerUuid(), questId);
-                if (claimed == 0) throw new ForbiddenResponse("Quest not completed or no pending rewards");
-                ctx.json(Map.of("status", "claimed", "count", claimed));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            int claimed = progressManager.claimReward(session.playerUuid(), questId);
+            if (claimed == 0) throw new ForbiddenResponse("Quest not completed or no pending rewards");
+            ctx.json(Map.of("status", "claimed", "count", claimed));
         });
     }
 
@@ -135,11 +111,4 @@ public class ProgressRoutes {
         return m;
     }
 
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
-    }
 }

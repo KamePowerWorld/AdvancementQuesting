@@ -29,7 +29,7 @@ export function AdvancementField({ item, advancements, handleChange }: Advanceme
   const currentAdvName = advancements?.find((a) => a.id === currentAdvId)?.name ?? currentAdvId
 
   const handleAdvancementSelect = (advId: string) => {
-    handleChange({ advancementId: advId } as any)
+    handleChange({ advancementId: advId })
     setShowAdvSelector(false)
   }
 
@@ -58,7 +58,7 @@ export function AdvancementField({ item, advancements, handleChange }: Advanceme
         <input
           type="text"
           value={currentAdvId}
-          onChange={(e) => handleChange({ advancementId: e.target.value } as any)}
+          onChange={(e) => handleChange({ advancementId: e.target.value })}
           placeholder="minecraft:story/mine_wood"
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
         />
@@ -94,7 +94,7 @@ export function StatField({ item, lang, handleChange }: StatFieldProps) {
   })()
 
   const handleStatSelect = (sel: StatSelection) => {
-    handleChange({ statType: sel.statType, statId: sel.statId } as any)
+    handleChange({ statType: sel.statType, statId: sel.statId })
     setShowStatSelector(false)
   }
 
@@ -128,7 +128,7 @@ export function StatField({ item, lang, handleChange }: StatFieldProps) {
           type="number"
           min={1}
           value={(item as EditorTask).count ?? 1}
-          onChange={(e) => handleChange({ count: Number(e.target.value) } as any)}
+          onChange={(e) => handleChange({ count: Number(e.target.value) })}
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
         />
       </div>

@@ -1,11 +1,12 @@
 package com.kamesuta.advquesting.api;
 
+import static com.kamesuta.advquesting.api.ApiSupport.parseId;
+
 import com.kamesuta.advquesting.data.AdvancementSyncManager;
 import com.kamesuta.advquesting.data.Quest;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 import org.bukkit.Bukkit;
@@ -86,11 +87,4 @@ public class QuestRoutes {
         });
     }
 
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
-    }
 }

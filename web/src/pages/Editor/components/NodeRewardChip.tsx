@@ -22,7 +22,7 @@ export function NodeRewardChip({ reward }: { reward: EditorReward }) {
   if (reward.type === 'point') {
     return (
       <span className="text-[11px] bg-black/40 border border-gray-600 rounded px-1.5 py-0.5 text-yellow-300">
-        ⭐ {(reward as any).amount}
+        ⭐ {reward.amount}
       </span>
     )
   }

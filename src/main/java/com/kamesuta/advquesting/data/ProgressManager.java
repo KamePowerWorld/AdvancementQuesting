@@ -161,9 +161,11 @@ public class ProgressManager {
         if (claimed == 0) return 0;
 
         try {
+            var entries = RewardInterpreter.toLogEntries(quest.rewards);
+            String playerName = rewardManager.playerUuidToName(playerUuid);
             for (int i = 0; i < claimed; i++) {
-                rewardClaimDao.insertQuestRewards(playerUuid, rewardManager.playerUuidToName(playerUuid),
-                    quest.id, quest.title, quest.rewards, Instant.now().toString(), "claim");
+                rewardClaimDao.insertEntries(playerUuid, playerName,
+                    quest.id, quest.title, entries, Instant.now().toString(), "claim");
             }
         } catch (Exception e) {
             log.warning("reward claim log insert error: " + e.getMessage());
@@ -211,43 +213,20 @@ public class ProgressManager {
         CompletableFuture<Void> future = new CompletableFuture<>();
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
-                for (Map<String, Object> cond : deliveryConds) {
-                    String condId = (String) cond.get("id");
-                    if (condId == null) continue;
-                    boolean alreadyDone = progress.stream()
-                        .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-                    if (alreadyDone) continue;
-
-                    String itemType = (String) cond.getOrDefault("itemType", "stone");
-                    int required = ((Number) cond.getOrDefault("count", 1)).intValue();
-                    Map<String, Object> existing = progress.stream()
-                        .filter(p -> condId.equals(p.get("conditionId")))
-                        .findFirst().orElse(null);
-                    int alreadyDelivered = existing == null ? 0 : ((Number) existing.getOrDefault("current", 0)).intValue();
-                    int stillNeeded = required - alreadyDelivered;
-                    if (stillNeeded <= 0) continue;
-
-                    String matName = itemType.contains(":")
-                        ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase()
-                        : itemType.toUpperCase();
-                    org.bukkit.Material mat = org.bukkit.Material.matchMaterial(matName);
-                    if (mat == null) { failed.put(condId, stillNeeded); continue; }
+                for (ConditionEvaluator.DeliveryNeed need : ConditionEvaluator.computeDeliveryNeeds(deliveryConds, progress)) {
+                    org.bukkit.Material mat = RewardManager.resolveMaterial(need.itemType());
+                    if (mat == null) { failed.put(need.conditionId(), need.stillNeeded()); continue; }
 
                     int haveCount = 0;
                     for (org.bukkit.inventory.ItemStack slot : player.getInventory().getContents()) {
                         if (slot != null && slot.getType() == mat) haveCount += slot.getAmount();
                     }
-                    if (haveCount == 0) { failed.put(condId, stillNeeded); continue; }
+                    if (haveCount == 0) { failed.put(need.conditionId(), need.stillNeeded()); continue; }
 
-                    int toConsume = Math.min(haveCount, stillNeeded);
+                    int toConsume = ConditionEvaluator.applyDelivery(progress, need, haveCount);
                     player.getInventory().removeItem(new org.bukkit.inventory.ItemStack(mat, toConsume));
                     player.updateInventory();
-
-                    int newTotal = alreadyDelivered + toConsume;
-                    boolean nowDone = newTotal >= required;
-                    progress.removeIf(p -> condId.equals(p.get("conditionId")));
-                    progress.add(Map.of("conditionId", condId, "current", newTotal, "required", required, "completed", nowDone));
-                    delivered.put(condId, toConsume);
+                    delivered.put(need.conditionId(), toConsume);
                 }
                 future.complete(null);
             } catch (Exception e) {

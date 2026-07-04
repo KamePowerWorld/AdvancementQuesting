@@ -1,11 +1,11 @@
 package com.kamesuta.advquesting.db;
 
-import java.sql.*;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 /** 全体統計 (leaderboard / timeseries / rewards / quests / activity / all-rewards) の DAO。 */
-public class StatsDao {
+public class StatsDao extends BaseDao {
 
     public record LeaderboardEntry(String playerUuid, String playerName, long value) {}
     public record TimeseriesPoint(String date, long value) {}
@@ -21,103 +21,70 @@ public class StatsDao {
     public record AllRewardsPlayer(String playerUuid, String playerName, long totalAmount) {}
     public record AllRewardsQuest(int questId, String questTitle, long totalAmount) {}
 
-    private final DatabaseManager db;
-
     public StatsDao(DatabaseManager db) {
-        this.db = db;
+        super(db);
     }
 
     public List<LeaderboardEntry> leaderboardByPoints(int limit) throws SQLException {
-        String sql = """
+        return queryList("""
             SELECT player_uuid, MAX(player_name) AS player_name, SUM(amount) AS total
             FROM reward_claims
             WHERE reward_type = 'point'
             GROUP BY player_uuid
             ORDER BY total DESC
             LIMIT ?
-            """;
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ResultSet rs = ps.executeQuery();
-            List<LeaderboardEntry> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new LeaderboardEntry(rs.getString("player_uuid"), rs.getString("player_name"), rs.getLong("total")));
-            }
-            return rows;
-        }
+            """, this::leaderboardRow, limit);
     }
 
     public List<LeaderboardEntry> leaderboardByCompletions(int limit) throws SQLException {
-        String sql = """
+        return queryList("""
             SELECT player_uuid, MAX(player_name) AS player_name, COUNT(*) AS total
             FROM quest_completions
             GROUP BY player_uuid
             ORDER BY total DESC
             LIMIT ?
-            """;
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ResultSet rs = ps.executeQuery();
-            List<LeaderboardEntry> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new LeaderboardEntry(rs.getString("player_uuid"), rs.getString("player_name"), rs.getLong("total")));
-            }
-            return rows;
-        }
+            """, this::leaderboardRow, limit);
+    }
+
+    private LeaderboardEntry leaderboardRow(java.sql.ResultSet rs) throws SQLException {
+        return new LeaderboardEntry(rs.getString("player_uuid"), rs.getString("player_name"), rs.getLong("total"));
     }
 
     public List<TimeseriesPoint> timeseriesCompletions(int days) throws SQLException {
-        String sql = """
+        return queryTimeseries("""
             SELECT strftime('%Y-%m-%d', completed_at) AS date, COUNT(*) AS value
             FROM quest_completions
             WHERE completed_at >= datetime('now', '-' || ? || ' days')
             GROUP BY date
             ORDER BY date ASC
-            """;
-        return queryTimeseries(sql, days);
+            """, days);
     }
 
     public List<TimeseriesPoint> timeseriesPoints(int days) throws SQLException {
-        String sql = """
+        return queryTimeseries("""
             SELECT strftime('%Y-%m-%d', claimed_at) AS date, SUM(amount) AS value
             FROM reward_claims
             WHERE reward_type = 'point'
               AND claimed_at >= datetime('now', '-' || ? || ' days')
             GROUP BY date
             ORDER BY date ASC
-            """;
-        return queryTimeseries(sql, days);
+            """, days);
     }
 
     private List<TimeseriesPoint> queryTimeseries(String sql, int days) throws SQLException {
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setInt(1, days);
-            ResultSet rs = ps.executeQuery();
-            List<TimeseriesPoint> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new TimeseriesPoint(rs.getString("date"), rs.getLong("value")));
-            }
-            return rows;
-        }
+        return queryList(sql, rs -> new TimeseriesPoint(rs.getString("date"), rs.getLong("value")), days);
     }
 
     public List<RewardAggEntry> rewardsAggregated(int limit) throws SQLException {
-        String sql = """
+        return queryList("""
             SELECT reward_type, reward_label, SUM(amount) AS total_amount, COUNT(*) AS claim_count
             FROM reward_claims
             GROUP BY reward_type, reward_label
             ORDER BY total_amount DESC
             LIMIT ?
-            """;
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ResultSet rs = ps.executeQuery();
-            List<RewardAggEntry> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new RewardAggEntry(rs.getString("reward_type"), rs.getString("reward_label"), rs.getLong("total_amount"), rs.getLong("claim_count")));
-            }
-            return rows;
-        }
+            """,
+            rs -> new RewardAggEntry(rs.getString("reward_type"), rs.getString("reward_label"), rs.getLong("total_amount"), rs.getLong("claim_count")),
+            limit);
     }
 
     public List<QuestStatEntry> questStatsByPopularity(int limit) throws SQLException {
@@ -136,15 +103,9 @@ public class StatsDao {
             ORDER BY unique_players %s, completion_count %s
             LIMIT ?
             """.formatted(order, order);
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ResultSet rs = ps.executeQuery();
-            List<QuestStatEntry> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new QuestStatEntry(rs.getInt("quest_id"), rs.getLong("completion_count"), rs.getLong("unique_players")));
-            }
-            return rows;
-        }
+        return queryList(sql,
+            rs -> new QuestStatEntry(rs.getInt("quest_id"), rs.getLong("completion_count"), rs.getLong("unique_players")),
+            limit);
     }
 
     /** カーソルベースのページネーション。before=null の場合は最新から取得。 */
@@ -169,33 +130,26 @@ public class StatsDao {
             LIMIT ?
             """.formatted(whereClause);
 
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            int paramIdx = 1;
-            if (before != null) ps.setLong(paramIdx++, before);
-            ps.setInt(paramIdx, limit + 1);
+        BaseDao.RowMapper<GlobalActivityRow> mapper = rs -> new GlobalActivityRow(
+            rs.getLong("id"),
+            rs.getString("player_uuid"),
+            rs.getString("player_name"),
+            rs.getInt("quest_id"),
+            rs.getString("completed_at"),
+            rs.getString("rewards_raw")
+        );
+        List<GlobalActivityRow> rows = before != null
+            ? queryList(sql, mapper, before, limit + 1)
+            : queryList(sql, mapper, limit + 1);
 
-            ResultSet rs = ps.executeQuery();
-            List<GlobalActivityRow> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new GlobalActivityRow(
-                    rs.getLong("id"),
-                    rs.getString("player_uuid"),
-                    rs.getString("player_name"),
-                    rs.getInt("quest_id"),
-                    rs.getString("completed_at"),
-                    rs.getString("rewards_raw")
-                ));
-            }
-
-            boolean hasMore = rows.size() > limit;
-            List<GlobalActivityRow> items = hasMore ? rows.subList(0, limit) : rows;
-            Long nextCursor = hasMore ? items.get(items.size() - 1).id() : null;
-            return new GlobalActivityPage(new ArrayList<>(items), nextCursor);
-        }
+        boolean hasMore = rows.size() > limit;
+        List<GlobalActivityRow> items = hasMore ? rows.subList(0, limit) : rows;
+        Long nextCursor = hasMore ? items.get(items.size() - 1).id() : null;
+        return new GlobalActivityPage(new ArrayList<>(items), nextCursor);
     }
 
     public List<AllRewardsEntry> allRewards() throws SQLException {
-        String sql = """
+        return queryList("""
             SELECT
               reward_type,
               item_type,
@@ -204,20 +158,13 @@ public class StatsDao {
             FROM reward_claims
             GROUP BY reward_type, COALESCE(item_type, '__none__')
             ORDER BY total_amount DESC
-            """;
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ResultSet rs = ps.executeQuery();
-            List<AllRewardsEntry> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new AllRewardsEntry(
-                    rs.getString("reward_type"),
-                    rs.getString("item_type"),
-                    rs.getString("reward_label"),
-                    rs.getLong("total_amount")
-                ));
-            }
-            return rows;
-        }
+            """,
+            rs -> new AllRewardsEntry(
+                rs.getString("reward_type"),
+                rs.getString("item_type"),
+                rs.getString("reward_label"),
+                rs.getLong("total_amount")
+            ));
     }
 
     public List<AllRewardsPlayer> allRewardsDetailPlayers(String rewardType, String itemType) throws SQLException {
@@ -232,16 +179,11 @@ public class StatsDao {
             ORDER BY total_amount DESC
             LIMIT 30
             """.formatted(itemCondition);
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setString(1, rewardType);
-            if (itemType != null) ps.setString(2, itemType);
-            ResultSet rs = ps.executeQuery();
-            List<AllRewardsPlayer> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new AllRewardsPlayer(rs.getString("player_uuid"), rs.getString("player_name"), rs.getLong("total_amount")));
-            }
-            return rows;
-        }
+        BaseDao.RowMapper<AllRewardsPlayer> mapper =
+            rs -> new AllRewardsPlayer(rs.getString("player_uuid"), rs.getString("player_name"), rs.getLong("total_amount"));
+        return itemType != null
+            ? queryList(sql, mapper, rewardType, itemType)
+            : queryList(sql, mapper, rewardType);
     }
 
     public List<AllRewardsQuest> allRewardsDetailQuests(String rewardType, String itemType) throws SQLException {
@@ -256,15 +198,10 @@ public class StatsDao {
             ORDER BY total_amount DESC
             LIMIT 20
             """.formatted(itemCondition);
-        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
-            ps.setString(1, rewardType);
-            if (itemType != null) ps.setString(2, itemType);
-            ResultSet rs = ps.executeQuery();
-            List<AllRewardsQuest> rows = new ArrayList<>();
-            while (rs.next()) {
-                rows.add(new AllRewardsQuest(rs.getInt("quest_id"), rs.getString("quest_title"), rs.getLong("total_amount")));
-            }
-            return rows;
-        }
+        BaseDao.RowMapper<AllRewardsQuest> mapper =
+            rs -> new AllRewardsQuest(rs.getInt("quest_id"), rs.getString("quest_title"), rs.getLong("total_amount"));
+        return itemType != null
+            ? queryList(sql, mapper, rewardType, itemType)
+            : queryList(sql, mapper, rewardType);
     }
 }

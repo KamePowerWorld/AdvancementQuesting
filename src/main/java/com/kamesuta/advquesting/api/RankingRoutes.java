@@ -1,9 +1,10 @@
 package com.kamesuta.advquesting.api;
 
+import static com.kamesuta.advquesting.api.ApiSupport.parseId;
+
 import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
-import io.javalin.http.BadRequestResponse;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -115,13 +116,6 @@ public class RankingRoutes {
         }
     }
 
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
-    }
 
     private static int parseIntOr(String s, int fallback) {
         if (s == null) return fallback;

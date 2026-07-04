@@ -7,12 +7,17 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DatabaseManager {
+public class DatabaseManager implements AutoCloseable {
 
     private final Connection conn;
 
     public DatabaseManager(Plugin plugin) throws SQLException {
-        File dbFile = new File(plugin.getDataFolder(), "quest.db");
+        this(new File(plugin.getDataFolder(), "quest.db"));
+    }
+
+    /** Bukkit 非依存のコンストラクタ (テスト用にDBファイルを直接指定する)。 */
+    DatabaseManager(File dbFile) throws SQLException {
+        ensureDriverRegistered();
         conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA journal_mode=WAL");
@@ -122,10 +127,24 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * SQLite JDBC ドライバが DriverManager に登録されていることを保証する。
+     * 通常は ServiceLoader が自動登録するが、テスト(surefire)等では発火しないことがある。
+     * また close() の deregisterJdbcDrivers() が登録を外すため、接続のたびに冪等に再登録する。
+     */
+    private static void ensureDriverRegistered() throws SQLException {
+        java.util.Enumeration<Driver> drivers = DriverManager.getDrivers();
+        while (drivers.hasMoreElements()) {
+            if (drivers.nextElement() instanceof org.sqlite.JDBC) return;
+        }
+        DriverManager.registerDriver(new org.sqlite.JDBC());
+    }
+
     public Connection getConnection() {
         return conn;
     }
 
+    @Override
     public void close() {
         try {
             if (conn != null && !conn.isClosed()) conn.close();

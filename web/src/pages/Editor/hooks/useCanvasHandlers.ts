@@ -1,54 +1,14 @@
 import type React from 'react'
-import type { EditorNode, EditorComment, ToolMode, Vec2 } from '@/components/editor/types.js'
 import { commentsApi } from '@/api/comments.js'
 import { COMMENT_COLORS } from '@/components/editor/CommentBlockEl.js'
-import type { ResizeDir } from '@/components/editor/CommentBlockEl.js'
 import type { ProposalNode } from '../types.js'
 import { CLICK_MAX_DIST } from '../types.js'
+import type { EditorState } from './useEditorState.js'
 
-interface CommentDragState {
-  offsetX: number; offsetY: number
-  startX: number; startY: number
-  members: { id: string; x: number; y: number }[]
-}
-
-interface UseCanvasHandlersParams {
-  mode: ToolMode
-  pan: Vec2
-  panStart: Vec2
-  isPanning: boolean
-  draggingNode: string | null
-  dragOffset: Vec2
-  commentDraft: { x: number; y: number; w: number; h: number } | null
-  commentDraftStartRef: React.MutableRefObject<{ wx: number; wy: number } | null>
-  draggingCommentId: string | null
-  commentDragRef: React.MutableRefObject<CommentDragState | null>
-  resizingCommentId: string | null
-  commentResizeStartRef: React.MutableRefObject<{ mouseX: number; mouseY: number; origX: number; origY: number; origW: number; origH: number; dir: ResizeDir } | null>
-  mouseDownPos: React.MutableRefObject<Vec2 | null>
-  mouseDownNodeId: React.MutableRefObject<{ nodeId: string; isProposal: boolean } | null>
-  touchJustPlacedNode: React.MutableRefObject<boolean>
-  linkStartNode: string | null
-  canvasRef: React.RefObject<HTMLDivElement | null>
-  panStartRef: React.MutableRefObject<Vec2>
-  panRef: React.MutableRefObject<Vec2>
+interface UseCanvasHandlersDeps {
   proposalMode: boolean
   isEditor: boolean
   otherProposalNodes: ProposalNode[]
-  setIsPanning: React.Dispatch<React.SetStateAction<boolean>>
-  setPan: React.Dispatch<React.SetStateAction<Vec2>>
-  setPanStart: React.Dispatch<React.SetStateAction<Vec2>>
-  setNodes: React.Dispatch<React.SetStateAction<EditorNode[]>>
-  setProposalNodes: React.Dispatch<React.SetStateAction<EditorNode[]>>
-  setMyProposalEdits: React.Dispatch<React.SetStateAction<Map<number, EditorNode>>>
-  setMousePos: React.Dispatch<React.SetStateAction<Vec2>>
-  setCommentDraft: React.Dispatch<React.SetStateAction<{ x: number; y: number; w: number; h: number } | null>>
-  setComments: React.Dispatch<React.SetStateAction<EditorComment[]>>
-  setDraggingCommentId: React.Dispatch<React.SetStateAction<string | null>>
-  setResizingCommentId: React.Dispatch<React.SetStateAction<string | null>>
-  setLinkStartNode: React.Dispatch<React.SetStateAction<string | null>>
-  setLinkHoverNode: React.Dispatch<React.SetStateAction<string | null>>
-  setDraggingNode: React.Dispatch<React.SetStateAction<string | null>>
   isProposalDraft: (nodeId: string) => boolean
   addProposalNode: (wx: number, wy: number) => void
   dragCommentTo: (wx: number, wy: number) => void
@@ -57,74 +17,68 @@ interface UseCanvasHandlersParams {
   getNodeIdNearPoint: (clientX: number, clientY: number, excludeId?: string) => string | null
 }
 
-export function useCanvasHandlers({
-  mode, pan, panStart, isPanning, draggingNode, dragOffset,
-  commentDraft, commentDraftStartRef, draggingCommentId, commentDragRef,
-  resizingCommentId, commentResizeStartRef,
-  mouseDownPos, mouseDownNodeId, touchJustPlacedNode,
-  linkStartNode, canvasRef, panStartRef, panRef,
-  proposalMode, isEditor, otherProposalNodes,
-  setIsPanning, setPan, setPanStart, setNodes, setProposalNodes, setMyProposalEdits,
-  setMousePos, setCommentDraft, setComments, setDraggingCommentId, setResizingCommentId,
-  setLinkStartNode, setLinkHoverNode, setDraggingNode,
-  isProposalDraft, addProposalNode, dragCommentTo, saveCommentById, openNode, getNodeIdNearPoint,
-}: UseCanvasHandlersParams) {
+export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
+  const {
+    proposalMode, isEditor, otherProposalNodes,
+    isProposalDraft, addProposalNode, dragCommentTo, saveCommentById, openNode, getNodeIdNearPoint,
+  } = deps
+
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button === 1 || e.button === 2) {
       e.preventDefault()
-      setIsPanning(true)
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-      setLinkStartNode(null)
+      s.setIsPanning(true)
+      s.setPanStart({ x: e.clientX - s.pan.x, y: e.clientY - s.pan.y })
+      s.setLinkStartNode(null)
       return
     }
-    mouseDownNodeId.current = null
-    mouseDownPos.current = { x: e.clientX, y: e.clientY }
-    touchJustPlacedNode.current = false
-    if (mode === 'select' || mode === 'move') {
-      setIsPanning(true)
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-    } else if (mode === 'add_node') {
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - pan.x
-      const wy = e.clientY - rect.top - pan.y
+    s.mouseDownNodeId.current = null
+    s.mouseDownPos.current = { x: e.clientX, y: e.clientY }
+    s.touchJustPlacedNode.current = false
+    if (s.mode === 'select' || s.mode === 'move') {
+      s.setIsPanning(true)
+      s.setPanStart({ x: e.clientX - s.pan.x, y: e.clientY - s.pan.y })
+    } else if (s.mode === 'add_node') {
+      const rect = s.canvasRef.current!.getBoundingClientRect()
+      const wx = e.clientX - rect.left - s.pan.x
+      const wy = e.clientY - rect.top - s.pan.y
       if (proposalMode) {
         addProposalNode(wx, wy)
       } else if (isEditor) {
-        setNodes((prev) => [...prev, {
+        s.setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
           icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
       }
-    } else if (mode === 'add_link') {
-      setLinkStartNode(null)
-    } else if (mode === 'add_comment' && isEditor) {
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - pan.x
-      const wy = e.clientY - rect.top - pan.y
-      commentDraftStartRef.current = { wx, wy }
-      setCommentDraft({ x: wx, y: wy, w: 0, h: 0 })
+    } else if (s.mode === 'add_link') {
+      s.setLinkStartNode(null)
+    } else if (s.mode === 'add_comment' && isEditor) {
+      const rect = s.canvasRef.current!.getBoundingClientRect()
+      const wx = e.clientX - rect.left - s.pan.x
+      const wy = e.clientY - rect.top - s.pan.y
+      s.commentDraftStartRef.current = { wx, wy }
+      s.setCommentDraft({ x: wx, y: wy, w: 0, h: 0 })
     }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!canvasRef.current) return
-    const rect = canvasRef.current.getBoundingClientRect()
-    if (isPanning && !draggingNode && !draggingCommentId && !resizingCommentId) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
-    const wx = e.clientX - rect.left - pan.x
-    const wy = e.clientY - rect.top - pan.y
-    setMousePos({ x: wx, y: wy })
+    if (!s.canvasRef.current) return
+    const rect = s.canvasRef.current.getBoundingClientRect()
+    if (s.isPanning && !s.draggingNode && !s.draggingCommentId && !s.resizingCommentId) s.setPan({ x: e.clientX - s.panStart.x, y: e.clientY - s.panStart.y })
+    const wx = e.clientX - rect.left - s.pan.x
+    const wy = e.clientY - rect.top - s.pan.y
+    s.setMousePos({ x: wx, y: wy })
 
-    if (mode === 'add_comment' && commentDraftStartRef.current) {
-      const sx = commentDraftStartRef.current.wx
-      const sy = commentDraftStartRef.current.wy
-      setCommentDraft({ x: Math.min(sx, wx), y: Math.min(sy, wy), w: Math.abs(wx - sx), h: Math.abs(wy - sy) })
+    if (s.mode === 'add_comment' && s.commentDraftStartRef.current) {
+      const sx = s.commentDraftStartRef.current.wx
+      const sy = s.commentDraftStartRef.current.wy
+      s.setCommentDraft({ x: Math.min(sx, wx), y: Math.min(sy, wy), w: Math.abs(wx - sx), h: Math.abs(wy - sy) })
     }
 
-    if (draggingCommentId) { dragCommentTo(wx, wy) }
+    if (s.draggingCommentId) { dragCommentTo(wx, wy) }
 
-    if (resizingCommentId && commentResizeStartRef.current) {
-      const { mouseX, mouseY, origX, origY, origW, origH, dir } = commentResizeStartRef.current
+    if (s.resizingCommentId && s.commentResizeStartRef.current) {
+      const { mouseX, mouseY, origX, origY, origW, origH, dir } = s.commentResizeStartRef.current
       const dx = e.clientX - mouseX
       const dy = e.clientY - mouseY
       let newX = origX, newY = origY, newW = origW, newH = origH
@@ -132,131 +86,131 @@ export function useCanvasHandlers({
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
       if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
       if (dir === 'top') { newH = Math.max(60, origH - dy); newY = origY + origH - newH }
-      setComments(prev => prev.map(c =>
-        c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c
+      s.setComments(prev => prev.map(c =>
+        c.id === s.resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c
       ))
     }
 
-    if (draggingNode && mode === 'move') {
-      const tx = wx - dragOffset.x
-      const ty = wy - dragOffset.y
-      if (proposalMode && isProposalDraft(draggingNode)) {
-        setProposalNodes((prev) => prev.map((n) => n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
-      } else if (draggingNode.startsWith('existing-proposal-')) {
-        const proposalId = parseInt(draggingNode.replace('existing-proposal-', ''), 10)
-        setMyProposalEdits((prev) => {
-          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === draggingNode)
+    if (s.draggingNode && s.mode === 'move') {
+      const tx = wx - s.dragOffset.x
+      const ty = wy - s.dragOffset.y
+      if (proposalMode && isProposalDraft(s.draggingNode)) {
+        s.setProposalNodes((prev) => prev.map((n) => n.id === s.draggingNode ? { ...n, x: tx, y: ty } : n))
+      } else if (s.draggingNode.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(s.draggingNode.replace('existing-proposal-', ''), 10)
+        s.setMyProposalEdits((prev) => {
+          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === s.draggingNode)
           if (!current) return prev
           const next = new Map(prev)
           next.set(proposalId, { ...current, x: tx, y: ty })
           return next
         })
       } else if (isEditor) {
-        setNodes((prev) => prev.map((n) => n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
+        s.setNodes((prev) => prev.map((n) => n.id === s.draggingNode ? { ...n, x: tx, y: ty } : n))
       }
     }
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
-    if (mode === 'add_comment' && commentDraftStartRef.current && commentDraft) {
-      commentDraftStartRef.current = null
-      const { x, y, w, h } = commentDraft
-      setCommentDraft(null)
+    if (s.mode === 'add_comment' && s.commentDraftStartRef.current && s.commentDraft) {
+      s.commentDraftStartRef.current = null
+      const { x, y, w, h } = s.commentDraft
+      s.setCommentDraft(null)
       if (w > 30 && h > 30 && isEditor) {
         const newComment = { x, y, width: w, height: h, title: 'コメント', color: COMMENT_COLORS[0].hex }
         commentsApi.create(newComment).then(created => {
-          setComments(prev => [...prev, created])
+          s.setComments(prev => [...prev, created])
         }).catch(() => {})
       }
       return
     }
 
-    if (draggingCommentId) {
-      saveCommentById(draggingCommentId)
-      commentDragRef.current = null
-      setDraggingCommentId(null)
-      setIsPanning(false)
+    if (s.draggingCommentId) {
+      saveCommentById(s.draggingCommentId)
+      s.commentDragRef.current = null
+      s.setDraggingCommentId(null)
+      s.setIsPanning(false)
       return
     }
 
-    if (resizingCommentId) {
-      saveCommentById(resizingCommentId)
-      setResizingCommentId(null)
-      commentResizeStartRef.current = null
-      setIsPanning(false)
+    if (s.resizingCommentId) {
+      saveCommentById(s.resizingCommentId)
+      s.setResizingCommentId(null)
+      s.commentResizeStartRef.current = null
+      s.setIsPanning(false)
       return
     }
 
-    if (isPanning) setIsPanning(false)
-    if (draggingNode) { setDraggingNode(null); return }
+    if (s.isPanning) s.setIsPanning(false)
+    if (s.draggingNode) { s.setDraggingNode(null); return }
 
-    if ((mode === 'select' || mode === 'add_node') && mouseDownNodeId.current && mouseDownPos.current && !touchJustPlacedNode.current) {
-      const dx = e.clientX - mouseDownPos.current.x
-      const dy = e.clientY - mouseDownPos.current.y
+    if ((s.mode === 'select' || s.mode === 'add_node') && s.mouseDownNodeId.current && s.mouseDownPos.current && !s.touchJustPlacedNode.current) {
+      const dx = e.clientX - s.mouseDownPos.current.x
+      const dy = e.clientY - s.mouseDownPos.current.y
       if (dx * dx + dy * dy <= CLICK_MAX_DIST * CLICK_MAX_DIST) {
-        const { nodeId, isProposal } = mouseDownNodeId.current
+        const { nodeId, isProposal } = s.mouseDownNodeId.current
         openNode(nodeId, isProposal)
       }
     }
-    mouseDownPos.current = null
-    mouseDownNodeId.current = null
-    touchJustPlacedNode.current = false
+    s.mouseDownPos.current = null
+    s.mouseDownNodeId.current = null
+    s.touchJustPlacedNode.current = false
   }
 
   const handleCanvasTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return
     const t = e.touches[0]
-    mouseDownNodeId.current = null
-    mouseDownPos.current = { x: t.clientX, y: t.clientY }
-    touchJustPlacedNode.current = false
-    if (mode === 'select' || mode === 'move') {
-      const newStart = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y }
-      panStartRef.current = newStart
-      setPanStart(newStart)
-      setIsPanning(true)
-    } else if (mode === 'add_node') {
+    s.mouseDownNodeId.current = null
+    s.mouseDownPos.current = { x: t.clientX, y: t.clientY }
+    s.touchJustPlacedNode.current = false
+    if (s.mode === 'select' || s.mode === 'move') {
+      const newStart = { x: t.clientX - s.panRef.current.x, y: t.clientY - s.panRef.current.y }
+      s.panStartRef.current = newStart
+      s.setPanStart(newStart)
+      s.setIsPanning(true)
+    } else if (s.mode === 'add_node') {
       e.preventDefault()
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const wx = t.clientX - rect.left - panRef.current.x
-      const wy = t.clientY - rect.top - panRef.current.y
+      const rect = s.canvasRef.current!.getBoundingClientRect()
+      const wx = t.clientX - rect.left - s.panRef.current.x
+      const wy = t.clientY - rect.top - s.panRef.current.y
       if (proposalMode) {
         addProposalNode(wx, wy)
-        touchJustPlacedNode.current = true
+        s.touchJustPlacedNode.current = true
       } else if (isEditor) {
-        setNodes((prev) => [...prev, {
+        s.setNodes((prev) => [...prev, {
           id: `node-${Date.now()}`, x: wx, y: wy,
           icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
           tasks: [], rewards: [],
         }])
-        touchJustPlacedNode.current = true
+        s.touchJustPlacedNode.current = true
       }
     }
   }
 
   const handleCanvasTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1 || !canvasRef.current) return
+    if (e.touches.length !== 1 || !s.canvasRef.current) return
     const t = e.touches[0]
     e.preventDefault()
 
-    if ((mode === 'select' || mode === 'move') && isPanning && !draggingNode) {
-      setPan({ x: t.clientX - panStartRef.current.x, y: t.clientY - panStartRef.current.y })
+    if ((s.mode === 'select' || s.mode === 'move') && s.isPanning && !s.draggingNode) {
+      s.setPan({ x: t.clientX - s.panStartRef.current.x, y: t.clientY - s.panStartRef.current.y })
     }
 
-    if (mode === 'add_link') {
-      const rect = canvasRef.current.getBoundingClientRect()
-      setMousePos({ x: t.clientX - rect.left - panRef.current.x, y: t.clientY - rect.top - panRef.current.y })
-      const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, linkStartNode ?? undefined)
-      setLinkHoverNode(hoverId)
+    if (s.mode === 'add_link') {
+      const rect = s.canvasRef.current.getBoundingClientRect()
+      s.setMousePos({ x: t.clientX - rect.left - s.panRef.current.x, y: t.clientY - rect.top - s.panRef.current.y })
+      const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, s.linkStartNode ?? undefined)
+      s.setLinkHoverNode(hoverId)
     }
 
-    if (draggingCommentId) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      dragCommentTo(t.clientX - rect.left - panRef.current.x, t.clientY - rect.top - panRef.current.y)
+    if (s.draggingCommentId) {
+      const rect = s.canvasRef.current.getBoundingClientRect()
+      dragCommentTo(t.clientX - rect.left - s.panRef.current.x, t.clientY - rect.top - s.panRef.current.y)
       return
     }
 
-    if (resizingCommentId && commentResizeStartRef.current) {
-      const { mouseX, mouseY, origX, origY, origW, origH, dir } = commentResizeStartRef.current
+    if (s.resizingCommentId && s.commentResizeStartRef.current) {
+      const { mouseX, mouseY, origX, origY, origW, origH, dir } = s.commentResizeStartRef.current
       const dx = t.clientX - mouseX
       const dy = t.clientY - mouseY
       let newX = origX, newY = origY, newW = origW, newH = origH
@@ -264,64 +218,64 @@ export function useCanvasHandlers({
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
       if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
       if (dir === 'top') { newH = Math.max(60, origH - dy); newY = origY + origH - newH }
-      setComments((prev) => prev.map((c) =>
-        c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c))
+      s.setComments((prev) => prev.map((c) =>
+        c.id === s.resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c))
       return
     }
 
-    if (mode === 'move' && draggingNode) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      const wx = t.clientX - rect.left - panRef.current.x
-      const wy = t.clientY - rect.top - panRef.current.y
-      const tx = wx - dragOffset.x
-      const ty = wy - dragOffset.y
-      if (proposalMode && isProposalDraft(draggingNode)) {
-        setProposalNodes((prev) => prev.map((n) => n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
-      } else if (draggingNode.startsWith('existing-proposal-')) {
-        const proposalId = parseInt(draggingNode.replace('existing-proposal-', ''), 10)
-        setMyProposalEdits((prev) => {
-          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === draggingNode)
+    if (s.mode === 'move' && s.draggingNode) {
+      const rect = s.canvasRef.current.getBoundingClientRect()
+      const wx = t.clientX - rect.left - s.panRef.current.x
+      const wy = t.clientY - rect.top - s.panRef.current.y
+      const tx = wx - s.dragOffset.x
+      const ty = wy - s.dragOffset.y
+      if (proposalMode && isProposalDraft(s.draggingNode)) {
+        s.setProposalNodes((prev) => prev.map((n) => n.id === s.draggingNode ? { ...n, x: tx, y: ty } : n))
+      } else if (s.draggingNode.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(s.draggingNode.replace('existing-proposal-', ''), 10)
+        s.setMyProposalEdits((prev) => {
+          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === s.draggingNode)
           if (!current) return prev
           const next = new Map(prev)
           next.set(proposalId, { ...current, x: tx, y: ty })
           return next
         })
       } else if (isEditor) {
-        setNodes((prev) => prev.map((n) => n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
+        s.setNodes((prev) => prev.map((n) => n.id === s.draggingNode ? { ...n, x: tx, y: ty } : n))
       }
     }
   }
 
   const handleCanvasTouchEnd = (e: React.TouchEvent) => {
-    setIsPanning(false)
-    setLinkHoverNode(null)
+    s.setIsPanning(false)
+    s.setLinkHoverNode(null)
 
-    if (draggingCommentId) {
-      saveCommentById(draggingCommentId)
-      commentDragRef.current = null
-      setDraggingCommentId(null)
+    if (s.draggingCommentId) {
+      saveCommentById(s.draggingCommentId)
+      s.commentDragRef.current = null
+      s.setDraggingCommentId(null)
       return
     }
-    if (resizingCommentId) {
-      saveCommentById(resizingCommentId)
-      setResizingCommentId(null)
-      commentResizeStartRef.current = null
+    if (s.resizingCommentId) {
+      saveCommentById(s.resizingCommentId)
+      s.setResizingCommentId(null)
+      s.commentResizeStartRef.current = null
       return
     }
 
-    if (draggingNode) { setDraggingNode(null); return }
+    if (s.draggingNode) { s.setDraggingNode(null); return }
 
-    if ((mode === 'select' || mode === 'add_node') && mouseDownNodeId.current && mouseDownPos.current && !touchJustPlacedNode.current) {
+    if ((s.mode === 'select' || s.mode === 'add_node') && s.mouseDownNodeId.current && s.mouseDownPos.current && !s.touchJustPlacedNode.current) {
       const touch = e.changedTouches[0]
-      const dx = touch.clientX - mouseDownPos.current.x
-      const dy = touch.clientY - mouseDownPos.current.y
+      const dx = touch.clientX - s.mouseDownPos.current.x
+      const dy = touch.clientY - s.mouseDownPos.current.y
       if (dx * dx + dy * dy <= CLICK_MAX_DIST * CLICK_MAX_DIST) {
-        const { nodeId, isProposal } = mouseDownNodeId.current
+        const { nodeId, isProposal } = s.mouseDownNodeId.current
         openNode(nodeId, isProposal)
       }
     }
-    mouseDownPos.current = null
-    mouseDownNodeId.current = null
+    s.mouseDownPos.current = null
+    s.mouseDownNodeId.current = null
   }
 
   return { handleCanvasMouseDown, handleMouseMove, handleMouseUp, handleCanvasTouchStart, handleCanvasTouchMove, handleCanvasTouchEnd }

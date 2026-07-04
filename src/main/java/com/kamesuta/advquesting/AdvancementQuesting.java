@@ -40,6 +40,7 @@ import io.javalin.http.staticfiles.Location;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.Objects;
 
 public final class AdvancementQuesting extends JavaPlugin {
@@ -98,7 +99,8 @@ public final class AdvancementQuesting extends JavaPlugin {
                 questId -> {
                     var q = questManager.findById(questId);
                     if (q == null) return null;
-                    return new RewardClaimDao.QuestRewards(q.title, q.rewards);
+                    return new RewardClaimDao.QuestRewards(q.title,
+                        com.kamesuta.advquesting.data.RewardInterpreter.toLogEntries(q.rewards));
                 },
                 uuid -> {
                     try {
@@ -125,6 +127,12 @@ public final class AdvancementQuesting extends JavaPlugin {
             config.bundledPlugins.enableCors(cors ->
                 cors.addRule(rule -> rule.anyHost())
             );
+        });
+
+        // DB例外は集中ハンドラで500に変換する (各ルートのtry/catch重複を排除)
+        app.exception(SQLException.class, (e, ctx) -> {
+            getLogger().severe("DB error at " + ctx.method() + " " + ctx.path() + ": " + e);
+            ctx.status(500).json(Map.of("error", "Database error"));
         });
 
         // API ルート登録

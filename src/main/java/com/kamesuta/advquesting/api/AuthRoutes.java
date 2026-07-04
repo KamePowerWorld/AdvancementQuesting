@@ -5,7 +5,6 @@ import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
 import io.javalin.http.BadRequestResponse;
 
-import java.sql.SQLException;
 import java.util.Map;
 
 public class AuthRoutes {
@@ -25,21 +24,17 @@ public class AuthRoutes {
             Map<?, ?> body = ctx.bodyAsClass(Map.class);
             String code = (String) body.get("code");
             if (code == null || code.isBlank()) throw new BadRequestResponse("code required");
-            try {
-                AuthCodeDao.AuthCodeResult result = authCodeDao.redeem(code);
-                if (result == null) {
-                    ctx.status(401).json(Map.of("error", "Invalid or expired code"));
-                    return;
-                }
-                ctx.json(Map.of(
-                    "token", result.token(),
-                    "playerUuid", result.playerUuid(),
-                    "playerName", result.playerName(),
-                    "role", result.role()
-                ));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
+            AuthCodeDao.AuthCodeResult result = authCodeDao.redeem(code);
+            if (result == null) {
+                ctx.status(401).json(Map.of("error", "Invalid or expired code"));
+                return;
             }
+            ctx.json(Map.of(
+                "token", result.token(),
+                "playerUuid", result.playerUuid(),
+                "playerName", result.playerName(),
+                "role", result.role()
+            ));
         });
 
         // GET /api/auth/me — セッション情報を返す
@@ -56,11 +51,7 @@ public class AuthRoutes {
         app.delete("/api/auth/logout", ctx -> {
             String header = ctx.header("Authorization");
             if (header != null && header.startsWith("Bearer ")) {
-                try {
-                    sessionDao.delete(header.substring(7));
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
+                sessionDao.delete(header.substring(7));
             }
             ctx.status(204);
         });

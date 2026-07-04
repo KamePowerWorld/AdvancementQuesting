@@ -8,18 +8,14 @@ import java.sql.SQLException;
 
 public class AuthMiddleware {
 
-    public static SessionDao.SessionInfo requireAuth(Context ctx, SessionDao sessionDao) {
+    public static SessionDao.SessionInfo requireAuth(Context ctx, SessionDao sessionDao) throws SQLException {
         String header = ctx.header("Authorization");
         if (header == null || !header.startsWith("Bearer ")) {
             throw new UnauthorizedResponse("No token");
         }
         String token = header.substring(7);
-        try {
-            SessionDao.SessionInfo session = sessionDao.findByToken(token);
-            if (session == null) throw new UnauthorizedResponse("Invalid or expired token");
-            return session;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        SessionDao.SessionInfo session = sessionDao.findByToken(token);
+        if (session == null) throw new UnauthorizedResponse("Invalid or expired token");
+        return session;
     }
 }

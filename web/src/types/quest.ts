@@ -127,6 +127,7 @@ export interface CustomButton {
 export interface Quest {
   id: number
   title: string
+  subtitle?: string | null
   description: string | null
   icon: string | null
   category: string | null

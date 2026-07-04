@@ -53,6 +53,7 @@ export interface EditorReward {
   count?: number      // type === 'item' の場合の個数
   nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
+  amount?: number     // type === 'point' の場合のポイント数
 }
 
 /** 繰り返し設定のエディタ内表現 */
