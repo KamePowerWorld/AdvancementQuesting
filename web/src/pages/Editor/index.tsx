@@ -1,21 +1,10 @@
 import { useEffect, useCallback, useMemo } from 'react'
-import { createPortal } from 'react-dom'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, MessageSquare, BarChart2, User, Settings, List } from 'lucide-react'
 import type { ToolMode } from '@/components/editor/types.js'
-import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
-import { ToolButton } from '@/components/editor/ToolButton.js'
+import { INITIAL_NODES, INITIAL_EDGES } from '@/components/editor/constants.js'
 import { EdgePattern } from '@/components/editor/EdgePattern.js'
-import { getDisplayText } from '@/components/editor/utils.js'
-import { QuestEditorModal } from '@/components/editor/modals/QuestEditorModal/index.js'
-import { TaskRewardEditorModal } from '@/components/editor/modals/TaskRewardEditorModal/index.js'
-import { ItemSelectorModal } from '@/components/editor/modals/ItemSelectorModal.js'
-import { RewardTableModal } from '@/components/editor/modals/RewardTableModal.js'
-import { LoginModal } from '@/components/LoginModal.js'
 import { useAuth } from '@/contexts/AuthContext.js'
 import { ViewAsContext } from '@/contexts/ViewAsContext.js'
 import { useViewAs } from '@/hooks/useViewAs.js'
-import { RecentActivityPanel } from '@/components/activity/RecentActivityPanel.js'
-import { PlayerRewardsPanel } from '@/components/activity/PlayerRewardsPanel.js'
 import { useEditor } from '@/contexts/EditorContext.js'
 import { questsApi } from '@/api/quests.js'
 import { authApi } from '@/api/auth.js'
@@ -24,7 +13,6 @@ import { progressApi } from '@/api/progress.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMcLang } from '@/hooks/useMcData.js'
 import { useClaimReward, useCompleteCheckmark, useDeliverItems, useToggleQuestStatus } from '@/hooks/mutations.js'
-import { CommentBlockEl, COMMENT_COLORS } from '@/components/editor/CommentBlockEl.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { DashboardPage } from '../Dashboard.js'
 import { useEditorState } from './hooks/useEditorState.js'
@@ -37,7 +25,11 @@ import { useNodeHandlers } from './hooks/useNodeHandlers.js'
 import { NodeEl } from './components/NodeEl.js'
 import { OtherProposalNodeEl } from './components/OtherProposalNodeEl.js'
 import { ModeToast } from './components/ModeToast.js'
-import { NodeRewardChip } from './components/NodeRewardChip.js'
+import { EditorToolbar } from './components/EditorToolbar.js'
+import { CommentLayer } from './components/CommentLayer.js'
+import { EditorModals } from './components/EditorModals.js'
+import { ViewAsBanner, ViewAsPanel } from './components/ViewAsPanel.js'
+import { NodeHoverTooltip, LongPressPopover } from './components/NodePopovers.js'
 import { questToNode, questsToEdges, proposalsToNodes } from './utils/conversions.js'
 import { modeLabel, type ProposalNode } from './types.js'
 
@@ -278,53 +270,13 @@ export default function EditorPage() {
   return (
     <ViewAsContext.Provider value={{ viewAs, setViewAs }}>
       <div className="flex-1 relative flex flex-col overflow-hidden select-none min-h-0" style={{ fontFamily: '"Minecraftia", "Courier New", Courier, monospace' }}>
-        {viewAs && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-[#2a3a4a] border-b-2 border-[#4a9edd] text-sm text-[#cfe8ff] shrink-0 z-30">
-            <img src={`https://mc-heads.net/avatar/${viewAs.playerName}/24`} alt={viewAs.playerName} width={24} height={24} style={{ imageRendering: 'pixelated' }} className="rounded-sm" />
-            <span>👁 <span className="font-bold text-white">{viewAs.playerName}</span> の攻略を見ています</span>
-            <button onClick={() => setViewAs(null)} className="ml-auto text-xs px-3 py-1 border border-[#4a9edd] rounded-sm text-white hover:bg-[#4a9edd]/30 font-bold">自分に戻る</button>
-          </div>
-        )}
+        {viewAs && <ViewAsBanner viewAs={viewAs} onExit={() => setViewAs(null)} />}
         <div className="flex-1 relative flex overflow-hidden min-h-0">
-          {viewAs && (
-            <div data-testid="viewas-panel" className={['absolute z-30 flex flex-col bg-[#2d2f3b] border-2 border-[#1e1f29] shadow-2xl text-white transition-all duration-200', 'md:top-3 md:right-3 md:w-64 md:max-h-[70%] md:rounded-md md:p-3', 'max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:rounded-t-lg max-md:border-x-0 max-md:border-b-0', s.viewAsPanelCollapsed ? 'max-md:h-auto' : 'max-md:h-[55%]'].join(' ')}>
-              <div className="flex shrink-0 rounded-sm md:mb-2 border border-gray-600 overflow-hidden text-xs font-bold">
-                <button onClick={() => { if (s.viewAsPanelCollapsed) { s.setViewAsPanelCollapsed(false); s.setViewAsTab('activity') } else if (s.viewAsTab === 'activity') { s.setViewAsPanelCollapsed((c) => !c) } else { s.setViewAsTab('activity') } }} className={`flex-1 px-2 py-1.5 transition-colors ${s.viewAsTab === 'activity' && !s.viewAsPanelCollapsed ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}>アクティビティ</button>
-                <button onClick={() => { if (s.viewAsPanelCollapsed) { s.setViewAsPanelCollapsed(false); s.setViewAsTab('rewards') } else if (s.viewAsTab === 'rewards') { s.setViewAsPanelCollapsed((c) => !c) } else { s.setViewAsTab('rewards') } }} className={`flex-1 px-2 py-1.5 transition-colors ${s.viewAsTab === 'rewards' && !s.viewAsPanelCollapsed ? 'bg-blue-600 text-white' : 'bg-black/30 text-gray-300 hover:bg-white/5'}`}>獲得報酬</button>
-              </div>
-              {!s.viewAsPanelCollapsed && (
-                <div className="flex-1 overflow-y-auto min-h-0 md:mt-0 mt-1 px-3 pb-3 md:px-0 md:pb-0">
-                  {s.viewAsTab === 'activity' ? (
-                    <RecentActivityPanel playerUuid={viewAs.playerUuid} onSelectQuest={(questId) => { if (s.nodes.some((n) => n.id === String(questId))) s.setEditingNodeId(String(questId)) }} />
-                  ) : (
-                    <PlayerRewardsPanel playerUuid={viewAs.playerUuid} onSelectQuest={(questId) => { if (s.nodes.some((n) => n.id === String(questId))) s.setEditingNodeId(String(questId)) }} />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {viewAs && <ViewAsPanel s={s} viewAs={viewAs} />}
 
-          <div className="w-16 bg-[#8B8B8B] border-r-4 border-black p-2 flex flex-col items-center shrink-0 z-20 shadow-[inset_-2px_0_0_rgba(0,0,0,0.2)]">
-            <ToolButton icon={MousePointer2} active={s.mode === 'select'} onClick={() => changeMode('select')} tooltip="選択" />
-            {showMove       && <ToolButton icon={Move}         active={s.mode === 'move'}        onClick={() => changeMode('move')}        tooltip="移動" />}
-            {showAddNode    && <ToolButton icon={Plus}         active={s.mode === 'add_node'}    onClick={() => changeMode('add_node')}    tooltip="クエストを追加" />}
-            {showAddLink    && <ToolButton icon={ArrowRight}   active={s.mode === 'add_link'}    onClick={() => changeMode('add_link')}    tooltip="依存関係を追加" />}
-            {showDelete     && <ToolButton icon={Trash2}       active={s.mode === 'delete'}      onClick={() => changeMode('delete')}      tooltip="削除" />}
-            {showAddComment && <ToolButton icon={MessageSquare} active={s.mode === 'add_comment'} onClick={() => changeMode('add_comment')} tooltip="コメントを追加" />}
-            <div className="flex-grow" />
-            {false          && <ToolButton icon={List}    active={s.showRewardTableModal} onClick={() => s.setShowRewardTableModal(true)} tooltip="報酬テーブル" />}
-            {showSettings   && <ToolButton icon={Settings} active={false} onClick={() => {}} tooltip="設定" />}
-            <ToolButton icon={BarChart2} active={s.showStats} onClick={() => s.setShowStats((v) => !v)} tooltip="統計ダッシュボード" />
-            {me ? (
-              <button onClick={handleLogout} title={`${me.playerName} — クリックでログアウト`} className="mt-1 w-10 h-10 flex items-center justify-center border-2 relative overflow-hidden" style={{ backgroundColor: '#6B6B6B', borderTopColor: '#9B9B9B', borderLeftColor: '#9B9B9B', borderBottomColor: '#3B3B3B', borderRightColor: '#3B3B3B', padding: 0 }}>
-                <img src={`https://mc-heads.net/avatar/${me.playerName}/40`} alt={me.playerName} width={40} height={40} style={{ imageRendering: 'pixelated', display: 'block' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-              </button>
-            ) : (
-              <button onClick={() => s.setShowLoginModal(true)} title="ログイン" className="mt-1 w-10 h-10 flex items-center justify-center border-2" style={{ backgroundColor: '#6B6B6B', borderTopColor: '#9B9B9B', borderLeftColor: '#9B9B9B', borderBottomColor: '#3B3B3B', borderRightColor: '#3B3B3B' }}>
-                <User size={18} style={{ color: '#d8cbb0' }} />
-              </button>
-            )}
-          </div>
+          <EditorToolbar s={s} changeMode={changeMode} me={me} onLogout={handleLogout}
+            showMove={showMove} showAddNode={showAddNode} showAddLink={showAddLink}
+            showDelete={showDelete} showAddComment={showAddComment} showSettings={showSettings} />
 
           {s.showStats ? <DashboardPage /> : (<>
             <div ref={s.canvasRef} className={`flex-grow relative overflow-hidden ${s.mode === 'move' && !s.draggingNode ? 'cursor-grab' : s.draggingNode ? 'cursor-grabbing' : s.mode === 'add_node' ? 'cursor-crosshair' : s.mode === 'add_comment' ? 'cursor-crosshair' : 'cursor-default'}`}
@@ -334,38 +286,7 @@ export default function EditorPage() {
               onTouchStart={handleCanvasTouchStart} onTouchMove={handleCanvasTouchMove} onTouchEnd={handleCanvasTouchEnd}
             >
               <div style={{ transform: `translate(${s.pan.x}px, ${s.pan.y}px)`, transformOrigin: '0 0' }} className="absolute inset-0 w-full h-full">
-                {s.comments.map(comment => (
-                  <CommentBlockEl key={comment.id} comment={comment} mode={s.mode} editable={isEditor}
-                    onMoveStart={(e) => {
-                      if ('button' in e && (e as React.MouseEvent).button !== 0) return
-                      e.stopPropagation()
-                      const rect = s.canvasRef.current?.getBoundingClientRect()
-                      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
-                      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-                      const wx = clientX - (rect?.left ?? 0) - s.panRef.current.x
-                      const wy = clientY - (rect?.top ?? 0) - s.panRef.current.y
-                      const members = isEditor ? s.nodes.filter((n) => n.x >= comment.x && n.x <= comment.x + comment.width && n.y >= comment.y && n.y <= comment.y + comment.height).map((n) => ({ id: n.id, x: n.x, y: n.y })) : []
-                      s.commentDragRef.current = { offsetX: wx - comment.x, offsetY: wy - comment.y, startX: comment.x, startY: comment.y, members }
-                      s.setDraggingCommentId(comment.id)
-                    }}
-                    onResizeStart={(e, dir) => {
-                      e.stopPropagation()
-                      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
-                      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-                      s.commentResizeStartRef.current = { mouseX: clientX, mouseY: clientY, origX: comment.x, origY: comment.y, origW: comment.width, origH: comment.height, dir }
-                      s.setResizingCommentId(comment.id)
-                    }}
-                    onDelete={() => { commentsApi.delete(comment.id).then(() => { s.setComments(prev => prev.filter(c => c.id !== comment.id)) }).catch(() => {}) }}
-                    onEdit={(updates) => {
-                      const updated = { ...comment, ...updates }
-                      commentsApi.update(comment.id, { x: updated.x, y: updated.y, width: updated.width, height: updated.height, title: updated.title, color: updated.color }).then(saved => { s.setComments(prev => prev.map(c => c.id === saved.id ? saved : c)) }).catch(() => {})
-                    }}
-                  />
-                ))}
-
-                {s.commentDraft && s.commentDraft.w > 5 && s.commentDraft.h > 5 && (
-                  <div className="absolute pointer-events-none" style={{ left: s.commentDraft.x, top: s.commentDraft.y, width: s.commentDraft.w, height: s.commentDraft.h, border: `2px dashed ${COMMENT_COLORS[0].hex}`, background: `${COMMENT_COLORS[0].hex}22`, borderRadius: 6, zIndex: 1 }} />
-                )}
+                <CommentLayer s={s} isEditor={isEditor} />
 
                 <svg className="absolute inset-0 overflow-visible pointer-events-none z-0">
                   {s.edges.map((edge) => { const src = s.nodes.find((n) => n.id === edge.source); const tgt = s.nodes.find((n) => n.id === edge.target); if (!src || !tgt) return null; return <EdgePattern key={edge.id} source={src} target={tgt} /> })}
@@ -395,105 +316,22 @@ export default function EditorPage() {
               </div>
 
               {s.hoveredNode && !s.draggingNode && !s.isPanning && !s.editingNodeId && !s.itemSelectorConfig && !s.editingTaskReward && (
-                <div className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs hidden sm:block"
-                  style={{ left: Math.min(s.mousePos.x + s.pan.x + 20, (s.canvasRef.current?.offsetWidth ?? 0) - 200), top: Math.min(s.mousePos.y + s.pan.y + 20, (s.canvasRef.current?.offsetHeight ?? 0) - 100) }}>
-                  <div className="font-bold text-blue-300 text-lg mb-1">{s.hoveredNode.title}</div>
-                  {s.hoveredNode.subtitle && <div className="text-gray-400 text-xs italic mb-2">{s.hoveredNode.subtitle}</div>}
-                  <div className="text-sm space-y-1">
-                    {s.hoveredNode.tasks?.map((task) => (<div key={task.id} className="text-gray-300 flex items-center gap-1"><span className="text-gray-500">{TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}</span>{getDisplayText(task, 'task', lang)}</div>))}
-                    {(!s.hoveredNode.tasks || s.hoveredNode.tasks.length === 0) && <div className="text-gray-500 text-xs">タスクがありません</div>}
-                  </div>
-                  {s.hoveredNode.rewards && s.hoveredNode.rewards.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-700">
-                      <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
-                      <div className="flex flex-wrap gap-1.5" data-testid="hover-reward-chips">
-                        {s.hoveredNode.rewards.map((r) => <NodeRewardChip key={r.id} reward={r} />)}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <NodeHoverTooltip node={s.hoveredNode} mousePos={s.mousePos} pan={s.pan} canvasEl={s.canvasRef.current} lang={lang} />
               )}
               <ModeToast label={s.toastLabel} visible={s.toastVisible} />
             </div>
 
-            {s.longPressPopover && createPortal(
-              <>
-                <div className="fixed inset-0 z-[9998]" onClick={() => s.setLongPressPopover(null)} onTouchStart={() => s.setLongPressPopover(null)} />
-                <div className="fixed z-[9999] bg-black/90 border-2 border-purple-700 text-white p-3 shadow-xl max-w-[280px]"
-                  style={{ bottom: window.innerHeight - s.longPressPopover.y + 12, left: Math.max(8, Math.min(s.longPressPopover.x - 140, window.innerWidth - 296)) }}
-                  data-testid="longtap-reward-popover">
-                  <div className="font-bold text-blue-300 text-lg mb-1">{s.longPressPopover.node.title}</div>
-                  {s.longPressPopover.node.subtitle && <div className="text-gray-400 text-xs italic mb-2">{s.longPressPopover.node.subtitle}</div>}
-                  <div className="text-sm space-y-1">
-                    {s.longPressPopover.node.tasks?.map((task) => (<div key={task.id} className="text-gray-300 flex items-center gap-1"><span className="text-gray-500">{TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}</span>{getDisplayText(task, 'task', lang)}</div>))}
-                    {(!s.longPressPopover.node.tasks || s.longPressPopover.node.tasks.length === 0) && <div className="text-gray-500 text-xs">タスクがありません</div>}
-                  </div>
-                  {s.longPressPopover.node.rewards && s.longPressPopover.node.rewards.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-700">
-                      <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
-                      <div className="flex flex-wrap gap-1.5">{s.longPressPopover.node.rewards.map((r) => <NodeRewardChip key={r.id} reward={r} />)}</div>
-                    </div>
-                  )}
-                </div>
-              </>,
-              document.body,
+            {s.longPressPopover && (
+              <LongPressPopover popover={s.longPressPopover} onClose={() => s.setLongPressPopover(null)} lang={lang} />
             )}
 
-            {editingNode && (
-              <QuestEditorModal node={editingNode} updateNode={updateNode} close={() => s.setEditingNodeId(null)} openItemSelector={s.setItemSelectorConfig} openTaskRewardEditor={s.setEditingTaskReward} readOnly={isReadOnlyNode(s.editingNodeId!)}
-                conditionProgress={progressData?.find((pr) => String(pr.questId) === s.editingNodeId)?.progress}
-                pendingRewards={progressData?.find((pr) => String(pr.questId) === s.editingNodeId)?.pendingRewards}
-                completedAt={progressData?.find((pr) => String(pr.questId) === s.editingNodeId)?.completedAt}
-                claimReward={(() => {
-                  if (viewAs) return undefined
-                  const p = progressData?.find((pr) => String(pr.questId) === s.editingNodeId)
-                  if (!p) return undefined
-                  const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
-                  if (!claimable) return undefined
-                  return async () => { await claimRewardMutation.mutateAsync(s.editingNodeId!); showToast('報酬を受け取りました！') }
-                })()}
-                onCheckmarkComplete={!viewAs && isReadOnlyNode(s.editingNodeId!) && me ? async (conditionId) => { await completeCheckmarkMutation.mutateAsync({ questId: s.editingNodeId!, conditionId }) } : undefined}
-                onDeliver={(() => {
-                  if (viewAs) return undefined
-                  const node = s.editingNodeId ? s.nodes.find((n) => n.id === s.editingNodeId) : null
-                  const hasDelivery = node?.tasks?.some((t) => t.type === 'delivery')
-                  const p = progressData?.find((pr) => String(pr.questId) === s.editingNodeId)
-                  if (!hasDelivery || !isReadOnlyNode(s.editingNodeId!) || !me || p?.completed) return undefined
-                  return async () => { const result = await deliverItemsMutation.mutateAsync(s.editingNodeId!); showToast(Object.keys(result.delivered ?? {}).length > 0 ? '納品しました！' : '納品できるアイテムがありませんでした') }
-                })()}
-                questStatus={(() => { if (!isEditor || !s.editingNodeId) return undefined; return questsData?.find((q) => String(q.id) === s.editingNodeId)?.status })()}
-                onToggleStatus={(() => {
-                  if (!isEditor || !s.editingNodeId) return undefined
-                  const q = questsData?.find((q) => String(q.id) === s.editingNodeId)
-                  if (!q || q.status === 'proposed') return undefined
-                  return async () => { const { newStatus } = await toggleQuestStatusMutation.mutateAsync({ id: q.id, currentStatus: q.status }); showToast(newStatus === 'public' ? '公開しました' : '非公開にしました') }
-                })()}
-              />
-            )}
-
-            {editingProposalNode && (() => {
-              const p = existingProposals?.find((p) => p.id === editingProposalNode.proposalId)
-              const canEdit = isEditor
-              return (
-                <QuestEditorModal node={editingProposalNode} updateNode={canEdit ? updateNode : () => {}} close={() => s.setEditingProposalNodeId(null)} openItemSelector={s.setItemSelectorConfig} openTaskRewardEditor={s.setEditingTaskReward}
-                  proposalMeta={editingProposalNode.proposalId != null ? {
-                    proposalId: editingProposalNode.proposalId, proposerName: p?.proposerName ?? '',
-                    votesUp: editingProposalNode.votesUp ?? 0, myVote: p?.myVote ?? null,
-                    onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
-                    ...(canEdit ? { onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!) } : {}),
-                    ...(isEditor ? { onApprove: () => handleApprove(editingProposalNode.proposalId!), onReject: () => handleReject(editingProposalNode.proposalId!) } : {}),
-                  } : undefined}
-                  readOnly={!canEdit}
-                />
-              )
-            })()}
-
-            {s.editingTaskReward && taskRewardNode && (
-              <TaskRewardEditorModal node={taskRewardNode} category={s.editingTaskReward.category} itemId={s.editingTaskReward.itemId} updateNode={updateNode} close={() => s.setEditingTaskReward(null)} openItemSelector={s.setItemSelectorConfig} />
-            )}
-            {s.showRewardTableModal && <RewardTableModal close={() => s.setShowRewardTableModal(false)} />}
-            {s.itemSelectorConfig && <ItemSelectorModal close={() => s.setItemSelectorConfig(null)} onSelect={handleItemSelect} />}
-            {s.showLoginModal && <LoginModal close={() => s.setShowLoginModal(false)} />}
+            <EditorModals s={s} isEditor={isEditor} me={me} viewAs={viewAs}
+              questsData={questsData} progressData={progressData} existingProposals={existingProposals}
+              editingNode={editingNode} editingProposalNode={editingProposalNode} taskRewardNode={taskRewardNode}
+              updateNode={updateNode} handleItemSelect={handleItemSelect} isReadOnlyNode={isReadOnlyNode} showToast={showToast}
+              claimRewardMutation={claimRewardMutation} completeCheckmarkMutation={completeCheckmarkMutation}
+              deliverItemsMutation={deliverItemsMutation} toggleQuestStatusMutation={toggleQuestStatusMutation}
+              handleVote={handleVote} handleApprove={handleApprove} handleReject={handleReject} handleDeleteProposal={handleDeleteProposal} />
           </>)}
         </div>
       </div>
