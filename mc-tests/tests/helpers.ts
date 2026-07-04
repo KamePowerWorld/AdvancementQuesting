@@ -1,13 +1,57 @@
 import mineflayer, { Bot } from 'mineflayer'
 import net from 'node:net'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-export const API_BASE = process.env.API_BASE ?? 'http://localhost:8090'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// SessionStart フック(scripts/setup-env.sh)が tmp/port-env に書き出す値のフォールバック読み込み。
+// CLAUDE_ENV_FILE によるセッション env 注入が効かない環境（直接 node --test 実行など）でも
+// 正しいポートへ向くようにする。
+function loadPortEnv(): Record<string, string> {
+  const envFile = path.resolve(__dirname, '..', '..', 'tmp', 'port-env')
+  if (!existsSync(envFile)) return {}
+  const out: Record<string, string> = {}
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z_]+)=(.*)$/)
+    if (m) out[m[1]] = m[2]
+  }
+  return out
+}
+const portEnv = loadPortEnv()
+/** process.env を優先し、無ければ tmp/port-env を見る */
+function env(key: string): string | undefined {
+  return process.env[key] ?? portEnv[key]
+}
+
+// API_BASE を優先度順に解決。
+// process.env（明示指定・CLAUDE_ENV_FILE 注入）を常に最優先し、tmp/port-env は
+// そのフォールバック。セットで「API_BASE > API_PORT > PORT_OFFSET > 8090」の順。
+// （setup.js 経由でも直接 node --test でも、常に正しいポートへ向くように）
+function resolveApiBase(): string {
+  // 1) process.env を最優先（明示指定を尊重）
+  if (process.env.API_BASE) return process.env.API_BASE
+  if (process.env.API_PORT) return `http://localhost:${process.env.API_PORT}`
+  const envOffset = process.env.PORT_OFFSET
+  if (envOffset && /^\d+$/.test(envOffset)) return `http://localhost:${8090 + parseInt(envOffset, 10)}`
+  // 2) tmp/port-env フォールバック（CLAUDE_ENV_FILE 非伝播環境用）
+  if (portEnv.API_BASE) return portEnv.API_BASE
+  if (portEnv.API_PORT) return `http://localhost:${portEnv.API_PORT}`
+  const fOffset = portEnv.PORT_OFFSET
+  if (fOffset && /^\d+$/.test(fOffset)) return `http://localhost:${8090 + parseInt(fOffset, 10)}`
+  return 'http://localhost:8090'
+}
+
+export const API_BASE = resolveApiBase()
+// 初回リクエスト時に解決済み API_BASE を1行ログ出力（ポート不一致の即検知用）
+let apiBaseLogged = false
 
 // Read connection settings lazily so callers can override process.env before importing
-function getMcHost() { return process.env.MC_HOST ?? 'localhost' }
-function getMcPort() { return parseInt(process.env.MC_PORT ?? '25599', 10) }
-function getRconPort() { return parseInt(process.env.RCON_PORT ?? '25598', 10) }
-function getRconPass() { return process.env.RCON_PASS ?? 'testpass' }
+function getMcHost() { return env('MC_HOST') ?? 'localhost' }
+function getMcPort() { return parseInt(env('MC_PORT') ?? '25599', 10) }
+function getRconPort() { return parseInt(env('RCON_PORT') ?? '25598', 10) }
+function getRconPass() { return env('RCON_PASS') ?? 'testpass' }
 
 /** Mineflayer ボットを作成してスポーンするまで待つ */
 export function createBot(username: string): Promise<Bot> {
@@ -75,6 +119,10 @@ export async function apiRequest<T = unknown>(
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
+  if (!apiBaseLogged) {
+    apiBaseLogged = true
+    console.log(`[apiRequest] API_BASE resolved to ${API_BASE}`)
+  }
   const url = `${API_BASE}${path}`
   const res = await fetch(url, {
     method,

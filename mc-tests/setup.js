@@ -255,12 +255,21 @@ function runTests() {
     const nodeMajor = parseInt(process.versions.node.split('.')[0], 10)
     if (nodeMajor >= 22) nodeArgs.push('--experimental-test-isolation=none')
     nodeArgs.push('--test', ...(process.env.TEST_GLOB ?? 'tests/*.test.ts').split(' '))
+
+    // テスト出力を tmp/mc-test-output.txt にも tee する（save once, grep many）。
+    // 「再実行して grep」のトークン浪費を構造的に排除するため、stdio:'inherit' ではなく
+    // パイプで受けて stdout とファイルへ両書きする。
+    const outPath = path.join(ROOT, 'tmp', 'mc-test-output.txt')
+    mkdirSync(path.dirname(outPath), { recursive: true })
+    const tee = createWriteStream(outPath)
+    tee.write(`[setup] PORT_OFFSET=${PORT_OFFSET} API_BASE=http://localhost:${API_PORT} MC=${MC_PORT} RCON=${RCON_PORT}\n`)
+
     const proc = spawn(
       'node',
       nodeArgs,
       {
         cwd: __dirname,
-        stdio: 'inherit',
+        stdio: ['inherit', 'pipe', 'pipe'],
         env: {
           ...process.env,
           MC_HOST: 'localhost',
@@ -272,8 +281,16 @@ function runTests() {
         shell: true,
       },
     )
-    proc.on('exit', (code) => resolve(code ?? 0))
-    proc.on('error', () => resolve(1))
+    const writeAll = (chunk) => { process.stdout.write(chunk); tee.write(chunk) }
+    proc.stdout.on('data', writeAll)
+    proc.stderr.on('data', writeAll)
+    proc.on('exit', (code) => {
+      tee.end(() => {
+        console.log(`[setup] test output saved: ${path.relative(ROOT, outPath)}`)
+        resolve(code ?? 0)
+      })
+    })
+    proc.on('error', () => { tee.end(); resolve(1) })
   })
 }
 

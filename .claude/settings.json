@@ -5,6 +5,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash scripts/setup-env.sh",
+            "statusMessage": "Injecting worktree ports (PORT_OFFSET/API_BASE)...",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "pwsh -File scripts/setup.ps1",
             "shell": "bash",
             "statusMessage": "Setting up project environment...",
