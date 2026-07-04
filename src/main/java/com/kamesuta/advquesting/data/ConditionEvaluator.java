@@ -241,6 +241,64 @@ final class ConditionEvaluator {
         return changed;
     }
 
+    // ---- 納品 (delivery) ----
+
+    /** 納品条件1件の必要量。 */
+    record DeliveryNeed(String conditionId, String itemType, int required, int alreadyDelivered) {
+        int stillNeeded() {
+            return required - alreadyDelivered;
+        }
+    }
+
+    /**
+     * 未完了の delivery 条件それぞれの必要量を計算する。
+     * 完了済み・必要数を満たしている条件・id の無い条件は除外する。
+     *
+     * @param conditions クエスト条件リスト (delivery 以外が混ざっていてもよい)
+     * @param progress   プレイヤー進捗リスト
+     */
+    static List<DeliveryNeed> computeDeliveryNeeds(
+            List<Map<String, Object>> conditions,
+            List<Map<String, Object>> progress) {
+        List<DeliveryNeed> needs = new ArrayList<>();
+        for (Map<String, Object> cond : conditions) {
+            if (!"delivery".equals(cond.get("type"))) continue;
+            String condId = (String) cond.get("id");
+            if (condId == null) continue;
+            boolean alreadyDone = progress.stream()
+                    .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            if (alreadyDone) continue;
+
+            String itemType = (String) cond.getOrDefault("itemType", "stone");
+            int required = ((Number) cond.getOrDefault("count", 1)).intValue();
+            Map<String, Object> existing = progress.stream()
+                    .filter(p -> condId.equals(p.get("conditionId")))
+                    .findFirst().orElse(null);
+            int alreadyDelivered = existing == null ? 0 : ((Number) existing.getOrDefault("current", 0)).intValue();
+            if (required - alreadyDelivered <= 0) continue;
+            needs.add(new DeliveryNeed(condId, itemType, required, alreadyDelivered));
+        }
+        return needs;
+    }
+
+    /**
+     * 納品を進捗へ反映する（インプレース変更）。所持数と必要数の少ない方まで納品する。
+     *
+     * @param progress  プレイヤー進捗リスト（インプレース変更）
+     * @param need      納品条件の必要量
+     * @param haveCount プレイヤーの所持数 (1以上であること)
+     * @return 消費した数
+     */
+    static int applyDelivery(List<Map<String, Object>> progress, DeliveryNeed need, int haveCount) {
+        int toConsume = Math.min(haveCount, need.stillNeeded());
+        int newTotal = need.alreadyDelivered() + toConsume;
+        boolean nowDone = newTotal >= need.required();
+        progress.removeIf(p -> need.conditionId().equals(p.get("conditionId")));
+        progress.add(Map.of("conditionId", need.conditionId(), "current", newTotal,
+                "required", need.required(), "completed", nowDone));
+        return toConsume;
+    }
+
     // ---- 達成判定 ----
 
     /**

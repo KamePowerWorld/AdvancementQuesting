@@ -339,4 +339,84 @@ class ConditionEvaluatorTest {
         assertEquals(1, result.size());
         assertEquals("c3", result.get(0).get("conditionId"));
     }
+
+    // ---- computeDeliveryNeeds / applyDelivery ----
+
+    @Test
+    void computeDeliveryNeeds_未納品のdelivery条件を返す() {
+        var conditions = List.of(
+                cond("type", "delivery", "id", "d1", "itemType", "minecraft:iron_ingot", "count", 5),
+                cond("type", "item", "id", "c1", "itemType", "stone")  // delivery 以外は除外
+        );
+        var needs = ConditionEvaluator.computeDeliveryNeeds(conditions, emptyProgress());
+        assertEquals(1, needs.size());
+        assertEquals("d1", needs.get(0).conditionId());
+        assertEquals("minecraft:iron_ingot", needs.get(0).itemType());
+        assertEquals(5, needs.get(0).required());
+        assertEquals(0, needs.get(0).alreadyDelivered());
+        assertEquals(5, needs.get(0).stillNeeded());
+    }
+
+    @Test
+    void computeDeliveryNeeds_デフォルトはstoneと1個() {
+        var conditions = List.of(cond("type", "delivery", "id", "d1"));
+        var needs = ConditionEvaluator.computeDeliveryNeeds(conditions, emptyProgress());
+        assertEquals("stone", needs.get(0).itemType());
+        assertEquals(1, needs.get(0).required());
+    }
+
+    @Test
+    void computeDeliveryNeeds_完了済みとidなしは除外する() {
+        var conditions = List.of(
+                cond("type", "delivery", "id", "d1", "count", 3),
+                cond("type", "delivery", "count", 3)  // id なし
+        );
+        var progress = List.<Map<String, Object>>of(
+                new HashMap<>(Map.of("conditionId", "d1", "completed", true))
+        );
+        assertEquals(0, ConditionEvaluator.computeDeliveryNeeds(conditions, progress).size());
+    }
+
+    @Test
+    void computeDeliveryNeeds_部分納品済みの残数を返す() {
+        var conditions = List.of(cond("type", "delivery", "id", "d1", "count", 10));
+        var progress = List.<Map<String, Object>>of(
+                new HashMap<>(Map.of("conditionId", "d1", "current", 4, "required", 10, "completed", false))
+        );
+        var needs = ConditionEvaluator.computeDeliveryNeeds(conditions, progress);
+        assertEquals(4, needs.get(0).alreadyDelivered());
+        assertEquals(6, needs.get(0).stillNeeded());
+    }
+
+    @Test
+    void applyDelivery_所持数が足りれば完了になる() {
+        var progress = emptyProgress();
+        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 0);
+        int consumed = ConditionEvaluator.applyDelivery(progress, need, 8);
+        assertEquals(5, consumed);
+        assertEquals(1, progress.size());
+        assertEquals(5, progress.get(0).get("current"));
+        assertEquals(true, progress.get(0).get("completed"));
+    }
+
+    @Test
+    void applyDelivery_所持数不足なら部分納品で未完了() {
+        var progress = emptyProgress();
+        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 2);
+        int consumed = ConditionEvaluator.applyDelivery(progress, need, 1);
+        assertEquals(1, consumed);
+        assertEquals(3, progress.get(0).get("current"));
+        assertEquals(false, progress.get(0).get("completed"));
+        assertEquals(5, progress.get(0).get("required"));
+    }
+
+    @Test
+    void applyDelivery_既存の進捗行を置き換える() {
+        var progress = new java.util.ArrayList<Map<String, Object>>();
+        progress.add(new HashMap<>(Map.of("conditionId", "d1", "current", 2, "required", 5, "completed", false)));
+        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 2);
+        ConditionEvaluator.applyDelivery(progress, need, 100);
+        assertEquals(1, progress.size());
+        assertEquals(5, progress.get(0).get("current"));
+    }
 }
