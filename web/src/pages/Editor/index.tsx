@@ -248,51 +248,23 @@ export default function EditorPage() {
     setComments: s.setComments, setNodes: s.setNodes, comments: s.comments,
   })
 
-  useSaveHandler({
-    saving, setSaving, nodes: s.nodes, edges: s.edges, questsData,
-    myProposalEdits: s.myProposalEdits, existingProposals, queryClient,
-    setSaveQuests, setProposalMode, setMyProposalEdits: s.setMyProposalEdits, showToast,
+  useSaveHandler(s, {
+    saving, setSaving, questsData, existingProposals, queryClient,
+    setSaveQuests, setProposalMode, showToast,
   })
 
-  const { handleVote, handleApprove, handleReject, handleDeleteProposal } = useProposalHandlers({
-    proposalNodes: s.proposalNodes, proposalEdges: s.proposalEdges, myProposalEdits: s.myProposalEdits,
-    existingProposals, setSubmitting, setSubmitProposals,
-    setProposalNodes: s.setProposalNodes, setProposalEdges: s.setProposalEdges,
-    setMyProposalEdits: s.setMyProposalEdits, setEditingProposalNodeId: s.setEditingProposalNodeId, showToast,
+  const { handleVote, handleApprove, handleReject, handleDeleteProposal } = useProposalHandlers(s, {
+    existingProposals, setSubmitting, setSubmitProposals, showToast,
   })
 
-  const { handleCanvasMouseDown, handleMouseMove, handleMouseUp, handleCanvasTouchStart, handleCanvasTouchMove, handleCanvasTouchEnd } = useCanvasHandlers({
-    mode: s.mode, pan: s.pan, panStart: s.panStart, isPanning: s.isPanning,
-    draggingNode: s.draggingNode, dragOffset: s.dragOffset,
-    commentDraft: s.commentDraft, commentDraftStartRef: s.commentDraftStartRef,
-    draggingCommentId: s.draggingCommentId, commentDragRef: s.commentDragRef,
-    resizingCommentId: s.resizingCommentId, commentResizeStartRef: s.commentResizeStartRef,
-    mouseDownPos: s.mouseDownPos, mouseDownNodeId: s.mouseDownNodeId, touchJustPlacedNode: s.touchJustPlacedNode,
-    linkStartNode: s.linkStartNode, canvasRef: s.canvasRef,
-    panStartRef: s.panStartRef, panRef: s.panRef,
+  const { handleCanvasMouseDown, handleMouseMove, handleMouseUp, handleCanvasTouchStart, handleCanvasTouchMove, handleCanvasTouchEnd } = useCanvasHandlers(s, {
     proposalMode, isEditor, otherProposalNodes,
-    setIsPanning: s.setIsPanning, setPan: s.setPan, setPanStart: s.setPanStart,
-    setNodes: s.setNodes, setProposalNodes: s.setProposalNodes, setMyProposalEdits: s.setMyProposalEdits,
-    setMousePos: s.setMousePos, setCommentDraft: s.setCommentDraft, setComments: s.setComments,
-    setDraggingCommentId: s.setDraggingCommentId, setResizingCommentId: s.setResizingCommentId,
-    setLinkStartNode: s.setLinkStartNode, setLinkHoverNode: s.setLinkHoverNode, setDraggingNode: s.setDraggingNode,
     isProposalDraft, addProposalNode, dragCommentTo, saveCommentById, openNode, getNodeIdNearPoint,
   })
 
-  const { handleNodeMouseDown, handleNodeMouseUp, handleNodeTouchStart, handleNodeTouchMove, handleNodeTouchEnd, handleItemSelect, updateNode } = useNodeHandlers({
-    mode: s.mode, pan: s.pan, draggingNode: s.draggingNode, dragOffset: s.dragOffset,
-    linkStartNode: s.linkStartNode, linkHoverNode: s.linkHoverNode,
-    nodes: s.nodes, proposalNodes: s.proposalNodes, otherProposalNodes,
-    mouseDownPos: s.mouseDownPos, mouseDownNodeId: s.mouseDownNodeId,
-    longPressTimerRef: s.longPressTimerRef, longPressActiveRef: s.longPressActiveRef, modeRef: s.modeRef,
-    canvasRef: s.canvasRef, panRef: s.panRef, nodesRef: s.nodesRef, proposalNodesRef: s.proposalNodesRef,
-    proposalMode, isEditor, itemSelectorConfig: s.itemSelectorConfig,
+  const { handleNodeMouseDown, handleNodeMouseUp, handleNodeTouchStart, handleNodeTouchMove, handleNodeTouchEnd, handleItemSelect, updateNode } = useNodeHandlers(s, {
+    otherProposalNodes, proposalMode, isEditor,
     canMoveNode, canDeleteNode, isProposalDraft, connectNodes, openNode, getNodeIdNearPoint,
-    setDraggingNode: s.setDraggingNode, setDragOffset: s.setDragOffset, setIsPanning: s.setIsPanning,
-    setLinkStartNode: s.setLinkStartNode, setLinkHoverNode: s.setLinkHoverNode, setMousePos: s.setMousePos,
-    setLongPressPopover: s.setLongPressPopover, setNodes: s.setNodes, setEdges: s.setEdges,
-    setProposalNodes: s.setProposalNodes, setProposalEdges: s.setProposalEdges,
-    setMyProposalEdits: s.setMyProposalEdits, setItemSelectorConfig: s.setItemSelectorConfig,
   })
 
   // --- comments init ---

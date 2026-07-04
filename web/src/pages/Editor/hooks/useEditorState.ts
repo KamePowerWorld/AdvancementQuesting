@@ -3,6 +3,8 @@ import type { EditorNode, EditorEdge, EditorComment, ToolMode, Vec2, ItemSelecto
 import { INITIAL_NODES, INITIAL_EDGES } from '@/components/editor/constants.js'
 import type { ResizeDir } from '@/components/editor/CommentBlockEl.js'
 
+export type EditorState = ReturnType<typeof useEditorState>
+
 export function useEditorState() {
   const [showStats, setShowStats] = useState(false)
 
