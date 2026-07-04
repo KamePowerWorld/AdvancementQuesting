@@ -83,13 +83,14 @@ export function EditorModals({
       {editingProposalNode && (() => {
         const p = existingProposals?.find((p) => p.id === editingProposalNode.proposalId)
         const canEdit = isEditor
+        const isAuthor = !!me && !!p && me.playerUuid === p.proposerUuid
         return (
           <QuestEditorModal node={editingProposalNode} updateNode={canEdit ? updateNode : () => {}} close={() => s.setEditingProposalNodeId(null)} openItemSelector={s.setItemSelectorConfig} openTaskRewardEditor={s.setEditingTaskReward}
             proposalMeta={editingProposalNode.proposalId != null ? {
               proposalId: editingProposalNode.proposalId, proposerName: p?.proposerName ?? '',
               votesUp: editingProposalNode.votesUp ?? 0, myVote: p?.myVote ?? null,
               onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
-              ...(canEdit ? { onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!) } : {}),
+              ...(isAuthor ? { onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!) } : {}),
               ...(isEditor ? { onApprove: () => handleApprove(editingProposalNode.proposalId!), onReject: () => handleReject(editingProposalNode.proposalId!) } : {}),
             } : undefined}
             readOnly={!canEdit}

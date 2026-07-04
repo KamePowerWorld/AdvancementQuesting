@@ -200,4 +200,35 @@ router.post('/:id/reject', requireAuth, async (req, res) => {
   res.json({ status: 'rejected' })
 })
 
+// DELETE /api/proposals/:id — 取り下げ (自分の提案 or editor)
+router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
+  const proposalId = parseInt(String(req.params['id']), 10)
+
+  const proposal = await db
+    .select()
+    .from(questProposals)
+    .where(eq(questProposals.id, proposalId))
+    .get()
+
+  if (!proposal) {
+    res.status(404).json({ error: 'Proposal not found' })
+    return
+  }
+
+  const isEditor = req.playerRole === 'editor' || req.playerRole === 'admin'
+  if (!isEditor && req.playerUuid !== proposal.proposerUuid) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  await db.delete(questProposals).where(eq(questProposals.id, proposalId))
+
+  const quest = await db.select().from(quests).where(eq(quests.id, proposal.questId)).get()
+  if (quest && quest.status === 'proposed') {
+    await db.delete(quests).where(eq(quests.id, proposal.questId))
+  }
+
+  res.status(204).send()
+})
+
 export default router
