@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: |
             web/package-lock.json
@@ -97,7 +97,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -137,7 +137,7 @@ jobs:
         with:
           # Node 22+ で --experimental-test-isolation=none を有効化するため
           # (setup.js が nodeMajor >= 22 でフラグを付与する)
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: mc-tests/package-lock.json
 
