@@ -3,6 +3,9 @@ import type { Quest, Condition, Reward } from '@/types/quest.js'
 import type { Proposal } from '@/types/proposal.js'
 import type { ProposalNode } from '../types.js'
 
+/** 旧保存データに残る label / value フィールドを許容する互換型 */
+type LegacyLabeled = { label?: string; value?: string }
+
 export function questToNode(q: Quest): EditorNode {
   const sid = String(q.id)
   return {
@@ -11,19 +14,19 @@ export function questToNode(q: Quest): EditorNode {
     y: q.mapPosition?.y ?? 100,
     icon: q.icon ?? 'stone',
     title: q.title,
-    subtitle: (q as any).subtitle ?? '',
+    subtitle: q.subtitle ?? '',
     description: q.description ?? '',
     creatorName: q.creatorName ?? null,
     tasks: (q.conditions ?? []).map((c, i) => ({
       id: c.id ?? `${sid}-t${i}`,
       type: c.type,
-      value: (c as any).label ?? (c as any).value ?? '',
+      value: (c as Condition & LegacyLabeled).label ?? (c as Condition & LegacyLabeled).value ?? '',
       ...(c.type === 'advancement' ? { advancementId: c.advancementId ?? '' } : {}),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
-      ...(c.type === 'delivery' ? { itemType: (c as any).itemType ?? 'stone', count: (c as any).count ?? 1, ...((c as any).nbt ? { nbt: (c as any).nbt } : {}), ...((c as any).displayName ? { displayName: (c as any).displayName } : {}) } : {}),
-      ...(c.type === 'stat' ? { statType: (c as any).statType ?? '', statId: (c as any).statId ?? '', count: (c as any).count ?? 1 } : {}),
-      ...(c.type === 'location' ? { locX: (c as any).x ?? 0, locY: (c as any).y ?? 0, locZ: (c as any).z ?? 0, dimension: (c as any).dimension ?? 'overworld', radius: (c as any).radius ?? 10 } : {}),
-      ...(c.type === 'scoreboard' ? { objective: (c as any).objective ?? '', score: (c as any).score ?? 1 } : {}),
+      ...(c.type === 'delivery' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+      ...(c.type === 'stat' ? { statType: c.statType ?? '', statId: c.statId ?? '', count: c.count ?? 1 } : {}),
+      ...(c.type === 'location' ? { locX: c.x ?? 0, locY: c.y ?? 0, locZ: c.z ?? 0, dimension: c.dimension ?? 'overworld', radius: c.radius ?? 10 } : {}),
+      ...(c.type === 'scoreboard' ? { objective: c.objective ?? '', score: c.score ?? 1 } : {}),
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
@@ -40,21 +43,20 @@ export function questToNode(q: Quest): EditorNode {
 
 export function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
   const conditions: Condition[] = (node.tasks ?? []).map((t) => {
-    const ta = t as any
-    if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
-    if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
-    if (t.type === 'delivery') return { id: t.id, type: 'delivery' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
-    if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
-    if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: ta.statType ?? '', statId: ta.statId ?? '', count: ta.count ?? 1 }
-    if (t.type === 'location') return { id: t.id, type: 'location' as const, x: ta.locX ?? 0, y: ta.locY ?? 0, z: ta.locZ ?? 0, dimension: ta.dimension ?? 'overworld', radius: ta.radius ?? 10 }
-    if (t.type === 'scoreboard') return { id: t.id, type: 'scoreboard' as const, objective: ta.objective ?? '', score: ta.score ?? 1, ...(t.value ? { label: t.value } : {}) }
+    if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: t.advancementId ?? t.value ?? '' }
+    if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: t.itemType ?? 'stone', count: t.count ?? 1, ...(t.nbt ? { nbt: t.nbt } : {}), ...(t.displayName ? { displayName: t.displayName } : {}) }
+    if (t.type === 'delivery') return { id: t.id, type: 'delivery' as const, itemType: t.itemType ?? 'stone', count: t.count ?? 1, ...(t.nbt ? { nbt: t.nbt } : {}), ...(t.displayName ? { displayName: t.displayName } : {}) }
+    if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: t.value ?? '' }
+    if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: t.statType ?? '', statId: t.statId ?? '', count: t.count ?? 1 }
+    if (t.type === 'location') return { id: t.id, type: 'location' as const, x: t.locX ?? 0, y: t.locY ?? 0, z: t.locZ ?? 0, dimension: t.dimension ?? 'overworld', radius: t.radius ?? 10 }
+    if (t.type === 'scoreboard') return { id: t.id, type: 'scoreboard' as const, objective: t.objective ?? '', score: t.score ?? 1, ...(t.value ? { label: t.value } : {}) }
     return { id: t.id, type: 'checkmark' as const, label: t.value }
   })
   const rewards: Reward[] = (node.rewards ?? []).map((r) => {
     if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
     if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
     if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
-    if (r.type === 'point') return { type: 'point' as const, amount: (r as any).amount ?? 0 }
+    if (r.type === 'point') return { type: 'point' as const, amount: r.amount ?? 0 }
     return { type: 'command' as const, command: '', opLevel: 0 }
   })
   return {
@@ -77,12 +79,15 @@ export function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
 export function proposalToNode(p: Proposal, localEdit?: EditorNode): ProposalNode {
   const snap = p.questSnapshot ?? {}
   const sid = `existing-proposal-${p.id}`
-  const tasks = (snap.conditions ?? []).map((c: any, i: number) => ({
-    id: `${sid}-t${i}`, type: c.type,
-    value: c.type === 'advancement' ? (c.advancementId ?? '') : (c.label ?? c.value ?? ''),
-    ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
-  }))
-  const rewards = (snap.rewards ?? []).map((r: any, i: number) => {
+  const tasks = (snap.conditions ?? []).map((c, i) => {
+    const legacy = c as Condition & LegacyLabeled
+    return {
+      id: `${sid}-t${i}`, type: c.type,
+      value: c.type === 'advancement' ? (c.advancementId ?? '') : (legacy.label ?? legacy.value ?? ''),
+      ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+    }
+  })
+  const rewards = (snap.rewards ?? []).map((r, i) => {
     const base = { id: `${sid}-r${i}`, value: '' }
     if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
     if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }

@@ -41,7 +41,7 @@ export function ItemField({ node, item, category, lang, handleChange, openItemSe
         count: held.count,
         nbt: held.nbt ?? undefined,
         displayName: held.displayName ?? undefined,
-      } as any)
+      })
     } catch {
       setHeldError('手持ちアイテムを取得できませんでした。ゲームにログインしているか確認してください。')
     } finally {
@@ -94,13 +94,13 @@ export function ItemField({ node, item, category, lang, handleChange, openItemSe
             type="number"
             min={1}
             value={itemWithExtra.count ?? 1}
-            onChange={(e) => handleChange({ count: Number(e.target.value) } as any)}
+            onChange={(e) => handleChange({ count: Number(e.target.value) })}
             className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-24 outline-none focus:border-blue-500"
           />
         </div>
         {hasNbt && (
           <button
-            onClick={() => handleChange({ nbt: undefined, displayName: undefined } as any)}
+            onClick={() => handleChange({ nbt: undefined, displayName: undefined })}
             className="text-xs text-red-400 hover:text-red-300 mt-4"
             title="NBTと表示名をクリアしてノーマルアイテムに戻す"
           >

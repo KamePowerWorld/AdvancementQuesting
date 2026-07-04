@@ -46,7 +46,7 @@ export function XpField({ item, handleChange }: SimpleFieldProps) {
         type="number"
         min={1}
         value={(item as EditorReward & { amount?: number }).amount ?? 0}
-        onChange={(e) => handleChange({ amount: Number(e.target.value) } as any)}
+        onChange={(e) => handleChange({ amount: Number(e.target.value) })}
         className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
         placeholder="100"
       />
@@ -62,7 +62,7 @@ export function PointField({ item, handleChange }: SimpleFieldProps) {
         type="number"
         min={1}
         value={(item as EditorReward & { amount?: number }).amount ?? 0}
-        onChange={(e) => handleChange({ amount: Number(e.target.value) } as any)}
+        onChange={(e) => handleChange({ amount: Number(e.target.value) })}
         className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
         placeholder="100"
       />

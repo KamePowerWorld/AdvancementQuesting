@@ -26,7 +26,7 @@ export function getDisplayText(
   let detail: string
   if (item.type === 'item' || item.type === 'delivery') {
     const itemId = item.itemType ?? 'stone'
-    const count = (item as any).count ?? 1
+    const count = item.count ?? 1
     const name = item.value || getItemName(lang, itemId)
     detail = count > 1 ? `${name} ×${count}` : name
   } else if (item.type === 'advancement') {
@@ -42,7 +42,7 @@ export function getDisplayText(
       : getItemName(lang, statId.includes(':') ? statId.split(':')[1] : statId)
     detail = statType ? `${catLabel}: ${idLabel || statId} ×${count}` : '未設定'
   } else if (item.type === 'point') {
-    const amount = (item as any).amount ?? 0
+    const amount = (item as EditorReward).amount ?? 0
     detail = `${amount} pt`
   } else if (item.type === 'scoreboard') {
     const t = item as EditorTask

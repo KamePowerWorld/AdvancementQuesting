@@ -23,7 +23,7 @@ export function LocationField({ item, handleChange }: LocationFieldProps) {
     setLocError(null)
     try {
       const loc: PlayerLocation = await playerApi.getLocation()
-      handleChange({ locX: loc.x, locY: loc.y, locZ: loc.z, dimension: loc.dimension } as any)
+      handleChange({ locX: loc.x, locY: loc.y, locZ: loc.z, dimension: loc.dimension })
     } catch {
       setLocError('座標を取得できませんでした。ゲームにログインしているか確認してください。')
     } finally {
@@ -52,7 +52,7 @@ export function LocationField({ item, handleChange }: LocationFieldProps) {
               <input
                 type="number"
                 value={t[key] ?? 0}
-                onChange={(e) => handleChange({ [key]: Number(e.target.value) } as any)}
+                onChange={(e) => handleChange({ [key]: Number(e.target.value) })}
                 className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-full outline-none focus:border-blue-500"
               />
             </div>
@@ -63,7 +63,7 @@ export function LocationField({ item, handleChange }: LocationFieldProps) {
         <label className="text-xs text-gray-400">ディメンション</label>
         <select
           value={t.dimension ?? 'overworld'}
-          onChange={(e) => handleChange({ dimension: e.target.value } as any)}
+          onChange={(e) => handleChange({ dimension: e.target.value })}
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
         >
           {DIMENSIONS.map((d) => (
@@ -77,7 +77,7 @@ export function LocationField({ item, handleChange }: LocationFieldProps) {
           type="number"
           min={1}
           value={t.radius ?? 10}
-          onChange={(e) => handleChange({ radius: Number(e.target.value) } as any)}
+          onChange={(e) => handleChange({ radius: Number(e.target.value) })}
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
         />
       </div>
@@ -100,7 +100,7 @@ export function ScoreboardField({ item, handleChange }: ScoreboardFieldProps) {
         <input
           type="text"
           value={t.objective ?? ''}
-          onChange={(e) => handleChange({ objective: e.target.value } as any)}
+          onChange={(e) => handleChange({ objective: e.target.value })}
           placeholder="point"
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white font-mono outline-none focus:border-blue-500"
         />
@@ -111,7 +111,7 @@ export function ScoreboardField({ item, handleChange }: ScoreboardFieldProps) {
           type="number"
           min={1}
           value={t.score ?? 1}
-          onChange={(e) => handleChange({ score: Number(e.target.value) } as any)}
+          onChange={(e) => handleChange({ score: Number(e.target.value) })}
           className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
         />
       </div>

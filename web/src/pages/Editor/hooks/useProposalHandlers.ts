@@ -9,10 +9,11 @@ import {
   useRejectProposal,
   useDeleteProposal,
 } from '@/hooks/mutations.js'
+import type { Proposal } from '@/types/proposal.js'
 import type { EditorState } from './useEditorState.js'
 
 interface UseProposalHandlersDeps {
-  existingProposals: any[] | undefined
+  existingProposals: Proposal[] | undefined
   setSubmitting: (v: boolean) => void
   setSubmitProposals: (fn: () => (() => Promise<void>)) => void
   showToast: (label: string) => void
@@ -39,10 +40,10 @@ export function useProposalHandlers(s: EditorState, deps: UseProposalHandlersDep
           status: 'proposed',
           category: null,
           customButtons: [],
-        } as any)
+        })
       }
       for (const [proposalId, node] of s.myProposalEdits) {
-        const p = existingProposals?.find((p: any) => p.id === proposalId) as any
+        const p = existingProposals?.find((p) => p.id === proposalId)
         if (p) await questsApi.update(p.questId, nodeToApiBody(node, s.proposalEdges))
       }
       queryClient.invalidateQueries({ queryKey: ['proposals'] })

@@ -4,13 +4,14 @@ import { questsApi } from '@/api/quests.js'
 import { authApi } from '@/api/auth.js'
 import type { Quest } from '@/types/quest.js'
 import { nodeToApiBody } from '../utils/conversions.js'
+import type { Proposal } from '@/types/proposal.js'
 import type { EditorState } from './useEditorState.js'
 
 interface UseSaveHandlerDeps {
   saving: boolean
   setSaving: (v: boolean) => void
   questsData: Quest[] | undefined
-  existingProposals: any[] | undefined
+  existingProposals: Proposal[] | undefined
   queryClient: QueryClient
   setSaveQuests: (fn: () => (() => Promise<void>)) => void
   setProposalMode: (v: boolean) => void
@@ -41,7 +42,7 @@ export function useSaveHandler(s: EditorState, deps: UseSaveHandlerDeps) {
         }
       }))
       for (const [proposalId, node] of s.myProposalEdits) {
-        const p = existingProposals?.find((p: any) => p.id === proposalId) as any
+        const p = existingProposals?.find((p) => p.id === proposalId)
         if (p) await questsApi.update(p.questId, nodeToApiBody(node, s.edges))
       }
       if (s.myProposalEdits.size > 0) {
