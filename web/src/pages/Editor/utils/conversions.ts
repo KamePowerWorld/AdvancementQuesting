@@ -85,12 +85,18 @@ export function proposalToNode(p: Proposal, localEdit?: EditorNode): ProposalNod
       id: `${sid}-t${i}`, type: c.type,
       value: c.type === 'advancement' ? (c.advancementId ?? '') : (legacy.label ?? legacy.value ?? ''),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+      ...(c.type === 'delivery' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+      ...(c.type === 'stat' ? { statType: c.statType ?? '', statId: c.statId ?? '', count: c.count ?? 1 } : {}),
+      ...(c.type === 'location' ? { locX: c.x ?? 0, locY: c.y ?? 0, locZ: c.z ?? 0, dimension: c.dimension ?? 'overworld', radius: c.radius ?? 10 } : {}),
+      ...(c.type === 'scoreboard' ? { objective: c.objective ?? '', score: c.score ?? 1 } : {}),
     }
   })
   const rewards = (snap.rewards ?? []).map((r, i) => {
     const base = { id: `${sid}-r${i}`, value: '' }
     if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1, ...(r.nbt ? { nbt: r.nbt } : {}), ...(r.displayName ? { displayName: r.displayName } : {}) }
     if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
+    if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
+    if (r.type === 'point') return { ...base, type: 'point', amount: r.amount }
     return { ...base, type: r.type }
   })
   const base: ProposalNode = {

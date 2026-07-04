@@ -342,6 +342,33 @@ describe('proposalToNode', () => {
     expect(node.rewards[0]).toMatchObject({ type: 'xp', value: '50' })
   })
 
+  it('maps point reward preserving amount (regression: 必ず0になる)', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { rewards: [{ type: 'point', amount: 50 }] },
+    }))
+    expect(node.rewards[0]).toMatchObject({ type: 'point', amount: 50 })
+  })
+
+  it('maps stat condition preserving statType/statId/count (regression: 未設定になる)', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { conditions: [{ type: 'stat', statType: 'minecraft.mined', statId: 'minecraft:stone', count: 32 }] },
+    }))
+    expect(node.tasks[0]).toMatchObject({ type: 'stat', statType: 'minecraft.mined', statId: 'minecraft:stone', count: 32 })
+  })
+
+  it('maps delivery/location/scoreboard conditions', () => {
+    const node = proposalToNode(makeProposal({
+      questSnapshot: { conditions: [
+        { type: 'delivery', itemType: 'diamond', count: 3 },
+        { type: 'location', x: 1, y: 2, z: 3, dimension: 'the_nether', radius: 20 },
+        { type: 'scoreboard', objective: 'pts', score: 5 },
+      ] },
+    }))
+    expect(node.tasks[0]).toMatchObject({ type: 'delivery', itemType: 'diamond', count: 3 })
+    expect(node.tasks[1]).toMatchObject({ type: 'location', locX: 1, locY: 2, locZ: 3, dimension: 'the_nether', radius: 20 })
+    expect(node.tasks[2]).toMatchObject({ type: 'scoreboard', objective: 'pts', score: 5 })
+  })
+
   it('merges localEdit but preserves id and proposal meta', () => {
     const localEdit = { id: 'local', title: 'Edited', x: 999, proposerName: 'Hacker' } as any
     const node = proposalToNode(makeProposal(), localEdit)
