@@ -371,6 +371,12 @@ test('却下済み提案はAPIレスポンスから除外される', async ({ pa
   await expect(page.getByText('✕ 却下')).toBeVisible({ timeout: 3000 })
   await page.getByText('✕ 却下').click()
 
+  // 却下後にページをリロードしてキャッシュをクリア
+  await page.waitForTimeout(500)
+  await page.reload()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await page.getByTitle('編集モード').click()
+
   // 却下後、APIレスポンスから除外されることを確認
   res = await page.request.get(`${MOCK}/api/proposals`, {
     headers: { Authorization: 'Bearer demo-editor-token' },
