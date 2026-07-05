@@ -94,8 +94,9 @@ class AdvancementJsonBuilderTest {
     }
 
     @Test
-    void toMinecraftItem_noNamespace() {
-        assertEquals("minecraft:diamond", AdvancementJsonBuilder.toMinecraftItem("Diamond"));
+    void toMinecraftItem_noNamespace_fallsBackToMap() {
+        // 省略形はマイグレーション済みの前提。補完はせずデフォルトへフォールバックする
+        assertEquals("minecraft:map", AdvancementJsonBuilder.toMinecraftItem("Diamond"));
     }
 
     @Test

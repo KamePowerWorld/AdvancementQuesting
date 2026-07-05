@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { ItemIcon } from '../ItemIcon.js'
 import { useMcItems } from '@/hooks/useMcData.js'
+import type { NamespacedId } from '@/util/NamespacedId.js'
 
 interface ItemSelectorModalProps {
   close: () => void
-  onSelect: (itemType: string) => void
+  onSelect: (itemType: NamespacedId) => void
 }
 
 export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
@@ -17,7 +18,7 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
     if (!q) return items
     return items.filter(
       (item) =>
-        item.id.includes(q) ||
+        item.id.toString().includes(q) ||
         item.name.toLowerCase().includes(q),
     )
   }, [items, search])
@@ -34,7 +35,7 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
       ) : (
         filtered.map((item) => (
           <div
-            key={item.id}
+            key={item.id.toString()}
             onClick={() => onSelect(item.id)}
             className="w-10 h-10 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 flex items-center justify-center cursor-pointer active:bg-gray-300"
             title={`${item.name} (${item.id})`}

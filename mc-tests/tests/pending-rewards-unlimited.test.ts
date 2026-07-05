@@ -81,7 +81,7 @@ describe('unlimited 繰り返しクエストの報酬積み上げ', () => {
             objective: OBJECTIVE,
             score: REQUIRED_SCORE,
           }],
-          rewards: [{ type: 'item', itemType: 'diamond', count: 1 }],
+          rewards: [{ type: 'item', itemType: 'minecraft:diamond', count: 1 }],
           repeat: { type: 'unlimited' },
           mapPosition: { x: 920, y: 720 },
           category: null,

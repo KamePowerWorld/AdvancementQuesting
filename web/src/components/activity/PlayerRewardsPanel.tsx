@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { rewardsApi } from '@/api/rewards.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import type { RewardType, RewardClaimItem } from '@/types/rewards.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 interface Props {
   playerUuid: string
@@ -160,7 +161,7 @@ function ItemGrid({
             className="relative flex items-center justify-center w-10 h-10 rounded bg-black/40 border border-gray-600 hover:border-gray-400 transition-colors"
             title={`${label} ×${total}`}
           >
-            <ItemIcon type={itemType} size={28} />
+            <ItemIcon type={NamespacedId.parseUserInput(itemType)} size={28} />
             {total > 1 && (
               <span className="absolute bottom-0 right-0.5 text-[9px] font-bold text-white tabular-nums leading-none drop-shadow">
                 {total > 999 ? '999+' : total}
@@ -177,7 +178,7 @@ function ItemGrid({
           onClose={() => setOpenState(null)}
         >
           <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700 flex items-center gap-1">
-            <ItemIcon type={openState.key} size={14} />
+            <ItemIcon type={NamespacedId.parseUserInput(openState.key)} size={14} />
             {openEntry.label}
           </div>
           {openEntry.entries.map((it) => (

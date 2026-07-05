@@ -34,8 +34,12 @@ interface RewardsResp {
 /** ボットのすぐ隣に石を置き、採掘させる。statistic (MINE_BLOCK) が増加し stat 条件が進む。 */
 async function mineStoneNextTo(bot: Bot, label: string) {
   const pos = bot.entity.position.floored()
-  // ボットの足元から +x 側へ石を設置 (重複を避けるため毎回少しずらす)
-  const target = pos.offset(2 + MINE_COUNT + (label === 'b' ? 1 : 0), 0, 0)
+  // ボットの足元から +x 側のすぐ隣 (+2) に石を設置する。
+  // 遠い位置 (+4/+5) だとサバイバルのリーチ限界近くになり、フルスイート実行時に
+  // 立ち位置が僅かにずれただけでサーバーが採掘を拒否 → statistic が増えず
+  // current が required に届かない (CI の SP-1 恒常失敗の原因)。
+  // 直前の採掘で同じ場所が空くので、毎回同じ +2 に置き直せばよい。
+  const target = pos.offset(2, 0, 0)
   const setCmd = `setblock ${target.x} ${target.y} ${target.z} minecraft:stone`
   await rcon(setCmd).catch(() => {})
   await new Promise((r) => setTimeout(r, 400))
@@ -67,6 +71,11 @@ describe('stat 条件 + point 報酬 (MC-SP)', () => {
     await rcon(`gamemode survival ${BOT_NAME}`).catch(() => {})
     // 採掘を一瞬で終わらせるためダイアのツルハシを支給
     await rcon(`give ${BOT_NAME} minecraft:diamond_pickaxe`).catch(() => {})
+    await new Promise((r) => setTimeout(r, 800))
+    // give だけでは手に持たないので明示的に装備する (素手だと石1個 ≈7.5秒かかり
+    // 2個で完了チャットの 20 秒タイムアウトを圧迫する)
+    const pickaxe = bot.inventory.items().find((i) => i.name === 'diamond_pickaxe')
+    if (pickaxe) await bot.equip(pickaxe, 'hand').catch(() => {})
     // point 報酬コマンドが参照する scoreboard objective を用意 (設定デフォルト挙動)
     await rcon(`scoreboard objectives add point dummy "ポイント"`).catch(() => {})
     await rcon(`scoreboard players set ${BOT_NAME} point 0`).catch(() => {})
@@ -134,7 +143,14 @@ describe('stat 条件 + point 報酬 (MC-SP)', () => {
     const mcChat = await chatPromise
     console.log('完了チャット:', mcChat ? JSON.stringify(mcChat) : '(届かず)')
 
-    const { status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token })
+    // stat イベント処理〜DB反映の遅延を吸収するため、完了までポーリングする
+    let status = 0
+    let body: QuestProgress = { completed: false }
+    for (let i = 0; i < 10; i++) {
+      ;({ status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token }))
+      if (status === 200 && body.completed) break
+      await new Promise((r) => setTimeout(r, 1000))
+    }
     console.log('進捗API:', status, JSON.stringify(body))
 
     assert.ok(

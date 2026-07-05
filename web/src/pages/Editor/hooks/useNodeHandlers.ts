@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { EditorNode } from '@/components/editor/types.js'
+import type { NamespacedId } from '@/util/NamespacedId.js'
 import type { ProposalNode } from '../types.js'
 import { CLICK_MAX_DIST } from '../types.js'
 import type { EditorState } from './useEditorState.js'
@@ -211,7 +212,7 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
     s.mouseDownNodeId.current = null
   }
 
-  const handleItemSelect = (itemType: string) => {
+  const handleItemSelect = (itemType: NamespacedId) => {
     const config = s.itemSelectorConfig
     if (!config) return
     const apply = (n: EditorNode): EditorNode => {

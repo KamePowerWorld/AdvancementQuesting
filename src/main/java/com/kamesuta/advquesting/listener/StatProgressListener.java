@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting.listener;
 
 import com.kamesuta.advquesting.data.ProgressManager;
+import com.kamesuta.advquesting.util.NamespacedId;
 import org.bukkit.Material;
 import org.bukkit.Statistic;
 import org.bukkit.entity.EntityType;
@@ -48,26 +49,26 @@ public class StatProgressListener implements Listener {
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
-                statId = "minecraft:" + material.getKey().getKey();
+                statId = NamespacedId.from(material).toString();
             }
             case ITEM -> {
                 statType = toStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
-                statId = "minecraft:" + material.getKey().getKey();
+                statId = NamespacedId.from(material).toString();
             }
             case ENTITY -> {
                 statType = toStatType(stat);
                 if (statType == null) return;
                 EntityType entityType = event.getEntityType();
                 if (entityType == null) return;
-                statId = "minecraft:" + entityType.getKey().getKey();
+                statId = NamespacedId.from(entityType).toString();
             }
             case UNTYPED -> {
                 // カスタム統計 (JUMP, WALK_ONE_CM, etc.)
                 statType = "minecraft:custom";
-                statId = "minecraft:" + stat.getKey().getKey();
+                statId = NamespacedId.from(stat).toString();
             }
             default -> { return; }
         }

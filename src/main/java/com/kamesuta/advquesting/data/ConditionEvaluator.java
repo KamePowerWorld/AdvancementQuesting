@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.data;
 
+import com.kamesuta.advquesting.util.NamespacedId;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,13 +22,12 @@ final class ConditionEvaluator {
     /**
      * "advancement" または汎用アドバンスメントID 条件を評価し、完了済みエントリを progress に追加する。
      * <p>
-     * type が "advancement" の場合は名前空間を除去して比較し、
-     * それ以外の場合は advancementId と condValue を直接比較する。
+     * NamespacedId としてパースして比較します。
      *
      * @param conditions クエスト条件リスト
      * @param progress   プレイヤー進捗リスト（インプレース変更）
      * @param condType   イベントの条件タイプ
-     * @param condValue  イベントのアドバンスメントID（名前空間なし）
+     * @param condValue  イベントのアドバンスメントID
      * @return 少なくとも1件が変更された場合 {@code true}
      */
     static boolean applyAdvancement(
@@ -34,23 +35,26 @@ final class ConditionEvaluator {
             List<Map<String, Object>> progress,
             String condType,
             String condValue) {
+        NamespacedId eventId = NamespacedId.parse(condValue);
         boolean changed = false;
         for (Map<String, Object> cond : conditions) {
             if (!condType.equals(cond.get("type"))) continue;
             if ("advancement".equals(condType)) {
                 String condAdvId = (String) cond.get("advancementId");
                 if (condAdvId == null) continue;
-                String condNoNs = McIds.stripNamespace(condAdvId);
-                if (!condValue.equals(condNoNs)) continue;
+                NamespacedId condId = NamespacedId.parse(condAdvId);
+                if (!eventId.equals(condId)) continue;
             } else {
-                if (!condValue.equals(cond.get("advancementId"))) continue;
+                NamespacedId condId = NamespacedId.parse(condValue);
+                NamespacedId condAdvId = NamespacedId.parse((String) cond.get("advancementId"));
+                if (!condId.equals(condAdvId)) continue;
             }
-            String condId = (String) cond.get("id");
+            String condIdStr = (String) cond.get("id");
             boolean alreadyDone = progress.stream()
-                    .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+                    .anyMatch(p -> condIdStr.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
             if (!alreadyDone) {
-                progress.removeIf(p -> condId.equals(p.get("conditionId")));
-                progress.add(Map.of("conditionId", condId, "completed", true));
+                progress.removeIf(p -> condIdStr.equals(p.get("conditionId")));
+                progress.add(Map.of("conditionId", condIdStr, "completed", true));
                 changed = true;
             }
         }
@@ -61,11 +65,11 @@ final class ConditionEvaluator {
 
     /**
      * "item" 条件を評価し、インベントリ数が要求数以上であれば完了済みにする。
-     * itemType は両辺ともに名前空間を除去して比較する。
+     * itemType は NamespacedId としてパースして比較します。
      *
      * @param conditions     クエスト条件リスト
      * @param progress       プレイヤー進捗リスト（インプレース変更）
-     * @param itemType       イベントのアイテムタイプ（名前空間あり可）
+     * @param itemType       イベントのアイテムタイプ
      * @param inventoryCount プレイヤーが所持している数
      * @return 少なくとも1件が変更された場合 {@code true}
      */
@@ -74,22 +78,22 @@ final class ConditionEvaluator {
             List<Map<String, Object>> progress,
             String itemType,
             int inventoryCount) {
-        String itemTypeNoNs = McIds.stripNamespace(itemType);
+        NamespacedId eventId = NamespacedId.parse(itemType);
         boolean changed = false;
         for (Map<String, Object> cond : conditions) {
             if (!"item".equals(cond.get("type"))) continue;
             String condItemType = (String) cond.get("itemType");
             if (condItemType == null) continue;
-            String condNoNs = McIds.stripNamespace(condItemType);
-            if (!itemTypeNoNs.equals(condNoNs)) continue;
-            String condId = (String) cond.get("id");
+            NamespacedId condId = NamespacedId.parse(condItemType);
+            if (!eventId.equals(condId)) continue;
+            String condIdStr = (String) cond.get("id");
             int required = ((Number) cond.getOrDefault("count", 1)).intValue();
             boolean wasCompleted = progress.stream()
-                    .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+                    .anyMatch(p -> condIdStr.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
             if (wasCompleted) continue;
             if (inventoryCount < required) continue;
-            progress.removeIf(p -> condId.equals(p.get("conditionId")));
-            progress.add(Map.of("conditionId", condId, "completed", true));
+            progress.removeIf(p -> condIdStr.equals(p.get("conditionId")));
+            progress.add(Map.of("conditionId", condIdStr, "completed", true));
             changed = true;
         }
         return changed;
@@ -244,7 +248,7 @@ final class ConditionEvaluator {
     // ---- 納品 (delivery) ----
 
     /** 納品条件1件の必要量。 */
-    record DeliveryNeed(String conditionId, String itemType, int required, int alreadyDelivered) {
+    record DeliveryNeed(String conditionId, NamespacedId itemType, int required, int alreadyDelivered) {
         int stillNeeded() {
             return required - alreadyDelivered;
         }
@@ -269,7 +273,8 @@ final class ConditionEvaluator {
                     .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
             if (alreadyDone) continue;
 
-            String itemType = (String) cond.getOrDefault("itemType", "stone");
+            String itemTypeStr = (String) cond.getOrDefault("itemType", "minecraft:stone");
+            NamespacedId itemType = NamespacedId.parse(itemTypeStr);
             int required = ((Number) cond.getOrDefault("count", 1)).intValue();
             Map<String, Object> existing = progress.stream()
                     .filter(p -> condId.equals(p.get("conditionId")))

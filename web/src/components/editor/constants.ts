@@ -1,4 +1,8 @@
 import type { EditorNode, EditorEdge } from './types.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
+
+/** アイテム/アイコンのデフォルトID */
+export const DEFAULT_ITEM_ID = NamespacedId.parse('minecraft:stone')
 
 // ---------------------------------------------------------------------------
 // タスク種別 — クエストの達成条件として選べる種類
@@ -26,35 +30,35 @@ export const REWARD_TYPES = [
 // ---------------------------------------------------------------------------
 export const INITIAL_NODES: EditorNode[] = [
   {
-    id: '1', x: 100, y: 100, icon: 'book',
+    id: '1', x: 100, y: 100, icon: NamespacedId.parse('minecraft:book'),
     title: '基本',
     subtitle: 'すべての始まり',
     description: 'この本を手に取ったあなたは、冒険の第一歩を踏み出しました。\nまずは基本を学びましょう。',
     tasks:   [{ id: 't1', type: 'checkmark', value: '確認する' }],
-    rewards: [{ id: 'r1', type: 'item', itemType: 'apple', value: '' }],
+    rewards: [{ id: 'r1', type: 'item', itemType: NamespacedId.parse('minecraft:apple'), value: '' }],
   },
   {
-    id: '2', x: 250, y: 100, icon: 'diamond',
+    id: '2', x: 250, y: 100, icon: NamespacedId.parse('minecraft:diamond'),
     title: 'マナ理論',
     subtitle: '高度な知識',
     description: 'ロックされたクエストです。\n前提を完了する必要があります。',
-    tasks:   [{ id: 't2', type: 'item', itemType: 'diamond', value: '' }],
+    tasks:   [{ id: 't2', type: 'item', itemType: NamespacedId.parse('minecraft:diamond'), value: '' }],
     rewards: [{ id: 'r2', type: 'xp', value: '100 レベル' }],
   },
   {
-    id: '3', x: 250, y: 250, icon: 'stone',
+    id: '3', x: 250, y: 250, icon: NamespacedId.parse('minecraft:stone'),
     title: '石器時代',
     subtitle: '掘って、切って、壊して！',
     description: '丸石を集めてツールを作りましょう。',
-    tasks:   [{ id: 't3', type: 'item', itemType: 'stone', value: '' }],
+    tasks:   [{ id: 't3', type: 'item', itemType: NamespacedId.parse('minecraft:stone'), value: '' }],
     rewards: [],
   },
   {
-    id: '4', x: 400, y: 250, icon: 'chest',
+    id: '4', x: 400, y: 250, icon: NamespacedId.parse('minecraft:chest'),
     title: '収納',
     subtitle: 'アイテムの整理',
     description: 'チェストを作成してアイテムを保管します。',
-    tasks:   [{ id: 't4', type: 'item', itemType: 'wood', value: '' }],
+    tasks:   [{ id: 't4', type: 'item', itemType: NamespacedId.parse('minecraft:oak_planks'), value: '' }],
     rewards: [{ id: 'r3', type: 'choice', value: 'HV Tier' }],
   },
 ]

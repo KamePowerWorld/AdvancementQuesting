@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 export interface McItemEntry {
-  id: string
+  id: NamespacedId
   name: string
 }
 
@@ -27,18 +28,20 @@ export function useMcLang() {
   })
 }
 
-/** アイテム名を解決する (ja優先、enフォールバック、なければid) */
+/** アイテム名を解決する (ja優先、enフォールバック、なければfullId) */
 export function getItemName(
   lang: { ja: Record<string, string>; en: Record<string, string> } | undefined,
-  id: string,
+  id: NamespacedId,
 ): string {
-  if (!lang) return id
+  if (!lang) return id.toString()
+  const itemKey = id.langKey('item')
+  const blockKey = id.langKey('block')
   return (
-    lang.ja[`item.minecraft.${id}`] ??
-    lang.ja[`block.minecraft.${id}`] ??
-    lang.en[`item.minecraft.${id}`] ??
-    lang.en[`block.minecraft.${id}`] ??
-    id
+    lang.ja[itemKey] ??
+    lang.ja[blockKey] ??
+    lang.en[itemKey] ??
+    lang.en[blockKey] ??
+    id.toString()
   )
 }
 
@@ -92,25 +95,23 @@ export function useMcAtlas() {
 /** アドバンスメント名を lang ファイルから解決する */
 export function getAdvancementName(
   lang: { ja: Record<string, string>; en: Record<string, string> } | undefined,
-  id: string,
+  id: NamespacedId,
 ): string {
-  if (!lang) return id
-  // "adventure/adventuring_time" → "advancements.adventure.adventuring_time.title"
+  if (!lang) return id.toString()
   // "minecraft:story/mine_wood" → "advancements.story.mine_wood.title"
-  const normalized = id.replace('minecraft:', '')
-  const key = 'advancements.' + normalized.replace(/\//g, '.')
-  return lang.ja[`${key}.title`] ?? lang.en[`${key}.title`] ?? id
+  const key = id.advancementLangKey()
+  return lang.ja[key] ?? lang.en[key] ?? id.toString()
 }
 
 /** カスタム統計名を lang ファイルから解決する */
 export function getCustomStatName(
   lang: { ja: Record<string, string>; en: Record<string, string> } | undefined,
-  id: string,
+  id: NamespacedId,
 ): string {
-  if (!lang) return id
+  if (!lang) return id.toString()
   // "minecraft:jump" → "stat.minecraft.jump"
-  const key = id.replace(':', '.')
-  return lang.ja[`stat.${key}`] ?? lang.en[`stat.${key}`] ?? id
+  const key = id.langKey('stat')
+  return lang.ja[key] ?? lang.en[key] ?? id.toString()
 }
 
 /** アドバンスメントID一覧をロードして名前付きエントリとして返す */
@@ -128,6 +129,8 @@ export function useMcAdvancements() {
     advQuery.data && langQuery.data
       ? advQuery.data
           .filter((id) => !id.startsWith('recipes/') && !id.startsWith('minecraft:recipes/'))
+          // registry は省略形を含むためここ（入力境界）で NamespacedId 化する
+          .map((raw) => NamespacedId.parseUserInput(raw))
           .map((id) => ({
             id,
             name: getAdvancementName(langQuery.data, id),
@@ -154,10 +157,13 @@ export function useMcCustomStats() {
 
   const stats: McItemEntry[] | undefined =
     statQuery.data && langQuery.data
-      ? statQuery.data.map((id) => ({
-          id,
-          name: getCustomStatName(langQuery.data, id),
-        }))
+      ? statQuery.data
+          // registry は省略形を含むためここ（入力境界）で NamespacedId 化する
+          .map((raw) => NamespacedId.parseUserInput(raw))
+          .map((id) => ({
+            id,
+            name: getCustomStatName(langQuery.data, id),
+          }))
       : undefined
 
   return {
@@ -180,10 +186,13 @@ export function useMcItems() {
 
   const items: McItemEntry[] | undefined =
     itemsQuery.data && langQuery.data
-      ? itemsQuery.data.map((id) => ({
-          id,
-          name: getItemName(langQuery.data, id),
-        }))
+      ? itemsQuery.data
+          // registry は省略形 ("stone") のためここ（入力境界）で NamespacedId 化する
+          .map((raw) => NamespacedId.parseUserInput(raw))
+          .map((id) => ({
+            id,
+            name: getItemName(langQuery.data, id),
+          }))
       : undefined
 
   return {

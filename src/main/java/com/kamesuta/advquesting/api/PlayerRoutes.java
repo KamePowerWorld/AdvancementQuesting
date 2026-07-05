@@ -1,6 +1,8 @@
 package com.kamesuta.advquesting.api;
 
 import com.google.gson.JsonObject;
+import com.kamesuta.advquesting.util.NamespacedId;
+import com.kamesuta.advquesting.util.DimensionId;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
 import io.javalin.http.NotFoundResponse;
@@ -41,12 +43,8 @@ public class PlayerRoutes {
                     }
                     org.bukkit.Location loc = player.getLocation();
                     // ディメンション名を "overworld" / "nether" / "end" に正規化する
-                    String key = player.getWorld().getKey().getKey(); // "overworld", "the_nether", "the_end"
-                    String dimension = switch (key) {
-                        case "the_nether" -> "nether";
-                        case "the_end"    -> "end";
-                        default           -> "overworld";
-                    };
+                    DimensionId dimensionId = DimensionId.from(player.getWorld());
+                    String dimension = dimensionId.normalize();
                     future.complete(Map.of(
                         "x", (int) loc.getX(),
                         "y", (int) loc.getY(),
@@ -85,7 +83,8 @@ public class PlayerRoutes {
                     }
 
                     Map<String, Object> result = new HashMap<>();
-                    result.put("itemId", item.getType().getKey().toString());
+                    // API境界: 完全形式 "minecraft:xxx" で返す（省略形の使用は禁止）
+                    result.put("itemId", NamespacedId.from(item.getType()).toString());
                     result.put("count", item.getAmount());
 
                     // componentsのみ保存 (id/countは別フィールドで管理するため冗長性を排除)

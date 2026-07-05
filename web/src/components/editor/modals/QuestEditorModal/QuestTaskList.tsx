@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { EditorNode, ItemSelectorConfig, EditingTaskReward } from '../../types.js'
-import { TASK_TYPES } from '../../constants.js'
+import { TASK_TYPES , DEFAULT_ITEM_ID} from '../../constants.js'
 import { ItemIcon } from '../../ItemIcon.js'
 import { getDisplayText } from '../../utils.js'
 import type { ConditionProgress } from '@/types/progress.js'
@@ -68,7 +68,7 @@ export function QuestTaskList({
             >
               <div className="shrink-0">
                 {(task.type === 'item' || task.type === 'delivery') ? (
-                  <ItemIcon type={task.itemType ?? 'stone'} size={24} />
+                  <ItemIcon type={task.itemType ?? DEFAULT_ITEM_ID} size={24} />
                 ) : (
                   <span className="text-xl w-6 text-center block">
                     {TASK_TYPES.find((t) => t.id === task.type)?.icon}

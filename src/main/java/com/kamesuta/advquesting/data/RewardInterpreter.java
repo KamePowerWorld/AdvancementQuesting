@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting.data;
 
 import com.kamesuta.advquesting.db.RewardClaimDao;
+import com.kamesuta.advquesting.util.NamespacedId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,7 @@ public final class RewardInterpreter {
     private RewardInterpreter() {}
 
     /** 解釈済み報酬。type が無い報酬は parse が null を返す。 */
-    public record ParsedReward(String type, String label, String itemType, int count, int amount, String nbt, String command) {
+    public record ParsedReward(String type, String label, NamespacedId itemType, int count, int amount, String nbt, String command) {
 
         /** 受取ログ用の集計量: item→count, experience/point→amount, その他 (command等)→実行回数として1 */
         public long logAmount() {
@@ -31,7 +32,9 @@ public final class RewardInterpreter {
         if (type == null) return null;
         String label = reward.get("label") instanceof String s ? s : null;
         Object it = reward.getOrDefault("itemType", reward.get("itemId"));
-        String itemType = it instanceof String s ? s : null;
+        String itemTypeStr = it instanceof String s ? s : null;
+        // item 報酬のみ itemType を解釈する (item 以外の要素に紛れた itemType は無視)
+        NamespacedId itemType = "item".equals(type) && itemTypeStr != null ? NamespacedId.parse(itemTypeStr) : null;
         int count = ((Number) reward.getOrDefault("count", 1)).intValue();
         int amount = ((Number) reward.getOrDefault("amount", 0)).intValue();
         String nbt = reward.get("nbt") instanceof String s ? s : null;
@@ -46,7 +49,7 @@ public final class RewardInterpreter {
         for (Map<String, Object> reward : rewards) {
             ParsedReward p = parse(reward);
             if (p == null) continue;
-            String itemType = "item".equals(p.type()) ? p.itemType() : null;
+            String itemType = "item".equals(p.type()) && p.itemType() != null ? p.itemType().toString() : null;
             entries.add(new RewardClaimDao.LogEntry(p.type(), p.label(), itemType, p.logAmount()));
         }
         return entries;

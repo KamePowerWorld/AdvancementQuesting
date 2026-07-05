@@ -1,5 +1,6 @@
 package com.kamesuta.advquesting.data;
 
+import com.kamesuta.advquesting.util.NamespacedId;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ class ConditionEvaluatorTest {
     // ================================================================
 
     @Test
-    void applyItem_namespaceStrippedBothSides() {
+    void applyItem_fullIdMatch() {
         var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone", "count", 5));
         var progress = emptyProgress();
         boolean changed = ConditionEvaluator.applyItem(conditions, progress, "minecraft:stone", 5);
@@ -45,45 +46,37 @@ class ConditionEvaluatorTest {
     }
 
     @Test
-    void applyItem_namespaceStripOnEventSide() {
-        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "stone", "count", 1));
+    void applyItem_shortFormThrows() {
+        // 省略形はマイグレーション/TS側正規化済みが前提。Java側は厳密パースのみ
+        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone", "count", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> ConditionEvaluator.applyItem(conditions, emptyProgress(), "stone", 1));
+    }
+
+    @Test
+    void applyItem_defaultCountOne() {
+        // count が指定されていない場合デフォルト 1
+        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone"));
         var progress = emptyProgress();
         boolean changed = ConditionEvaluator.applyItem(conditions, progress, "minecraft:stone", 1);
         assertTrue(changed);
     }
 
     @Test
-    void applyItem_namespaceStripOnConditionSide() {
-        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone", "count", 1));
-        var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "stone", 1);
-        assertTrue(changed);
-    }
-
-    @Test
-    void applyItem_defaultCountOne() {
-        // count が指定されていない場合デフォルト 1
-        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "stone"));
-        var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "stone", 1);
-        assertTrue(changed);
-    }
-
-    @Test
     void applyItem_inventoryCountBelowRequired_noChange() {
-        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "stone", "count", 10));
+        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone", "count", 10));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "stone", 5);
+        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "minecraft:stone", 5);
         assertFalse(changed);
         assertTrue(progress.isEmpty());
     }
 
     @Test
     void applyItem_alreadyCompleted_noChange() {
-        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "stone", "count", 1));
+        var conditions = List.of(cond("type", "item", "id", "c1", "itemType", "minecraft:stone", "count", 1));
         var progress = new ArrayList<Map<String, Object>>();
         progress.add(new HashMap<>(Map.of("conditionId", "c1", "completed", true)));
-        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "stone", 99);
+        boolean changed = ConditionEvaluator.applyItem(conditions, progress, "minecraft:stone", 99);
         assertFalse(changed);
         assertEquals(1, progress.size());
     }
@@ -236,26 +229,26 @@ class ConditionEvaluatorTest {
     // ================================================================
 
     @Test
-    void applyAdvancement_namespaceStrippedMatch() {
+    void applyAdvancement_fullIdMatch() {
         var conditions = List.of(cond("type", "advancement", "id", "c1", "advancementId", "minecraft:story/mine_stone"));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyAdvancement(conditions, progress, "advancement", "story/mine_stone");
+        boolean changed = ConditionEvaluator.applyAdvancement(conditions, progress, "advancement", "minecraft:story/mine_stone");
         assertTrue(changed);
     }
 
     @Test
-    void applyAdvancement_noNamespaceInCondition() {
-        var conditions = List.of(cond("type", "advancement", "id", "c1", "advancementId", "story/mine_stone"));
-        var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyAdvancement(conditions, progress, "advancement", "story/mine_stone");
-        assertTrue(changed);
+    void applyAdvancement_shortFormThrows() {
+        // 省略形はマイグレーション/TS側正規化済みが前提。Java側は厳密パースのみ
+        var conditions = List.of(cond("type", "advancement", "id", "c1", "advancementId", "minecraft:story/mine_stone"));
+        assertThrows(IllegalArgumentException.class,
+                () -> ConditionEvaluator.applyAdvancement(conditions, emptyProgress(), "advancement", "story/mine_stone"));
     }
 
     @Test
     void applyAdvancement_mismatch_noChange() {
         var conditions = List.of(cond("type", "advancement", "id", "c1", "advancementId", "minecraft:story/other"));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyAdvancement(conditions, progress, "advancement", "story/mine_stone");
+        boolean changed = ConditionEvaluator.applyAdvancement(conditions, progress, "advancement", "minecraft:story/mine_stone");
         assertFalse(changed);
     }
 
@@ -329,7 +322,7 @@ class ConditionEvaluatorTest {
     @Test
     void buildResetProgressList_itemAndOtherTypesOmitted() {
         Quest quest = makeQuest(List.of(
-                cond("type", "item", "id", "c1", "itemType", "stone"),
+                cond("type", "item", "id", "c1", "itemType", "minecraft:stone"),
                 cond("type", "advancement", "id", "c2", "advancementId", "something"),
                 cond("type", "stat", "id", "c3", "statType", "custom", "statId", "mined", "count", 1)
         ));
@@ -346,22 +339,22 @@ class ConditionEvaluatorTest {
     void computeDeliveryNeeds_未納品のdelivery条件を返す() {
         var conditions = List.of(
                 cond("type", "delivery", "id", "d1", "itemType", "minecraft:iron_ingot", "count", 5),
-                cond("type", "item", "id", "c1", "itemType", "stone")  // delivery 以外は除外
+                cond("type", "item", "id", "c1", "itemType", "minecraft:stone")  // delivery 以外は除外
         );
         var needs = ConditionEvaluator.computeDeliveryNeeds(conditions, emptyProgress());
         assertEquals(1, needs.size());
         assertEquals("d1", needs.get(0).conditionId());
-        assertEquals("minecraft:iron_ingot", needs.get(0).itemType());
+        assertEquals(NamespacedId.parse("minecraft:iron_ingot"), needs.get(0).itemType());
         assertEquals(5, needs.get(0).required());
         assertEquals(0, needs.get(0).alreadyDelivered());
         assertEquals(5, needs.get(0).stillNeeded());
     }
 
     @Test
-    void computeDeliveryNeeds_デフォルトはstoneと1個() {
+    void computeDeliveryNeeds_デフォルトはminecraft_stoneと1個() {
         var conditions = List.of(cond("type", "delivery", "id", "d1"));
         var needs = ConditionEvaluator.computeDeliveryNeeds(conditions, emptyProgress());
-        assertEquals("stone", needs.get(0).itemType());
+        assertEquals(NamespacedId.parse("minecraft:stone"), needs.get(0).itemType());
         assertEquals(1, needs.get(0).required());
     }
 
@@ -391,7 +384,7 @@ class ConditionEvaluatorTest {
     @Test
     void applyDelivery_所持数が足りれば完了になる() {
         var progress = emptyProgress();
-        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 0);
+        var need = new ConditionEvaluator.DeliveryNeed("d1", NamespacedId.parse("minecraft:stone"), 5, 0);
         int consumed = ConditionEvaluator.applyDelivery(progress, need, 8);
         assertEquals(5, consumed);
         assertEquals(1, progress.size());
@@ -402,7 +395,7 @@ class ConditionEvaluatorTest {
     @Test
     void applyDelivery_所持数不足なら部分納品で未完了() {
         var progress = emptyProgress();
-        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 2);
+        var need = new ConditionEvaluator.DeliveryNeed("d1", NamespacedId.parse("minecraft:stone"), 5, 2);
         int consumed = ConditionEvaluator.applyDelivery(progress, need, 1);
         assertEquals(1, consumed);
         assertEquals(3, progress.get(0).get("current"));
@@ -414,7 +407,7 @@ class ConditionEvaluatorTest {
     void applyDelivery_既存の進捗行を置き換える() {
         var progress = new java.util.ArrayList<Map<String, Object>>();
         progress.add(new HashMap<>(Map.of("conditionId", "d1", "current", 2, "required", 5, "completed", false)));
-        var need = new ConditionEvaluator.DeliveryNeed("d1", "stone", 5, 2);
+        var need = new ConditionEvaluator.DeliveryNeed("d1", NamespacedId.parse("minecraft:stone"), 5, 2);
         ConditionEvaluator.applyDelivery(progress, need, 100);
         assertEquals(1, progress.size());
         assertEquals(5, progress.get(0).get("current"));

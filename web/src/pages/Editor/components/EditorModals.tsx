@@ -12,6 +12,7 @@ import type { ViewAsTarget } from '@/hooks/useViewAs.js'
 import type { useClaimReward, useCompleteCheckmark, useDeliverItems, useToggleQuestStatus } from '@/hooks/mutations.js'
 import type { EditorState } from '../hooks/useEditorState.js'
 import type { ProposalNode } from '../types.js'
+import type { NamespacedId } from '@/util/NamespacedId.js'
 
 interface EditorModalsProps {
   s: EditorState
@@ -25,7 +26,7 @@ interface EditorModalsProps {
   editingProposalNode: ProposalNode | null
   taskRewardNode: EditorNode | null | undefined
   updateNode: (updated: EditorNode) => void
-  handleItemSelect: (itemId: string) => void
+  handleItemSelect: (itemId: NamespacedId) => void
   isReadOnlyNode: (nodeId: string) => boolean
   showToast: (label: string) => void
   claimRewardMutation: ReturnType<typeof useClaimReward>

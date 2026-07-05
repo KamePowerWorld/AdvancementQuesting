@@ -2,6 +2,7 @@ package com.kamesuta.advquesting.data;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kamesuta.advquesting.util.NamespacedId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -125,8 +126,13 @@ public class AdvancementJsonBuilder {
 
     static String toMinecraftItem(String icon) {
         if (icon == null || icon.isBlank()) return "minecraft:map";
-        if (icon.contains(":")) return icon;
-        return "minecraft:" + icon.toLowerCase();
+        try {
+            // 起動時マイグレーション後は常に完全形式 ("minecraft:xxx") のはず
+            return NamespacedId.parse(icon).toString();
+        } catch (IllegalArgumentException e) {
+            // 不正なIDはデフォルトへフォールバック (省略形の補完はここでは行わない)
+            return "minecraft:map";
+        }
     }
 
     static String sanitizeCriterionName(String condId) {

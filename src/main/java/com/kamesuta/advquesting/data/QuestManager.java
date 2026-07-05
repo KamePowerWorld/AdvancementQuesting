@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -66,6 +67,76 @@ public class QuestManager {
 
     private void invalidateCache() {
         cache = null;
+    }
+
+    // ---- 起動時マイグレーション ----
+
+    /**
+     * 既存クエストJSONに残る短縮形ID ("stone") を完全形式 ("minecraft:stone") へ一度だけ移行する。
+     * プラグイン起動時に呼び出すこと。以降のJava側は厳密な {@code NamespacedId.parse()} のみを使用する。
+     *
+     * <p>対象フィールド: icon / conditions.itemType / conditions.advancementId /
+     * conditions.statId / conditions.statType / rewards.itemId
+     *
+     * @return 書き換えたファイル数
+     */
+    public int migrateLegacyIds() {
+        lock.writeLock().lock();
+        try {
+            int migrated = 0;
+            for (Quest q : loadFromDisk()) {
+                boolean changed = false;
+                String icon = legacyToFullId(q.icon);
+                if (icon != null && !icon.equals(q.icon)) {
+                    q.icon = icon;
+                    changed = true;
+                }
+                if (q.conditions != null) {
+                    for (Map<String, Object> cond : q.conditions) {
+                        changed |= migrateKey(cond, "itemType");
+                        changed |= migrateKey(cond, "advancementId");
+                        changed |= migrateKey(cond, "statId");
+                        changed |= migrateKey(cond, "statType");
+                    }
+                }
+                if (q.rewards != null) {
+                    for (Map<String, Object> reward : q.rewards) {
+                        changed |= migrateKey(reward, "itemId");
+                    }
+                }
+                if (changed) {
+                    try {
+                        MAPPER.writeValue(file(q), q);
+                        migrated++;
+                    } catch (IOException e) {
+                        // 書き込み失敗はスキップ（次回起動時に再試行される）
+                    }
+                }
+            }
+            if (migrated > 0) invalidateCache();
+            return migrated;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /** map の指定キーが短縮形IDなら完全形式へ書き換える。 */
+    private static boolean migrateKey(Map<String, Object> map, String key) {
+        if (!(map.get(key) instanceof String s)) return false;
+        String full = legacyToFullId(s);
+        if (full == null || full.equals(s)) return false;
+        map.put(key, full);
+        return true;
+    }
+
+    /**
+     * 旧データ読み取り専用の "minecraft:" 補完。
+     * ここ（マイグレーション）以外で省略形を補完してはならない。
+     */
+    private static String legacyToFullId(String id) {
+        if (id == null || id.isBlank()) return id;
+        if (id.contains(":")) return id;
+        return "minecraft:" + id;
     }
 
     public Quest findById(int id) {

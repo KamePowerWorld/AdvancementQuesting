@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { statsApi } from '@/api/stats.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import type { QuestsConfig } from '@/types/dashboard.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 interface Props {
   config: QuestsConfig
@@ -25,7 +26,7 @@ export function QuestsWidget({ config }: Props) {
       {data.map((q, i) => (
         <div key={q.questId} className="flex items-center gap-2">
           <span className="text-xs text-gray-500 w-4 shrink-0">{i + 1}</span>
-          <ItemIcon type={q.questIcon} size={16} />
+          <ItemIcon type={NamespacedId.parseUserInput(q.questIcon)} size={16} />
           <span className="text-xs text-gray-200 flex-1 truncate">{q.questTitle}</span>
           <span className="text-xs text-gray-400 shrink-0">{q.uniquePlayers}人</span>
         </div>

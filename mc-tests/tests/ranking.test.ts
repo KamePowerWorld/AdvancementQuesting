@@ -13,7 +13,6 @@ import assert from 'node:assert/strict'
 import { createBot, quitBot, waitForChat, apiRequest, rcon } from './helpers.js'
 import type { Bot } from 'mineflayer'
 
-const TEST_ADV = 'story/mine_stone'
 const TEST_ADV_MC = 'minecraft:story/mine_stone'
 
 interface RankEntry {
@@ -69,7 +68,7 @@ describe('ランキング (MC-RK)', () => {
         status: 'public',
         icon: 'stone',
         prerequisites: [],
-        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV, requiredCount: 1 }],
+        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV_MC, requiredCount: 1 }],
         rewards: [],
         mapPosition: { x: 770, y: 770 },
         category: null,
@@ -129,7 +128,7 @@ describe('ランキング (MC-RK)', () => {
         status: 'public',
         icon: 'stone',
         prerequisites: [],
-        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV, requiredCount: 1 }],
+        conditions: [{ id: 'cond-adv', type: 'advancement', advancementId: TEST_ADV_MC, requiredCount: 1 }],
         rewards: [],
         mapPosition: { x: 760, y: 760 },
         category: null,

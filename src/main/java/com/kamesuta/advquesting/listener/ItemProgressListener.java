@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting.listener;
 
 import com.kamesuta.advquesting.data.ProgressManager;
+import com.kamesuta.advquesting.util.NamespacedId;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -27,7 +28,7 @@ public class ItemProgressListener implements Listener {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack item = event.getItem().getItemStack();
         org.bukkit.Material mat = item.getType();
-        String type = mat.getKey().toString();
+        String type = NamespacedId.from(mat).toString();
         // 拾得後のインベントリ合計（拾う分を加算して計算）
         int inv = countInInventory(player, mat) + item.getAmount();
         progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
@@ -39,7 +40,7 @@ public class ItemProgressListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         ItemStack result = event.getRecipe().getResult();
         org.bukkit.Material mat = result.getType();
-        String type = mat.getKey().toString();
+        String type = NamespacedId.from(mat).toString();
         int inv = countInInventory(player, mat) + result.getAmount();
         progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
     }
@@ -49,7 +50,7 @@ public class ItemProgressListener implements Listener {
     public void onFurnaceExtract(FurnaceExtractEvent event) {
         Player player = event.getPlayer();
         org.bukkit.Material mat = event.getItemType();
-        String type = mat.getKey().toString();
+        String type = NamespacedId.from(mat).toString();
         int inv = countInInventory(player, mat) + event.getItemAmount();
         progressManager.onItemPickup(player.getUniqueId().toString(), type, inv);
     }

@@ -5,6 +5,7 @@ import { statsApi } from '@/api/stats.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import { useViewAsContext } from '@/contexts/ViewAsContext.js'
 import type { AllRewardsEntry } from '@/types/stats.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 
 interface PopoverPos { top: number; left: number }
 
@@ -42,7 +43,7 @@ function RewardDetailPopover({
   return (
     <Popover pos={pos} onClose={onClose}>
       <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700 flex items-center gap-1">
-        {entry.rewardType === 'item' && entry.itemType && <ItemIcon type={entry.itemType} size={14} />}
+        {entry.rewardType === 'item' && entry.itemType && <ItemIcon type={NamespacedId.parseUserInput(entry.itemType)} size={14} />}
         {entry.rewardLabel ?? entry.itemType ?? entry.rewardType}
         <span className="ml-auto font-normal text-gray-500">合計 {entry.totalAmount.toLocaleString()}</span>
       </div>
@@ -144,7 +145,7 @@ function ItemGridSection({ entries }: { entries: AllRewardsEntry[] }) {
             title={`${entry.rewardLabel ?? entry.itemType ?? 'アイテム'} ×${entry.totalAmount.toLocaleString()}`}
             className="relative flex items-center justify-center w-10 h-10 rounded bg-black/40 border border-gray-600 hover:border-gray-400 transition-colors"
           >
-            <ItemIcon type={entry.itemType ?? 'stone'} size={28} />
+            <ItemIcon type={NamespacedId.parseUserInput(entry.itemType ?? 'minecraft:stone')} size={28} />
             {entry.totalAmount > 1 && (
               <span className="absolute bottom-0 right-0.5 text-[9px] font-bold text-white tabular-nums leading-none drop-shadow">
                 {entry.totalAmount > 999 ? '999+' : entry.totalAmount}

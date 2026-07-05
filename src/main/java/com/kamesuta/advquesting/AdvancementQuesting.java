@@ -72,6 +72,11 @@ public final class AdvancementQuesting extends JavaPlugin {
         RewardClaimDao rewardClaimDao = new RewardClaimDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
+        // 既存クエストJSONの短縮形ID ("stone") を完全形式 ("minecraft:stone") へ移行する (冪等)
+        int idMigrated = questManager.migrateLegacyIds();
+        if (idMigrated > 0) {
+            getLogger().info("クエストIDを完全形式へ移行: " + idMigrated + " ファイル");
+        }
         CommentManager commentManager = new CommentManager(getDataFolder());
         ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
         advancementSyncManager = new AdvancementSyncManager(this, questManager, progressDao);

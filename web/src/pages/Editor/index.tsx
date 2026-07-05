@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import type { ToolMode } from '@/components/editor/types.js'
-import { INITIAL_NODES, INITIAL_EDGES } from '@/components/editor/constants.js'
+import { INITIAL_NODES, INITIAL_EDGES, DEFAULT_ITEM_ID } from '@/components/editor/constants.js'
 import { EdgePattern } from '@/components/editor/EdgePattern.js'
 import { useAuth } from '@/contexts/AuthContext.js'
 import { ViewAsContext } from '@/contexts/ViewAsContext.js'
@@ -108,12 +108,15 @@ export default function EditorPage() {
   useEffect(() => { s.proposalNodesRef.current = s.proposalNodes }, [s.proposalNodes])
 
   // --- toast ---
-  const showToast = (label: string) => {
+  // useCallback 必須: handleSave/submitProposals の依存に入るため、毎レンダー再生成されると
+  // setSaveQuests/setSubmitProposals 経由で AppInner との無限再レンダーループになる
+  const showToast = useCallback((label: string) => {
     s.setToastLabel(label)
     s.setToastVisible(true)
     if (s.toastTimerRef.current) clearTimeout(s.toastTimerRef.current)
     s.toastTimerRef.current = setTimeout(() => s.setToastVisible(false), 3000)
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => () => { if (s.toastTimerRef.current) clearTimeout(s.toastTimerRef.current) }, [])
 
@@ -194,7 +197,7 @@ export default function EditorPage() {
   const addProposalNode = useCallback((wx: number, wy: number) => {
     s.setProposalNodes((prev) => [...prev, {
       id: `proposal-${Date.now()}`, x: wx, y: wy,
-      icon: 'stone', title: '新規提案クエスト', subtitle: '', description: '',
+      icon: DEFAULT_ITEM_ID, title: '新規提案クエスト', subtitle: '', description: '',
       tasks: [], rewards: [],
     }])
   }, [])

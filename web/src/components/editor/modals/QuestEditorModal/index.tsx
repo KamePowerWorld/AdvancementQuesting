@@ -6,6 +6,7 @@ import { getDisplayText } from '../../utils.js'
 import { AiAssistPanel } from '../AiAssistPanel.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
+import { NamespacedId } from '@/util/NamespacedId.js'
 import type { ConditionProgress } from '@/types/progress.js'
 import { cooldownNextFire, formatRevivePreview } from '../../CronParser.js'
 import { QuestRankingSection } from '@/components/ranking/QuestRankingSection.js'
@@ -82,7 +83,7 @@ export function QuestEditorModal({
       id: `t-${Date.now()}`,
       type,
       value: type === 'checkmark' ? '確認する' : '',
-      ...(type === 'item' || type === 'delivery' ? { itemType: 'stone', count: 1 } : {}),
+      ...(type === 'item' || type === 'delivery' ? { itemType: NamespacedId.parse('minecraft:stone'), count: 1 } : {}),
     }
     updateNode({ ...node, tasks: [...(node.tasks ?? []), newTask] })
     setShowTaskMenu(false)
@@ -98,7 +99,7 @@ export function QuestEditorModal({
       id: `r-${Date.now()}`,
       type,
       value: '',
-      ...(type === 'item' ? { itemType: 'stone' } : {}),
+      ...(type === 'item' ? { itemType: NamespacedId.parse('minecraft:stone') } : {}),
     }
     updateNode({ ...node, rewards: [...(node.rewards ?? []), newReward] })
     setShowRewardMenu(false)
