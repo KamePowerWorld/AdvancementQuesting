@@ -27,13 +27,16 @@ export function useSaveHandler(s: EditorState, deps: UseSaveHandlerDeps) {
     try {
       const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
       const currentNodeIds = new Set(s.nodes.map((n) => n.id))
+      // キャンバス上から消えたクエストを削除（proposedは除く、hiddenは削除する）
       await Promise.all(
         (questsData ?? [])
           .filter((q) => q.status !== 'proposed' && !currentNodeIds.has(String(q.id)))
           .map((q) => questsApi.delete(q.id))
       )
       await Promise.all(s.nodes.map(async (node) => {
-        const savedStatus: 'hidden' | 'public' = node.status === 'hidden' ? 'hidden' : 'public'
+        // status='hidden' のノードは保存しない（却下済み提案のため）
+        if (node.status === 'hidden') return
+        const savedStatus: 'public' = 'public'
         const body = { ...nodeToApiBody(node, s.edges), status: savedStatus }
         if (existingIds.has(node.id)) {
           await questsApi.update(parseInt(node.id, 10), body)

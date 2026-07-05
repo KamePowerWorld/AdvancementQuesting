@@ -73,7 +73,8 @@ export default function EditorPage() {
   // --- API data → state effects ---
   useEffect(() => {
     if (!questsData) return
-    const publicQuests = questsData.filter((q) => q.status === 'public' || (isEditor && q.status !== 'proposed'))
+    // 却下済み提案（status='hidden'）はエディターにロードしない
+    const publicQuests = questsData.filter((q) => q.status === 'public' || (isEditor && q.status !== 'proposed' && q.status !== 'hidden'))
     const newNodes = publicQuests.length > 0 ? publicQuests.map(questToNode) : INITIAL_NODES
     s.setNodes(newNodes)
     s.setEdges(publicQuests.length > 0 ? questsToEdges(publicQuests) : INITIAL_EDGES)
