@@ -372,8 +372,10 @@ test('却下済み提案はAPIレスポンスから除外される', async ({ pa
   await expect(page.getByText('✕ 却下')).toBeVisible({ timeout: 3000 })
   await page.getByText('✕ 却下').click()
 
+  // 却下後、提案ノードが表示されなくなるのを待つ
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+
   // 却下後にページをリロードしてキャッシュをクリア
-  await page.waitForTimeout(500)
   await page.reload()
   await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
   await page.getByTitle('編集モード').click()
@@ -429,8 +431,10 @@ test('却下後に保存しても下書き状態で再表示されない', async
   await expect(page.getByText('✕ 却下')).toBeVisible({ timeout: 3000 })
   await page.getByText('✕ 却下').click()
 
+  // 却下後、提案ノードが表示されなくなるのを待つ
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+
   // 却下後に保存ボタンを押す
-  await page.waitForTimeout(500)
   await page.locator('nav button', { hasText: '💾 保存' }).click()
   await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
 
