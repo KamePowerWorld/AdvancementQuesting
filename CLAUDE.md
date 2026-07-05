@@ -5,6 +5,8 @@ Temp files → `tmp/`. One-off Playwright → `*.tmp.spec.ts` (gitignored).
 
 ## Must Follow
 
+For long commands, use `tee` and never rerun.
+
 After each implementation unit:
 1. `/worktree-build` — confirm pass
 2. Playwright E2E + Mineflayer E2E tests
