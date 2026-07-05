@@ -310,7 +310,7 @@ export default function EditorPage() {
             showDelete={showDelete} showAddComment={showAddComment} showSettings={showSettings} />
 
           {s.showStats ? <DashboardPage /> : (<>
-            <div ref={s.canvasRef} className={`flex-grow relative overflow-hidden ${s.mode === 'move' && !s.draggingNode ? 'cursor-grab' : s.draggingNode ? 'cursor-grabbing' : s.mode === 'add_node' ? 'cursor-crosshair' : s.mode === 'add_comment' ? 'cursor-crosshair' : 'cursor-default'}`}
+            <div ref={s.canvasRef} data-testid="editor-canvas" className={`flex-grow relative overflow-hidden ${s.mode === 'move' && !s.draggingNode ? 'cursor-grab' : s.draggingNode ? 'cursor-grabbing' : s.mode === 'add_node' ? 'cursor-crosshair' : s.mode === 'add_comment' ? 'cursor-crosshair' : 'cursor-default'}`}
               style={{ backgroundColor: '#5d6b5e', backgroundImage: 'linear-gradient(rgba(0,0,0,0.15) 2px, transparent 2px), linear-gradient(90deg, rgba(0,0,0,0.15) 2px, transparent 2px)', backgroundSize: `${40 * s.scale}px ${40 * s.scale}px`, backgroundPosition: `${s.pan.x}px ${s.pan.y}px`, boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)', touchAction: 'none' }}
               onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
               onContextMenu={(e) => e.preventDefault()}
