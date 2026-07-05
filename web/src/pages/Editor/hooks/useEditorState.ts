@@ -27,10 +27,11 @@ export function useEditorState() {
   // --- tool mode ---
   const [mode, setMode] = useState<ToolMode>('select')
 
-  // --- pan ---
+  // --- pan / scale ---
   const [pan, setPan] = useState<Vec2>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState<Vec2>({ x: 0, y: 0 })
+  const [scale, setScale] = useState(1)
 
   // --- drag ---
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
@@ -84,6 +85,16 @@ export function useEditorState() {
   const canvasRef = useRef<HTMLDivElement>(null)
   const panStartRef = useRef<Vec2>({ x: 0, y: 0 })
   const panRef = useRef<Vec2>({ x: 0, y: 0 })
+  const scaleRef = useRef(1)
+  // --- pinch (2本指ズーム) 開始情報 ---
+  const pinchStartRef = useRef<{
+    dist: number
+    midX: number
+    midY: number
+    panX: number
+    panY: number
+    scale: number
+  } | null>(null)
   const nodesRef = useRef<EditorNode[]>(INITIAL_NODES)
   const proposalNodesRef = useRef<EditorNode[]>([])
   const modeRef = useRef<ToolMode>('select')
@@ -102,6 +113,7 @@ export function useEditorState() {
     pan, setPan,
     isPanning, setIsPanning,
     panStart, setPanStart,
+    scale, setScale,
     draggingNode, setDraggingNode,
     dragOffset, setDragOffset,
     linkStartNode, setLinkStartNode,
@@ -133,6 +145,8 @@ export function useEditorState() {
     canvasRef,
     panStartRef,
     panRef,
+    scaleRef,
+    pinchStartRef,
     nodesRef,
     proposalNodesRef,
     modeRef,

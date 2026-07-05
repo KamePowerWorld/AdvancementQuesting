@@ -14,8 +14,8 @@ export function CommentLayer({ s, isEditor }: { s: EditorState; isEditor: boolea
             const rect = s.canvasRef.current?.getBoundingClientRect()
             const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
             const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-            const wx = clientX - (rect?.left ?? 0) - s.panRef.current.x
-            const wy = clientY - (rect?.top ?? 0) - s.panRef.current.y
+            const wx = (clientX - (rect?.left ?? 0) - s.panRef.current.x) / s.scaleRef.current
+            const wy = (clientY - (rect?.top ?? 0) - s.panRef.current.y) / s.scaleRef.current
             const members = isEditor ? s.nodes.filter((n) => n.x >= comment.x && n.x <= comment.x + comment.width && n.y >= comment.y && n.y <= comment.y + comment.height).map((n) => ({ id: n.id, x: n.x, y: n.y })) : []
             s.commentDragRef.current = { offsetX: wx - comment.x, offsetY: wy - comment.y, startX: comment.x, startY: comment.y, members }
             s.setDraggingCommentId(comment.id)

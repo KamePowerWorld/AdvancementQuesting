@@ -32,15 +32,19 @@ interface NodeHoverTooltipProps {
   node: EditorNode
   mousePos: Vec2
   pan: Vec2
+  scale: number
   canvasEl: HTMLDivElement | null
   lang: McLang
 }
 
 /** PC ホバー時のノード情報ツールチップ */
-export function NodeHoverTooltip({ node, mousePos, pan, canvasEl, lang }: NodeHoverTooltipProps) {
+export function NodeHoverTooltip({ node, mousePos, pan, scale, canvasEl, lang }: NodeHoverTooltipProps) {
+  // tooltip は transform 外層（screen 空間）に描画されるため、world→screen 変換が必要
+  const screenX = mousePos.x * scale + pan.x
+  const screenY = mousePos.y * scale + pan.y
   return (
     <div className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs hidden sm:block"
-      style={{ left: Math.min(mousePos.x + pan.x + 20, (canvasEl?.offsetWidth ?? 0) - 200), top: Math.min(mousePos.y + pan.y + 20, (canvasEl?.offsetHeight ?? 0) - 100) }}>
+      style={{ left: Math.min(screenX + 20, (canvasEl?.offsetWidth ?? 0) - 200), top: Math.min(screenY + 20, (canvasEl?.offsetHeight ?? 0) - 100) }}>
       <NodeInfoContent node={node} lang={lang} chipTestId="hover-reward-chips" />
     </div>
   )

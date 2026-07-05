@@ -33,8 +33,8 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
     if (s.mode === 'move' && canMoveNode(nodeId)) {
       const node = [...s.nodes, ...s.proposalNodes, ...otherProposalNodes].find((n) => n.id === nodeId)!
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - s.pan.x
-      const wy = e.clientY - rect.top - s.pan.y
+      const wx = (e.clientX - rect.left - s.pan.x) / s.scale
+      const wy = (e.clientY - rect.top - s.pan.y) / s.scale
       s.setDragOffset({ x: wx - node.x, y: wy - node.y })
       s.setDraggingNode(nodeId)
       s.setIsPanning(false)
@@ -91,8 +91,8 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
     if (s.mode === 'move' && canMoveNode(nodeId)) {
       const node = [...s.nodesRef.current, ...s.proposalNodesRef.current, ...otherProposalNodes].find((n) => n.id === nodeId)!
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      const wx = t.clientX - rect.left - s.panRef.current.x
-      const wy = t.clientY - rect.top - s.panRef.current.y
+      const wx = (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current
+      const wy = (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current
       s.setDragOffset({ x: wx - node.x, y: wy - node.y })
       s.setDraggingNode(nodeId)
       s.setIsPanning(false)
@@ -107,7 +107,7 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
       }
     } else if (s.mode === 'add_link') {
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      s.setMousePos({ x: t.clientX - rect.left - s.panRef.current.x, y: t.clientY - rect.top - s.panRef.current.y })
+      s.setMousePos({ x: (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current, y: (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current })
       if (!s.linkStartNode) s.setLinkStartNode(nodeId)
     }
   }
@@ -129,8 +129,8 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
 
     if (s.mode === 'move' && s.draggingNode === nodeId && canMoveNode(nodeId)) {
       const rect = s.canvasRef.current.getBoundingClientRect()
-      const wx = t.clientX - rect.left - s.panRef.current.x
-      const wy = t.clientY - rect.top - s.panRef.current.y
+      const wx = (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current
+      const wy = (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current
       const tx = wx - s.dragOffset.x
       const ty = wy - s.dragOffset.y
       if (proposalMode && isProposalDraft(nodeId)) {
@@ -149,7 +149,7 @@ export function useNodeHandlers(s: EditorState, deps: UseNodeHandlersDeps) {
       }
     } else if (s.mode === 'add_link') {
       const rect = s.canvasRef.current.getBoundingClientRect()
-      s.setMousePos({ x: t.clientX - rect.left - s.panRef.current.x, y: t.clientY - rect.top - s.panRef.current.y })
+      s.setMousePos({ x: (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current, y: (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current })
       const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, s.linkStartNode ?? undefined)
       s.setLinkHoverNode(hoverId)
     }
