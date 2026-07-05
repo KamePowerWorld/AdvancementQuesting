@@ -12,7 +12,6 @@ import type { ViewAsTarget } from '@/hooks/useViewAs.js'
 import type { useClaimReward, useCompleteCheckmark, useDeliverItems, useToggleQuestStatus } from '@/hooks/mutations.js'
 import type { EditorState } from '../hooks/useEditorState.js'
 import type { ProposalNode } from '../types.js'
-import type { NamespacedId } from '@/util/NamespacedId.js'
 
 interface EditorModalsProps {
   s: EditorState
@@ -26,7 +25,7 @@ interface EditorModalsProps {
   editingProposalNode: ProposalNode | null
   taskRewardNode: EditorNode | null | undefined
   updateNode: (updated: EditorNode) => void
-  handleItemSelect: (itemId: NamespacedId) => void
+  handleItemSelect: (itemId: string) => void
   isReadOnlyNode: (nodeId: string) => boolean
   showToast: (label: string) => void
   claimRewardMutation: ReturnType<typeof useClaimReward>
@@ -84,13 +83,14 @@ export function EditorModals({
       {editingProposalNode && (() => {
         const p = existingProposals?.find((p) => p.id === editingProposalNode.proposalId)
         const canEdit = isEditor
+        const isAuthor = !!me && !!p && me.playerUuid === p.proposerUuid
         return (
           <QuestEditorModal node={editingProposalNode} updateNode={canEdit ? updateNode : () => {}} close={() => s.setEditingProposalNodeId(null)} openItemSelector={s.setItemSelectorConfig} openTaskRewardEditor={s.setEditingTaskReward}
             proposalMeta={editingProposalNode.proposalId != null ? {
               proposalId: editingProposalNode.proposalId, proposerName: p?.proposerName ?? '',
               votesUp: editingProposalNode.votesUp ?? 0, myVote: p?.myVote ?? null,
               onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
-              ...(canEdit ? { onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!) } : {}),
+              ...(isAuthor ? { onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!) } : {}),
               ...(isEditor ? { onApprove: () => handleApprove(editingProposalNode.proposalId!), onReject: () => handleReject(editingProposalNode.proposalId!) } : {}),
             } : undefined}
             readOnly={!canEdit}

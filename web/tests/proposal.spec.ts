@@ -10,6 +10,9 @@
  * 18. 送信済み提案ノードを開いていいねできる
  * 19. 提案ノードのマップ上にスキンアイコンが表示される
  * 29. 編集者が提案ノードを移動して保存できる
+ * 30. 提案者本人が取り下げボタンで自分の提案を削除できる
+ * 31. 却下済み提案はAPIレスポンスから除外される
+ * 32. 却下後に保存しても下書き状態で再表示されない
  */
 
 import { test, expect } from '@playwright/test'
@@ -287,4 +290,167 @@ test('提案ノード移動: 編集者が提案モードで提案ノードをド
   const proposals = await res.json()
   expect(proposals.length).toBeGreaterThan(0)
   expect(Math.abs(proposals[0].mapPosition.x - 500)).toBeGreaterThan(20)
+})
+
+// 30
+test('取り下げ: 提案者本人が自分の提案を取り下げできる', async ({ page }) => {
+  await resetProposals(page)
+
+  await loginAs(page, 'demo-player-token')
+  await page.getByText('クエスト追加を提案する').click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  const base = await page.locator('[data-node-id]').count()
+  await canvas.click({ position: { x: 500, y: 300 } })
+  await expect(page.locator('nav button', { hasText: '📤' })).toBeVisible({ timeout: 3000 })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  const box = await proposalNode.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+
+  // 提案者本人には取り下げボタンが表示される
+  await expect(page.getByText('🗑 取り下げ')).toBeVisible({ timeout: 3000 })
+
+  // 取り下げ実行
+  page.on('dialog', dialog => dialog.accept())
+  await page.getByText('🗑 取り下げ').click()
+
+  // 提案が削除される
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+  await expect(page.locator('[data-node-id]')).toHaveCount(base, { timeout: 5000 })
+
+  // APIからも削除されていることを確認
+  const res = await page.request.get(`${MOCK}/api/proposals`, {
+    headers: { Authorization: 'Bearer demo-player-token' },
+  })
+  const proposals = await res.json()
+  expect(proposals.length).toBe(0)
+})
+
+// 31
+test('却下済み提案はAPIレスポンスから除外される', async ({ page }) => {
+  await resetProposals(page)
+
+  await loginAs(page, 'demo-player-token')
+  await page.getByText('クエスト追加を提案する').click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  await canvas.click({ position: { x: 500, y: 300 } })
+  await expect(page.locator('nav button', { hasText: '📤' })).toBeVisible({ timeout: 3000 })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // 提案が作成されたことを確認
+  let res = await page.request.get(`${MOCK}/api/proposals`, {
+    headers: { Authorization: 'Bearer demo-player-token' },
+  })
+  let proposals = await res.json()
+  expect(proposals.length).toBe(1)
+  expect(proposals[0].status).toBe('pending')
+
+  // 編集者がログインして却下
+  await loggedInBtn(page).click()
+  await expect(loggedInBtn(page)).not.toBeVisible({ timeout: 5000 })
+
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('✏️ 編集者としてログイン').click()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await page.getByTitle('編集モード').click()
+
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  const box = await proposalNode.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+
+  await expect(page.getByText('✕ 却下')).toBeVisible({ timeout: 3000 })
+  await page.getByText('✕ 却下').click()
+
+  // 却下後、提案ノードが表示されなくなるのを待つ
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+
+  // 却下後にページをリロードしてキャッシュをクリア
+  await page.reload()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await page.getByTitle('編集モード').click()
+
+  // 却下後、APIレスポンスから除外されることを確認
+  res = await page.request.get(`${MOCK}/api/proposals`, {
+    headers: { Authorization: 'Bearer demo-editor-token' },
+  })
+  proposals = await res.json()
+  expect(proposals.length).toBe(0)
+
+  // 提案ノードも表示されない
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+})
+
+// 32
+test('却下後に保存しても下書き状態で再表示されない', async ({ page }) => {
+  await resetProposals(page)
+
+  await loginAs(page, 'demo-player-token')
+  await page.getByText('クエスト追加を提案する').click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  await canvas.click({ position: { x: 500, y: 300 } })
+  await expect(page.locator('nav button', { hasText: '📤' })).toBeVisible({ timeout: 3000 })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // 提案が作成されたことを確認
+  let res = await page.request.get(`${MOCK}/api/proposals`, {
+    headers: { Authorization: 'Bearer demo-player-token' },
+  })
+  let proposals = await res.json()
+  expect(proposals.length).toBe(1)
+  expect(proposals[0].status).toBe('pending')
+
+  // 編集者がログインして却下
+  await loggedInBtn(page).click()
+  await expect(loggedInBtn(page)).not.toBeVisible({ timeout: 5000 })
+
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('✏️ 編集者としてログイン').click()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await page.getByTitle('編集モード').click()
+
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  const box = await proposalNode.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+
+  await expect(page.getByText('✕ 却下')).toBeVisible({ timeout: 3000 })
+  await page.getByText('✕ 却下').click()
+
+  // 却下後、提案ノードが表示されなくなるのを待つ
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+
+  // 却下後に保存ボタンを押す
+  await page.locator('nav button', { hasText: '💾 保存' }).click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+
+  // 却下済み提案がAPIレスポンスから除外されていることを確認
+  res = await page.request.get(`${MOCK}/api/proposals`, {
+    headers: { Authorization: 'Bearer demo-editor-token' },
+  })
+  proposals = await res.json()
+  expect(proposals.length).toBe(0)
+
+  // 提案ノードも表示されない
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+
+  // ページをリロードしても表示されない
+  await page.reload()
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await page.getByTitle('編集モード').click()
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
 })
