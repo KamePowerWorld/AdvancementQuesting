@@ -14,6 +14,8 @@
   <properties>
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- plugin.yml の libraries: にも filtering で展開される -->
+    <sqlite-jdbc.version>3.49.1.0</sqlite-jdbc.version>
   </properties>
 
   <build>
@@ -107,11 +109,12 @@
       <version>6.6.0</version>
     </dependency>
 
-    <!-- SQLite JDBC -->
+    <!-- SQLite JDBC (plugin.yml libraries: でサーバーが実行時にDLするため provided) -->
     <dependency>
       <groupId>org.xerial</groupId>
       <artifactId>sqlite-jdbc</artifactId>
-      <version>3.49.1.0</version>
+      <version>${sqlite-jdbc.version}</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- JSON シリアライズ (Javalin が使う Jackson) -->

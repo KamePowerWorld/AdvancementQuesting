@@ -4,6 +4,10 @@ main: com.kamesuta.advquesting.AdvancementQuesting
 api-version: '1.21'
 authors: [ Kamesuta ]
 
+# サーバー起動時に Maven Central から自動DLされる
+libraries:
+  - org.xerial:sqlite-jdbc:${sqlite-jdbc.version}
+
 commands:
   quest:
     description: AdvancementQuesting プレイヤー用コマンド
