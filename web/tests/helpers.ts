@@ -95,3 +95,12 @@ export async function notifyProgressUpdate(
     data: { token, questId, completed },
   })
 }
+
+/** クエストタイトルからクエストIDを取得（API経由） */
+export async function getFirstQuestId(page: Page, title: string): Promise<number> {
+  const response = await page.request.get(`${MOCK}/api/quests`)
+  const quests = await response.json()
+  const quest = quests.find((q: any) => q.title === title)
+  if (!quest) throw new Error(`クエスト "${title}" が見つかりません`)
+  return quest.id
+}
