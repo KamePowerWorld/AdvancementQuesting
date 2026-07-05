@@ -21,14 +21,33 @@ interface QuestProgress {
   progress?: Array<{ conditionId: string; completed: boolean; current?: number; required?: number }>
 }
 
+/** ボットが地上にいる (安定して着地済み) になるまで待つ */
+async function waitForGround(bot: Bot, timeoutMs = 3000) {
+  const start = Date.now()
+  // onGround が連続して true を保つまで待つ（landing 直後の振動を弾く）
+  let stable = 0
+  while (Date.now() - start < timeoutMs) {
+    if (bot.entity.onGround && bot.entity.velocity.y === 0) {
+      stable++
+      if (stable >= 2) return true
+    } else {
+      stable = 0
+    }
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  return false
+}
+
 /** ボットを指定回数ジャンプさせる */
 async function jumpMultipleTimes(bot: Bot, count: number) {
   for (let i = 0; i < count; i++) {
+    // 確実に統計へ計上されるよう、地上にいることを確認してからジャンプ
+    await waitForGround(bot)
     bot.setControlState('jump', true)
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((r) => setTimeout(r, 100))
     bot.setControlState('jump', false)
-    // 着地まで待機（falling == false になるまで）
-    await new Promise((r) => setTimeout(r, 600))
+    // 着地まで待機
+    await waitForGround(bot)
   }
 }
 
@@ -105,11 +124,22 @@ describe('カスタム統計条件 (MC-SC)', () => {
     const mcChat = await chatPromise
     console.log('完了チャット:', mcChat ? JSON.stringify(mcChat) : '(届かず)')
 
-    const { status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token })
+    // チャット未到達の場合は、イベント伝達の遅延を考慮して進捗APIをポーリング
+    let status = 0
+    let body: QuestProgress | undefined
+    if (!mcChat) {
+      for (let i = 0; i < 10; i++) {
+        ;({ status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token }))
+        if (status === 200 && body?.completed) break
+        await new Promise((r) => setTimeout(r, 500))
+      }
+    } else {
+      ;({ status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token }))
+    }
     console.log('進捗API:', status, JSON.stringify(body))
 
     assert.ok(
-      mcChat || (status === 200 && body.completed),
+      mcChat || (status === 200 && body?.completed),
       `ジャンプ${JUMP_COUNT}回でもクエストが完了しない。custom stat 条件の解釈または StatProgressListener.UNTYPED 処理の可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
     )
   })
