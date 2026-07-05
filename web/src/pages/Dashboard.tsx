@@ -77,6 +77,9 @@ export function DashboardPage() {
   }
 
   function handleLayoutChange(updatedWidgets: DashboardWidget[]) {
+    // 閲覧者には保存させない (react-grid-layout はマウント時にも onLayoutChange を発火するため、
+    // 放置すると閲覧のたびに PUT が飛んで 401 になる)
+    if (!canEdit) return
     updateConfig({ widgets: updatedWidgets })
   }
 

@@ -165,3 +165,32 @@ test('DB-9: 総受け取り報酬ウィジェットが追加できる', async ({
   // ウィジェット設定ボタン（ヘッダー）が見える
   await expect(page.getByTitle('ウィジェット設定')).toBeVisible({ timeout: 5000 })
 })
+
+test('DB-10: 保存済みウィジェットがある状態で統計タブを開いても真っ白にならない', async ({ page }) => {
+  // 実運用相当: ウィジェットが保存済みの状態で統計タブを開く
+  await page.request.put(`${MOCK}/api/dashboard`, {
+    headers: { Authorization: 'Bearer demo-editor-token' },
+    data: {
+      widgets: [
+        { id: 'db10-quests', type: 'quests', config: { sort: 'popular', limit: 20 }, layout: { x: 0, y: 0, w: 3, h: 5 }, customTitle: 'DB10クエスト統計' },
+        { id: 'db10-lb', type: 'leaderboard', config: { metric: 'points', limit: 20 }, layout: { x: 3, y: 0, w: 3, h: 6 } },
+      ],
+    },
+  })
+
+  // 無限再レンダー (Maximum update depth exceeded) でクラッシュしないこと
+  const fatalErrors: string[] = []
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' && msg.text().includes('Maximum update depth')) fatalErrors.push(msg.text())
+  })
+  page.on('pageerror', (err) => fatalErrors.push(String(err)))
+
+  await loginAs(page, 'demo-player-token')
+  await page.getByRole('button', { name: /統計/ }).click()
+  await expect(page.getByText('DB10クエスト統計')).toBeVisible({ timeout: 5000 })
+
+  // クラッシュ→真っ白は描画後数秒以内に起きるため、待ってから検証する
+  await page.waitForTimeout(3000)
+  expect(fatalErrors).toEqual([])
+  await expect(page.getByText('DB10クエスト統計')).toBeVisible()
+})

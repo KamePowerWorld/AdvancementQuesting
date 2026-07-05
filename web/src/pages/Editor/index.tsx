@@ -108,12 +108,15 @@ export default function EditorPage() {
   useEffect(() => { s.proposalNodesRef.current = s.proposalNodes }, [s.proposalNodes])
 
   // --- toast ---
-  const showToast = (label: string) => {
+  // useCallback 必須: handleSave/submitProposals の依存に入るため、毎レンダー再生成されると
+  // setSaveQuests/setSubmitProposals 経由で AppInner との無限再レンダーループになる
+  const showToast = useCallback((label: string) => {
     s.setToastLabel(label)
     s.setToastVisible(true)
     if (s.toastTimerRef.current) clearTimeout(s.toastTimerRef.current)
     s.toastTimerRef.current = setTimeout(() => s.setToastVisible(false), 3000)
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => () => { if (s.toastTimerRef.current) clearTimeout(s.toastTimerRef.current) }, [])
 
