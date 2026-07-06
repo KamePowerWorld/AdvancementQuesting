@@ -34,6 +34,7 @@ import com.kamesuta.advquesting.listener.ItemProgressListener;
 import com.kamesuta.advquesting.listener.LocationProgressListener;
 import com.kamesuta.advquesting.listener.PlayerJoinListener;
 import com.kamesuta.advquesting.listener.ScoreboardListener;
+import com.kamesuta.advquesting.listener.StatPollingListener;
 import com.kamesuta.advquesting.listener.StatProgressListener;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
@@ -48,6 +49,7 @@ public final class AdvancementQuesting extends JavaPlugin {
     private Javalin app;
     private DatabaseManager db;
     private ScoreboardListener scoreboardListener;
+    private StatPollingListener statPollingListener;
     private RepeatScheduler repeatScheduler;
     private NotificationRoutes notificationRoutes;
     private AdvancementSyncManager advancementSyncManager;
@@ -181,6 +183,10 @@ public final class AdvancementQuesting extends JavaPlugin {
         scoreboardListener = new ScoreboardListener(progressManager);
         scoreboardListener.start(this);
 
+        // ポーリング統計リスナー開始
+        statPollingListener = new StatPollingListener(progressManager);
+        statPollingListener.start(this);
+
         repeatScheduler = new RepeatScheduler(this, questManager, progressDao, notificationRoutes);
         repeatScheduler.start();
 
@@ -199,6 +205,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         if (advancementSyncManager != null) advancementSyncManager.unloadAll();
         if (repeatScheduler != null) repeatScheduler.stop();
         if (scoreboardListener != null) scoreboardListener.stop();
+        if (statPollingListener != null) statPollingListener.stop();
         // SSE クライアントを先に閉じてから Javalin を停止する。
         // keepAlive() 中のクライアントが Jetty 内に残ると ClassLoader が解放されない。
         if (notificationRoutes != null) notificationRoutes.closeAll();

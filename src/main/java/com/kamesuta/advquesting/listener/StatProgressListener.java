@@ -52,6 +52,12 @@ public class StatProgressListener implements Listener {
                 statId = NamespacedId.from(material).toString();
             }
             case ITEM -> {
+                // DROP はカスタム統計 (minecraft:drop) として扱う
+                if (stat == Statistic.DROP) {
+                    statType = "minecraft:custom";
+                    statId = NamespacedId.from(stat).toString();
+                    break;
+                }
                 statType = toStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
