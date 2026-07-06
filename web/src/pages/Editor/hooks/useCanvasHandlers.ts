@@ -40,8 +40,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
       s.setPanStart({ x: e.clientX - s.pan.x, y: e.clientY - s.pan.y })
     } else if (s.mode === 'add_node') {
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - s.pan.x
-      const wy = e.clientY - rect.top - s.pan.y
+      const wx = (e.clientX - rect.left - s.pan.x) / s.scale
+      const wy = (e.clientY - rect.top - s.pan.y) / s.scale
       if (proposalMode) {
         addProposalNode(wx, wy)
       } else if (isEditor) {
@@ -55,8 +55,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
       s.setLinkStartNode(null)
     } else if (s.mode === 'add_comment' && isEditor) {
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      const wx = e.clientX - rect.left - s.pan.x
-      const wy = e.clientY - rect.top - s.pan.y
+      const wx = (e.clientX - rect.left - s.pan.x) / s.scale
+      const wy = (e.clientY - rect.top - s.pan.y) / s.scale
       s.commentDraftStartRef.current = { wx, wy }
       s.setCommentDraft({ x: wx, y: wy, w: 0, h: 0 })
     }
@@ -66,8 +66,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
     if (!s.canvasRef.current) return
     const rect = s.canvasRef.current.getBoundingClientRect()
     if (s.isPanning && !s.draggingNode && !s.draggingCommentId && !s.resizingCommentId) s.setPan({ x: e.clientX - s.panStart.x, y: e.clientY - s.panStart.y })
-    const wx = e.clientX - rect.left - s.pan.x
-    const wy = e.clientY - rect.top - s.pan.y
+    const wx = (e.clientX - rect.left - s.pan.x) / s.scale
+    const wy = (e.clientY - rect.top - s.pan.y) / s.scale
     s.setMousePos({ x: wx, y: wy })
 
     if (s.mode === 'add_comment' && s.commentDraftStartRef.current) {
@@ -80,8 +80,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
 
     if (s.resizingCommentId && s.commentResizeStartRef.current) {
       const { mouseX, mouseY, origX, origY, origW, origH, dir } = s.commentResizeStartRef.current
-      const dx = e.clientX - mouseX
-      const dy = e.clientY - mouseY
+      const dx = (e.clientX - mouseX) / s.scale
+      const dy = (e.clientY - mouseY) / s.scale
       let newX = origX, newY = origY, newW = origW, newH = origH
       if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
@@ -159,6 +159,27 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
   }
 
   const handleCanvasTouchStart = (e: React.TouchEvent) => {
+    // 2本指 → ピンチズーム開始
+    if (e.touches.length === 2) {
+      const rect = s.canvasRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const a = e.touches[0], b = e.touches[1]
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+      s.pinchStartRef.current = {
+        dist,
+        midX: (a.clientX + b.clientX) / 2 - rect.left,
+        midY: (a.clientY + b.clientY) / 2 - rect.top,
+        panX: s.panRef.current.x,
+        panY: s.panRef.current.y,
+        scale: s.scaleRef.current,
+      }
+      // ピンチ中はパン/ノードドラッグを中断
+      s.setIsPanning(false)
+      s.setDraggingNode(null)
+      s.mouseDownPos.current = null
+      s.mouseDownNodeId.current = null
+      return
+    }
     if (e.touches.length !== 1) return
     const t = e.touches[0]
     s.mouseDownNodeId.current = null
@@ -172,8 +193,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
     } else if (s.mode === 'add_node') {
       e.preventDefault()
       const rect = s.canvasRef.current!.getBoundingClientRect()
-      const wx = t.clientX - rect.left - s.panRef.current.x
-      const wy = t.clientY - rect.top - s.panRef.current.y
+      const wx = (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current
+      const wy = (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current
       if (proposalMode) {
         addProposalNode(wx, wy)
         s.touchJustPlacedNode.current = true
@@ -189,6 +210,24 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
   }
 
   const handleCanvasTouchMove = (e: React.TouchEvent) => {
+    // 2本指 → ピンチズーム更新
+    if (e.touches.length === 2) {
+      const ps = s.pinchStartRef.current
+      const rect = s.canvasRef.current?.getBoundingClientRect()
+      if (!ps || !rect) return
+      e.preventDefault()
+      const a = e.touches[0], b = e.touches[1]
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+      const midX = (a.clientX + b.clientX) / 2 - rect.left
+      const midY = (a.clientY + b.clientY) / 2 - rect.top
+      const ratio = ps.dist > 0 ? dist / ps.dist : 1
+      const newScale = Math.max(0.2, Math.min(3, ps.scale * ratio))
+      const worldX = (ps.midX - ps.panX) / ps.scale
+      const worldY = (ps.midY - ps.panY) / ps.scale
+      s.setPan({ x: midX - worldX * newScale, y: midY - worldY * newScale })
+      s.setScale(newScale)
+      return
+    }
     if (e.touches.length !== 1 || !s.canvasRef.current) return
     const t = e.touches[0]
     e.preventDefault()
@@ -199,21 +238,21 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
 
     if (s.mode === 'add_link') {
       const rect = s.canvasRef.current.getBoundingClientRect()
-      s.setMousePos({ x: t.clientX - rect.left - s.panRef.current.x, y: t.clientY - rect.top - s.panRef.current.y })
+      s.setMousePos({ x: (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current, y: (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current })
       const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, s.linkStartNode ?? undefined)
       s.setLinkHoverNode(hoverId)
     }
 
     if (s.draggingCommentId) {
       const rect = s.canvasRef.current.getBoundingClientRect()
-      dragCommentTo(t.clientX - rect.left - s.panRef.current.x, t.clientY - rect.top - s.panRef.current.y)
+      dragCommentTo((t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current, (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current)
       return
     }
 
     if (s.resizingCommentId && s.commentResizeStartRef.current) {
       const { mouseX, mouseY, origX, origY, origW, origH, dir } = s.commentResizeStartRef.current
-      const dx = t.clientX - mouseX
-      const dy = t.clientY - mouseY
+      const dx = (t.clientX - mouseX) / s.scaleRef.current
+      const dy = (t.clientY - mouseY) / s.scaleRef.current
       let newX = origX, newY = origY, newW = origW, newH = origH
       if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
@@ -226,8 +265,8 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
 
     if (s.mode === 'move' && s.draggingNode) {
       const rect = s.canvasRef.current.getBoundingClientRect()
-      const wx = t.clientX - rect.left - s.panRef.current.x
-      const wy = t.clientY - rect.top - s.panRef.current.y
+      const wx = (t.clientX - rect.left - s.panRef.current.x) / s.scaleRef.current
+      const wy = (t.clientY - rect.top - s.panRef.current.y) / s.scaleRef.current
       const tx = wx - s.dragOffset.x
       const ty = wy - s.dragOffset.y
       if (proposalMode && isProposalDraft(s.draggingNode)) {
@@ -250,6 +289,22 @@ export function useCanvasHandlers(s: EditorState, deps: UseCanvasHandlersDeps) {
   const handleCanvasTouchEnd = (e: React.TouchEvent) => {
     s.setIsPanning(false)
     s.setLinkHoverNode(null)
+
+    // ピンチ終了: 残り1本ならその指でパン継続
+    if (s.pinchStartRef.current) {
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        const newStart = { x: t.clientX - s.panRef.current.x, y: t.clientY - s.panRef.current.y }
+        s.panStartRef.current = newStart
+        s.setPanStart(newStart)
+        s.setIsPanning(true)
+      }
+      s.pinchStartRef.current = null
+      s.mouseDownPos.current = null
+      s.mouseDownNodeId.current = null
+      s.touchJustPlacedNode.current = false
+      return
+    }
 
     if (s.draggingCommentId) {
       saveCommentById(s.draggingCommentId)

@@ -104,7 +104,34 @@ export default function EditorPage() {
 
   // --- ref sync ---
   useEffect(() => { s.panRef.current = s.pan }, [s.pan])
+  useEffect(() => { s.scaleRef.current = s.scale }, [s.scale])
   useEffect(() => { s.nodesRef.current = s.nodes }, [s.nodes])
+
+  // --- ホイール: カーソル中心でズーム ---
+  // React の onWheel は passive 制御できないので addEventListener で { passive: false } にする
+  useEffect(() => {
+    const el = s.canvasRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const cur = s.scaleRef.current
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+      const next = Math.max(0.2, Math.min(3, cur * factor))
+      if (next === cur) return
+      // カーソル直下のワールド点が動かないよう pan を補正
+      const ox = e.clientX - rect.left
+      const oy = e.clientY - rect.top
+      s.setPan({
+        x: ox - (ox - s.panRef.current.x) * next / cur,
+        y: oy - (oy - s.panRef.current.y) * next / cur,
+      })
+      s.setScale(next)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => { s.proposalNodesRef.current = s.proposalNodes }, [s.proposalNodes])
 
   // --- toast ---
@@ -183,9 +210,10 @@ export default function EditorPage() {
   const getNodeIdNearPoint = useCallback((clientX: number, clientY: number, excludeId?: string): string | null => {
     const rect = s.canvasRef.current?.getBoundingClientRect()
     if (!rect) return null
-    const wx = clientX - rect.left - s.panRef.current.x
-    const wy = clientY - rect.top - s.panRef.current.y
-    const HIT_R = 30
+    const sc = s.scaleRef.current
+    const wx = (clientX - rect.left - s.panRef.current.x) / sc
+    const wy = (clientY - rect.top - s.panRef.current.y) / sc
+    const HIT_R = 30 / sc
     for (const n of [...s.nodesRef.current, ...s.proposalNodesRef.current]) {
       if (n.id === excludeId) continue
       const dx = n.x - wx, dy = n.y - wy
@@ -282,13 +310,13 @@ export default function EditorPage() {
             showDelete={showDelete} showAddComment={showAddComment} showSettings={showSettings} />
 
           {s.showStats ? <DashboardPage /> : (<>
-            <div ref={s.canvasRef} className={`flex-grow relative overflow-hidden ${s.mode === 'move' && !s.draggingNode ? 'cursor-grab' : s.draggingNode ? 'cursor-grabbing' : s.mode === 'add_node' ? 'cursor-crosshair' : s.mode === 'add_comment' ? 'cursor-crosshair' : 'cursor-default'}`}
-              style={{ backgroundColor: '#5d6b5e', backgroundImage: 'linear-gradient(rgba(0,0,0,0.15) 2px, transparent 2px), linear-gradient(90deg, rgba(0,0,0,0.15) 2px, transparent 2px)', backgroundSize: '40px 40px', backgroundPosition: `${s.pan.x}px ${s.pan.y}px`, boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)', touchAction: 'none' }}
+            <div ref={s.canvasRef} data-testid="editor-canvas" className={`flex-grow relative overflow-hidden ${s.mode === 'move' && !s.draggingNode ? 'cursor-grab' : s.draggingNode ? 'cursor-grabbing' : s.mode === 'add_node' ? 'cursor-crosshair' : s.mode === 'add_comment' ? 'cursor-crosshair' : 'cursor-default'}`}
+              style={{ backgroundColor: '#5d6b5e', backgroundImage: 'linear-gradient(rgba(0,0,0,0.15) 2px, transparent 2px), linear-gradient(90deg, rgba(0,0,0,0.15) 2px, transparent 2px)', backgroundSize: `${40 * s.scale}px ${40 * s.scale}px`, backgroundPosition: `${s.pan.x}px ${s.pan.y}px`, boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)', touchAction: 'none' }}
               onMouseDown={handleCanvasMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
               onContextMenu={(e) => e.preventDefault()}
               onTouchStart={handleCanvasTouchStart} onTouchMove={handleCanvasTouchMove} onTouchEnd={handleCanvasTouchEnd}
             >
-              <div style={{ transform: `translate(${s.pan.x}px, ${s.pan.y}px)`, transformOrigin: '0 0' }} className="absolute inset-0 w-full h-full">
+              <div style={{ transform: `translate(${s.pan.x}px, ${s.pan.y}px) scale(${s.scale})`, transformOrigin: '0 0' }} className="absolute inset-0 w-full h-full">
                 <CommentLayer s={s} isEditor={isEditor} />
 
                 <svg className="absolute inset-0 overflow-visible pointer-events-none z-0">
@@ -319,7 +347,7 @@ export default function EditorPage() {
               </div>
 
               {s.hoveredNode && !s.draggingNode && !s.isPanning && !s.editingNodeId && !s.itemSelectorConfig && !s.editingTaskReward && (
-                <NodeHoverTooltip node={s.hoveredNode} mousePos={s.mousePos} pan={s.pan} canvasEl={s.canvasRef.current} lang={lang} />
+                <NodeHoverTooltip node={s.hoveredNode} mousePos={s.mousePos} pan={s.pan} scale={s.scale} canvasEl={s.canvasRef.current} lang={lang} />
               )}
               <ModeToast label={s.toastLabel} visible={s.toastVisible} />
             </div>
