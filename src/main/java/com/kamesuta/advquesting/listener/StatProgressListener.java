@@ -39,27 +39,27 @@ public class StatProgressListener implements Listener {
         Statistic stat = event.getStatistic();
 
         // Statistic の種類に応じて statType と statId を決定する
-        String statType;
+        NamespacedId statType;
         String statId;
 
         switch (stat.getType()) {
             case BLOCK -> {
                 // アイテム/ブロック系の統計カテゴリを Statistic 名から判定
-                statType = NamespacedId.toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
                 statId = NamespacedId.from(material).toString();
             }
             case ITEM -> {
-                statType = NamespacedId.toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
                 statId = NamespacedId.from(material).toString();
             }
             case ENTITY -> {
-                statType = NamespacedId.toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 EntityType entityType = event.getEntityType();
                 if (entityType == null) return;
@@ -69,7 +69,7 @@ public class StatProgressListener implements Listener {
                 // カスタム統計 (JUMP, WALK_ONE_CM, etc.)
                 NamespacedId customId = NamespacedId.fromCustomStatistic(stat);
                 if (customId == null) return;
-                statType = "minecraft:custom";
+                statType = NamespacedId.of("minecraft", "custom");
                 statId = customId.toString();
             }
             default -> { return; }
@@ -78,6 +78,7 @@ public class StatProgressListener implements Listener {
         int delta = event.getNewValue() - event.getPreviousValue();
         if (delta <= 0) return;
 
-        progressManager.onStat(player.getUniqueId().toString(), statType, statId, event.getNewValue());
+        progressManager.onStat(player.getUniqueId().toString(), statType.toString(), statId,
+                event.getNewValue(), event.getPreviousValue());
     }
 }

@@ -156,20 +156,21 @@ public final class NamespacedId {
 
     /**
      * アイテム/ブロック/エンティティ系の Statistic を "minecraft:mined" 等の
-     * statType 文字列に変換します。対象外の統計は null を返します。
+     * statType ID に変換します。対象外の統計は null を返します。
      */
-    public static String toStatType(Statistic stat) {
-        return switch (stat) {
-            case MINE_BLOCK         -> "minecraft:mined";
-            case CRAFT_ITEM         -> "minecraft:crafted";
-            case USE_ITEM           -> "minecraft:used";
-            case BREAK_ITEM         -> "minecraft:broken";
-            case PICKUP             -> "minecraft:picked_up";
-            case DROP               -> "minecraft:dropped";
-            case KILL_ENTITY        -> "minecraft:killed";
-            case ENTITY_KILLED_BY   -> "minecraft:killed_by";
+    public static NamespacedId fromStatType(Statistic stat) {
+        String path = switch (stat) {
+            case MINE_BLOCK         -> "mined";
+            case CRAFT_ITEM         -> "crafted";
+            case USE_ITEM           -> "used";
+            case BREAK_ITEM         -> "broken";
+            case PICKUP             -> "picked_up";
+            case DROP               -> "dropped";
+            case KILL_ENTITY        -> "killed";
+            case ENTITY_KILLED_BY   -> "killed_by";
             default                 -> null;
         };
+        return path == null ? null : new NamespacedId("minecraft", path);
     }
 
     /**

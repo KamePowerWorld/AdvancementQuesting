@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
- * 毎分実行されるスケジューラ。schedule タイプの繰り返しクエストを復活させ SSE で通知する。
+ * 毎分実行されるスケジューラ。schedule / cooldown タイプの繰り返しクエストを復活させ SSE で通知する。
  */
 public class RepeatScheduler {
 
@@ -61,8 +61,9 @@ public class RepeatScheduler {
                 if (!"public".equals(quest.status)) continue;
                 Quest.RepeatConfig repeat = quest.repeat;
                 if (repeat == null) continue;
-                if (!"schedule".equals(repeat.type)) continue;
-                if (repeat.cron == null) continue;
+                boolean isSchedule = "schedule".equals(repeat.type) && repeat.cron != null;
+                boolean isCooldown = "cooldown".equals(repeat.type) && repeat.cooldownHours > 0;
+                if (!isSchedule && !isCooldown) continue;
 
                 List<ProgressDao.ProgressRecord> records = progressDao.findByQuest(quest.id);
                 for (ProgressDao.ProgressRecord rec : records) {
@@ -71,31 +72,50 @@ public class RepeatScheduler {
                     if (lastCompletedAt == null) continue;
 
                     Instant lastCompleted = Instant.parse(lastCompletedAt);
-                    ZonedDateTime now = ZonedDateTime.now(ZoneId.systemDefault());
-                    ZonedDateTime prevFire = CronParser.prevFire(repeat.cron, now);
-                    if (prevFire == null) continue;
-
-                    if (lastCompleted.isBefore(prevFire.toInstant())) {
-                        // stat/scoreboard 条件の rawValue を baseValue として引き継いでリセット
-                        List<Map<String, Object>> completedProgress;
-                        try {
-                            completedProgress = MAPPER.readValue(rec.progress(), LIST_MAP_TYPE);
-                        } catch (Exception ex) {
-                            completedProgress = new ArrayList<>();
-                        }
-                        String newProgressJson;
-                        try {
-                            newProgressJson = ProgressUpdater.buildResetProgressJson(quest, completedProgress);
-                        } catch (Exception ex) {
-                            newProgressJson = "[]";
-                        }
-                        progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.id, newProgressJson);
-                        notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.id);
+                    if (shouldRevive(repeat, lastCompleted, Instant.now())) {
+                        resetRecord(quest, rec);
                     }
                 }
             }
         } catch (Exception e) {
             log.warning("RepeatScheduler tick error: " + e.getMessage());
         }
+    }
+
+    /**
+     * 完了済みレコードを復活させるべきか判定する。
+     * schedule: 最終完了が直近の cron 発火より前なら復活。
+     * cooldown: 最終完了から cooldownHours 経過していれば復活。
+     */
+    static boolean shouldRevive(Quest.RepeatConfig repeat, Instant lastCompleted, Instant now) {
+        if ("schedule".equals(repeat.type)) {
+            if (repeat.cron == null) return false;
+            ZonedDateTime prevFire = CronParser.prevFire(repeat.cron, now.atZone(ZoneId.systemDefault()));
+            return prevFire != null && lastCompleted.isBefore(prevFire.toInstant());
+        }
+        if ("cooldown".equals(repeat.type)) {
+            if (repeat.cooldownHours <= 0) return false;
+            Instant reviveAt = lastCompleted.plusSeconds(Math.round(repeat.cooldownHours * 3600));
+            return !now.isBefore(reviveAt);
+        }
+        return false;
+    }
+
+    /** stat/scoreboard 条件の rawValue を baseValue として引き継いで進捗をリセットし、SSE 通知する。 */
+    private void resetRecord(Quest quest, ProgressDao.ProgressRecord rec) throws Exception {
+        List<Map<String, Object>> completedProgress;
+        try {
+            completedProgress = MAPPER.readValue(rec.progress(), LIST_MAP_TYPE);
+        } catch (Exception ex) {
+            completedProgress = new ArrayList<>();
+        }
+        String newProgressJson;
+        try {
+            newProgressJson = ProgressUpdater.buildResetProgressJson(quest, completedProgress);
+        } catch (Exception ex) {
+            newProgressJson = "[]";
+        }
+        progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.id, newProgressJson);
+        notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.id);
     }
 }

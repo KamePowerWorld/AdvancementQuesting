@@ -89,7 +89,7 @@ class ConditionEvaluatorTest {
     void applyStat_basicProgress() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 10));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 7, false);
+        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 7, 0, false);
         assertTrue(changed);
         Map<String, Object> entry = progress.get(0);
         assertEquals(7, entry.get("current"));
@@ -102,7 +102,7 @@ class ConditionEvaluatorTest {
     void applyStat_capAtRequired() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 10));
         var progress = emptyProgress();
-        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 20, false);
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 20, 0, false);
         assertEquals(10, progress.get(0).get("current")); // capped
         assertEquals(true, progress.get(0).get("completed"));
     }
@@ -111,7 +111,7 @@ class ConditionEvaluatorTest {
     void applyStat_isRepeat_addsRawAndBaseValue() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 5));
         var progress = emptyProgress();
-        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 100, true);
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 100, 0, true);
         Map<String, Object> entry = progress.get(0);
         assertNotNull(entry.get("rawValue"));
         assertNotNull(entry.get("baseValue"));
@@ -123,16 +123,49 @@ class ConditionEvaluatorTest {
     void applyStat_nonRepeat_noRawOrBaseValue() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 5));
         var progress = emptyProgress();
-        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 100, false);
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 100, 0, false);
         assertNull(progress.get(0).get("rawValue"));
         assertNull(progress.get(0).get("baseValue"));
+    }
+
+    @Test
+    void applyStat_rebase_usesPreviousValueAsBase() {
+        // 復活直後 (rebase=true): クールダウン中に 10→15 に増えていても、
+        // 復活後最初のイベント (15→16) の previousValue=15 が新しい基準になる
+        var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 10));
+        var progress = new ArrayList<Map<String, Object>>();
+        progress.add(new HashMap<>(Map.of(
+                "conditionId", "c1", "current", 0, "required", 10,
+                "baseValue", 10, "rawValue", 10, "completed", false, "rebase", true)));
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 16, 15, true);
+        Map<String, Object> entry = progress.get(0);
+        assertEquals(15, entry.get("baseValue")); // previousValue が採用される
+        assertEquals(1, entry.get("current"));
+        assertEquals(false, entry.get("completed"));
+        assertNull(entry.get("rebase")); // フラグは消費される
+        // その後 25 まで増えたらクリア (15→25 で 10)
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 25, 24, true);
+        assertEquals(true, progress.get(0).get("completed"));
+        assertEquals(10, progress.get(0).get("current"));
+    }
+
+    @Test
+    void applyStat_noRebase_keepsExistingBaseValue() {
+        var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 10));
+        var progress = new ArrayList<Map<String, Object>>();
+        progress.add(new HashMap<>(Map.of(
+                "conditionId", "c1", "current", 0, "required", 10,
+                "baseValue", 10, "rawValue", 10, "completed", false)));
+        ConditionEvaluator.applyStat(conditions, progress, "custom", "mined", 16, 15, true);
+        assertEquals(10, progress.get(0).get("baseValue")); // rebase なしなら据え置き
+        assertEquals(6, progress.get(0).get("current"));
     }
 
     @Test
     void applyStat_wrongStatType_noChange() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 5));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "OTHER", "mined", 10, false);
+        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "OTHER", "mined", 10, 0, false);
         assertFalse(changed);
     }
 
@@ -140,7 +173,7 @@ class ConditionEvaluatorTest {
     void applyStat_wrongStatId_noChange() {
         var conditions = List.of(cond("type", "stat", "id", "c1", "statType", "custom", "statId", "mined", "count", 5));
         var progress = emptyProgress();
-        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "custom", "OTHER", 10, false);
+        boolean changed = ConditionEvaluator.applyStat(conditions, progress, "custom", "OTHER", 10, 0, false);
         assertFalse(changed);
     }
 
@@ -306,6 +339,7 @@ class ConditionEvaluatorTest {
         assertEquals(500, result.get(0).get("rawValue"));
         assertEquals(false, result.get(0).get("completed"));
         assertEquals(0, result.get(0).get("current"));
+        assertEquals(true, result.get(0).get("rebase")); // 復活後最初のイベントで基準値を再設定
     }
 
     @Test

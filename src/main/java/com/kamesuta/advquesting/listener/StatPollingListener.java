@@ -7,6 +7,7 @@ import org.bukkit.Statistic;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.slf4j.Logger;
 
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class StatPollingListener {
     private final ProgressManager progressManager;
     private final Map<UUID, Map<String, Integer>> lastStats = new ConcurrentHashMap<>();
     private BukkitTask pollingTask;
+    private Logger log;
 
     public StatPollingListener(ProgressManager progressManager) {
         this.progressManager = progressManager;
@@ -31,6 +33,7 @@ public class StatPollingListener {
      * 5秒ごと（100ティック）に全プレイヤーの統計をチェックする。
      */
     public void start(JavaPlugin plugin) {
+        log = plugin.getSLF4JLogger();
         pollingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID uuid = player.getUniqueId();
@@ -38,7 +41,7 @@ public class StatPollingListener {
                 pollCustomStats(player, lastStats.get(uuid));
             }
         }, 0L, 100L); // 100ティック = 5秒
-        Bukkit.getLogger().info("[StatPolling] Polling started (interval: 5 seconds)");
+        log.info("[StatPolling] Polling started (interval: 5 seconds)");
     }
 
     /**
@@ -70,13 +73,13 @@ public class StatPollingListener {
                     playerStats.put(statId, newValue);
                 } else if (newValue > oldValue) {
                     // 値が増加した場合のみ進捗を更新
-                    Bukkit.getLogger().info("[StatPolling] " + player.getName() + ": " + statId + " changed from " + oldValue + " to " + newValue);
-                    progressManager.onStat(player.getUniqueId().toString(), "minecraft:custom", statId, newValue);
+                    log.debug("[StatPolling] {}: {} changed from {} to {}", player.getName(), statId, oldValue, newValue);
+                    progressManager.onStat(player.getUniqueId().toString(), "minecraft:custom", statId, newValue, oldValue);
                     playerStats.put(statId, newValue);
                 }
             } catch (Exception e) {
                 // 統計取得に失敗した場合はスキップ（例：存在しない統計）
-                Bukkit.getLogger().warning("[StatPolling] Failed to get statistic: " + stat + " - " + e.getMessage());
+                log.warn("[StatPolling] Failed to get statistic: {} - {}", stat, e.getMessage());
             }
         }
     }
