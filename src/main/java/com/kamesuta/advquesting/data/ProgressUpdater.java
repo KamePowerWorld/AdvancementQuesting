@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /** 条件別の進捗更新ロジック。純粋評価は {@link ConditionEvaluator} へ委譲する。 */
 class ProgressUpdater {
@@ -29,7 +31,7 @@ class ProgressUpdater {
         if (quest.prerequisites == null || quest.prerequisites.isEmpty()) return true;
         for (int prereqId : quest.prerequisites) {
             try {
-                ProgressDao.ProgressRecord rec = dao.findByPlayerAndQuest(playerUuid.toString(), prereqId);
+                ProgressDao.ProgressRecord rec = readCached(playerUuid.toString(), prereqId, dao);
                 if (rec == null || !rec.completed()) return false;
             } catch (SQLException e) {
                 manager.log.warning("arePrerequisitesMet error: " + e.getMessage());
@@ -37,6 +39,20 @@ class ProgressUpdater {
             }
         }
         return true;
+    }
+
+    /**
+     * {@code manager.progressCache} を優先して読む findByPlayerAndQuest。dbExecutor スレッド上
+     * でのみ呼ぶこと (キャッシュがスレッド非同期のため)。デバウンス中の書き込みが未反映でも、
+     * ここを経由すれば常に最新の状態を読める。
+     */
+    private ProgressDao.ProgressRecord readCached(String playerUuid, int questId, ProgressDao dao) throws SQLException {
+        String key = playerUuid + ":" + questId;
+        ProgressDao.ProgressRecord cached = manager.progressCache.get(key);
+        if (cached != null) return cached;
+        ProgressDao.ProgressRecord record = dao.findByPlayerAndQuest(playerUuid, questId);
+        if (record != null) manager.progressCache.put(key, record);
+        return record;
     }
 
     // ---- 条件達成判定（ProgressManager から呼ばれる委譲メソッド） ----
@@ -87,15 +103,21 @@ class ProgressUpdater {
     }
 
     /**
-     * {@link #persistIfChanged} の非同期版。DB書き込み ({@code upsertProgress}) と、それに続く
-     * 完了時のDB処理 ({@code CompletionNotifier.applyCompletionDb} の incrementCompletedCount /
-     * resetForRepeatWithProgress) は {@code manager.dbExecutor} スレッド上で {@code manager.asyncProgressDao}
-     * を使い、間に一切スレッドを挟まず連続実行する。
+     * {@link #persistIfChanged} の非同期版。
      * <p>
-     * ここを分割してはいけない: resetForRepeatWithProgress 等は直前の upsertProgress が
-     * 既にコミット済みであることを前提に read-modify-write するため、途中でメインスレッドへの
-     * hopを挟んで遅延させると、直後に来る次のイベントの読み取りとレースして更新が失われる
-     * (繰り返しクエストの2回目クリアが検出されない、等)。
+     * クエスト完了時 ({@code allDone}) と、まだキャッシュ/DBにレコードが無い初回書き込み時
+     * ({@code baseRecord == null}) は、{@code upsertProgress} と、それに続く完了時のDB処理
+     * ({@code CompletionNotifier.applyCompletionDb} の incrementCompletedCount /
+     * resetForRepeatWithProgress) を {@code manager.dbExecutor} スレッド上で間にスレッドを
+     * 挟まず連続で即時実行する。ここを分割してはいけない: resetForRepeatWithProgress 等は
+     * 直前の upsertProgress が既にコミット済みであることを前提に read-modify-write するため、
+     * 途中でメインスレッドへのhopを挟んで遅延させると、直後に来る次のイベントの読み取りと
+     * レースして更新が失われる (繰り返しクエストの2回目クリアが検出されない、等)。
+     * <p>
+     * それ以外の (未完了の) 進捗更新は {@link #scheduleDebouncedFlush} でDB書き込みを
+     * デバウンスする。エンチャント効率強化+ハイストで秒間50ブロック採掘するような高頻度更新でも、
+     * 実際のDB書き込み回数を抑えられる。デバウンス中でも {@code manager.progressCache} を
+     * 即座に更新するため、次のイベントの読み取りは常に最新の状態を見る。
      * <p>
      * {@code advancementSyncManager.syncPlayerQuestProgress} は内部で自分でメインスレッドへ
      * ディスパッチするため呼び出しスレッドを問わない。{@code notificationRoutes} はBukkit APIに
@@ -106,16 +128,30 @@ class ProgressUpdater {
     private void persistIfChangedAsync(
             String playerUuid,
             Quest quest,
+            ProgressDao.ProgressRecord baseRecord,
             List<Map<String, Object>> progress,
             boolean changed) throws Exception {
         if (!changed) return;
         boolean allDone = ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
         String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
-        manager.asyncProgressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
-        if (allDone) {
-            manager.completionNotifier.applyCompletionDb(playerUuid, quest, manager.asyncProgressDao, manager.asyncCompletionDao);
+        String key = playerUuid + ":" + quest.id;
+
+        if (allDone || baseRecord == null) {
+            ScheduledFuture<?> pending = manager.pendingFlushes.remove(key);
+            if (pending != null) pending.cancel(false);
+            manager.asyncProgressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+            if (allDone) {
+                manager.completionNotifier.applyCompletionDb(playerUuid, quest, manager.asyncProgressDao, manager.asyncCompletionDao);
+            }
+            // allDone 後の resetForRepeatWithProgress や、baseRecord==null での自動採番id不明のため、
+            // ここではキャッシュに書かず無効化する。次回の読み取りは readCached が自然にDBへフォールバックする。
+            manager.progressCache.remove(key);
+        } else {
+            manager.progressCache.put(key, withUpdatedProgress(baseRecord, progressJson));
+            scheduleDebouncedFlush(key, playerUuid, quest.id, progressJson);
         }
+
         if (manager.advancementSyncManager != null) {
             manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
         }
@@ -124,6 +160,33 @@ class ProgressUpdater {
         } else if (manager.notificationRoutes != null) {
             manager.notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
         }
+    }
+
+    /** 未完了の進捗 (completed=false, completedAt=null) でキャッシュエントリを更新する。 */
+    private ProgressDao.ProgressRecord withUpdatedProgress(ProgressDao.ProgressRecord base, String progressJson) {
+        return new ProgressDao.ProgressRecord(
+                base.id(), base.playerUuid(), base.questId(), progressJson, false, base.rewardClaimed(),
+                base.startedAt(), base.completedAt(), base.completedCount(), base.pendingRewards());
+    }
+
+    /**
+     * 未完了の進捗更新をトレーリングデバウンスする。同一キー (playerUuid+questId) への
+     * 連続更新は、最後の変更から {@link ProgressManager#DEBOUNCE_MILLIS} 後に最新状態のみ
+     * 1回だけ {@code manager.dbExecutor} 上で書き込む。dbExecutor は単一スレッドなので、
+     * submit() される通常タスクとこのデバウンスタスクは常に同じスレッド上で時系列順に実行され、
+     * 互いにレースしない。
+     */
+    private void scheduleDebouncedFlush(String key, String playerUuid, int questId, String progressJson) {
+        ScheduledFuture<?> task = manager.dbExecutor.schedule(() -> {
+            manager.pendingFlushes.remove(key);
+            try {
+                manager.asyncProgressDao.upsertProgress(playerUuid, questId, progressJson, false, null);
+            } catch (SQLException e) {
+                manager.log.warning("debounced upsertProgress error: " + e.getMessage());
+            }
+        }, ProgressManager.DEBOUNCE_MILLIS, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> previous = manager.pendingFlushes.put(key, task);
+        if (previous != null) previous.cancel(false);
     }
 
     // ---- 各条件タイプの進捗更新 ----
@@ -144,13 +207,13 @@ class ProgressUpdater {
         manager.dbExecutor.submit(() -> {
             try {
                 if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest, manager.asyncProgressDao)) return;
-                ProgressDao.ProgressRecord record = manager.asyncProgressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                ProgressDao.ProgressRecord record = readCached(playerUuid, quest.id, manager.asyncProgressDao);
                 List<Map<String, Object>> progress = record == null
                         ? new ArrayList<>()
                         : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
                 boolean changed = ConditionEvaluator.applyItem(quest.conditions, progress, itemType, inventoryCount);
-                persistIfChangedAsync(playerUuid, quest, progress, changed);
+                persistIfChangedAsync(playerUuid, quest, record, progress, changed);
             } catch (Exception e) {
                 manager.log.warning("updateItemProgress error: " + e.getMessage());
             }
@@ -162,7 +225,7 @@ class ProgressUpdater {
         manager.dbExecutor.submit(() -> {
             try {
                 if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest, manager.asyncProgressDao)) return;
-                ProgressDao.ProgressRecord record = manager.asyncProgressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                ProgressDao.ProgressRecord record = readCached(playerUuid, quest.id, manager.asyncProgressDao);
                 List<Map<String, Object>> progress = record == null
                         ? new ArrayList<>()
                         : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
@@ -170,7 +233,7 @@ class ProgressUpdater {
                 boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
                 boolean changed = ConditionEvaluator.applyStat(quest.conditions, progress, statType, statId,
                         currentValue, previousValue, isRepeat);
-                persistIfChangedAsync(playerUuid, quest, progress, changed);
+                persistIfChangedAsync(playerUuid, quest, record, progress, changed);
             } catch (Exception e) {
                 manager.log.warning("updateStatProgress error: " + e.getMessage());
             }
@@ -181,14 +244,14 @@ class ProgressUpdater {
         manager.dbExecutor.submit(() -> {
             try {
                 if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest, manager.asyncProgressDao)) return;
-                ProgressDao.ProgressRecord record = manager.asyncProgressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                ProgressDao.ProgressRecord record = readCached(playerUuid, quest.id, manager.asyncProgressDao);
                 List<Map<String, Object>> progress = record == null
                         ? new ArrayList<>()
                         : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
                 boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
                 boolean changed = ConditionEvaluator.applyScoreboard(quest.conditions, progress, objective, score, isRepeat);
-                persistIfChangedAsync(playerUuid, quest, progress, changed);
+                persistIfChangedAsync(playerUuid, quest, record, progress, changed);
             } catch (Exception e) {
                 manager.log.warning("updateScoreboardProgress error: " + e.getMessage());
             }
@@ -199,13 +262,13 @@ class ProgressUpdater {
         manager.dbExecutor.submit(() -> {
             try {
                 if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest, manager.asyncProgressDao)) return;
-                ProgressDao.ProgressRecord record = manager.asyncProgressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                ProgressDao.ProgressRecord record = readCached(playerUuid, quest.id, manager.asyncProgressDao);
                 List<Map<String, Object>> progress = record == null
                         ? new ArrayList<>()
                         : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
                 boolean changed = ConditionEvaluator.applyLocation(quest.conditions, progress, px, py, pz, dimension);
-                persistIfChangedAsync(playerUuid, quest, progress, changed);
+                persistIfChangedAsync(playerUuid, quest, record, progress, changed);
             } catch (Exception e) {
                 manager.log.warning("updateLocationProgress error: " + e.getMessage());
             }

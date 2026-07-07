@@ -18,8 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -53,12 +55,30 @@ public class ProgressManager {
     /**
      * 進捗DB read/write をBukkitメインスレッドから切り離すための単一スレッドexecutor。
      * 単一スレッドのため、進捗更新は自然に直列化されレースコンディションを防ぐ。
+     * ScheduledExecutorService にしているのは、デバウンスされた書き込み ({@link #pendingFlushes})
+     * も同じスレッド上のキューで実行させ、通常のsubmit()タスクとの実行順序を保証するため。
      */
-    final ExecutorService dbExecutor = Executors.newSingleThreadExecutor(r -> {
+    final ScheduledExecutorService dbExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "AdvQuesting-DB-Writer");
         t.setDaemon(true);
         return t;
     });
+
+    /**
+     * 高頻度更新の read/read-modify-write を高速化するためのインメモリ進捗キャッシュ。
+     * キー: playerUuid + ":" + questId。dbExecutor スレッド上でのみ読み書きする
+     * (単一スレッドなので同期化は不要)。デバウンスされた書き込みが未反映の間も、
+     * ここを見れば常に最新の状態を読めるようにするためのもの。
+     */
+    final Map<String, ProgressDao.ProgressRecord> progressCache = new HashMap<>();
+
+    /**
+     * 完了扱いにならない (allDone=false) 進捗更新のデバウンス用。1つの UPDATE に
+     * まとめる対象キーごとに、保留中の書き込みタスクを保持する。クエスト完了時
+     * (increment/reset を伴う) は整合性のため常に即時書き込みし、このマップは経由しない。
+     */
+    final Map<String, ScheduledFuture<?>> pendingFlushes = new ConcurrentHashMap<>();
+    static final long DEBOUNCE_MILLIS = 300;
 
     // ヘルパーインスタンス
     final RewardManager rewardManager;
