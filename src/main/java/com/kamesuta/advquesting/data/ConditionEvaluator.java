@@ -105,12 +105,18 @@ final class ConditionEvaluator {
      * "stat" 条件を評価し、statType・statId が一致する条件の進捗を更新する。
      * baseValue/diff/cap ロジック、isRepeat 時の rawValue/baseValue フィールドを保持する。
      *
-     * @param conditions   クエスト条件リスト
-     * @param progress     プレイヤー進捗リスト（インプレース変更）
-     * @param statType     統計タイプ
-     * @param statId       統計ID
-     * @param currentValue 現在の統計値
-     * @param isRepeat     繰り返しクエストかどうか
+     * <p>繰り返し復活直後のエントリ ({@code rebase=true}) は、復活後最初のイベントの
+     * previousValue を新しい baseValue とする。これによりクールダウン中の統計増分は
+     * 次回クリアにカウントされない (例: 10killでクリア → クールダウン中に15まで増加 →
+     * 復活後は15を基準に25で次のクリア)。
+     *
+     * @param conditions    クエスト条件リスト
+     * @param progress      プレイヤー進捗リスト（インプレース変更）
+     * @param statType      統計タイプ
+     * @param statId        統計ID
+     * @param currentValue  現在の統計値
+     * @param previousValue 変化前の統計値
+     * @param isRepeat      繰り返しクエストかどうか
      * @return 少なくとも1件が変更された場合 {@code true}
      */
     static boolean applyStat(
@@ -119,6 +125,7 @@ final class ConditionEvaluator {
             String statType,
             String statId,
             int currentValue,
+            int previousValue,
             boolean isRepeat) {
         boolean changed = false;
         for (Map<String, Object> cond : conditions) {
@@ -132,7 +139,13 @@ final class ConditionEvaluator {
                     .findFirst().orElse(null);
             boolean wasCompleted = existing != null && Boolean.TRUE.equals(existing.get("completed"));
             if (wasCompleted) continue;
-            int baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
+            int baseValue;
+            if (existing != null && Boolean.TRUE.equals(existing.get("rebase"))) {
+                // 復活後最初のイベント: 直前値を基準にする (クールダウン中の増分を除外)
+                baseValue = previousValue;
+            } else {
+                baseValue = existing != null && existing.get("baseValue") instanceof Number n ? n.intValue() : 0;
+            }
             int diff = currentValue - baseValue;
             int capped = Math.min(diff, required);
             boolean nowDone = diff >= required;
@@ -349,6 +362,8 @@ final class ConditionEvaluator {
     /**
      * 繰り返しリセット用の新しい進捗JSONを生成する。
      * stat/scoreboard 条件は前回クリア時の rawValue を新しい baseValue として引き継ぐ。
+     * stat 条件はさらに rebase フラグを立て、復活後最初のイベントで
+     * previousValue を基準値に採用する ({@link #applyStat} 参照)。
      *
      * @param quest             クエスト定義
      * @param completedProgress 完了時の進捗リスト
@@ -378,6 +393,9 @@ final class ConditionEvaluator {
             entry.put("baseValue", rawValue);
             entry.put("rawValue", rawValue);
             entry.put("completed", false);
+            if ("stat".equals(condType)) {
+                entry.put("rebase", true);
+            }
             newProgress.add(entry);
         }
         return newProgress;

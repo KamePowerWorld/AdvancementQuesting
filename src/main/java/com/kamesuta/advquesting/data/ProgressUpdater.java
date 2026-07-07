@@ -116,8 +116,8 @@ class ProgressUpdater {
         persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 
-    void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
-            throws Exception {
+    void updateStatProgress(String playerUuid, Quest quest, String statType, String statId,
+            int currentValue, int previousValue) throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
         ProgressDao.ProgressRecord record = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
         List<Map<String, Object>> progress = record == null
@@ -125,7 +125,8 @@ class ProgressUpdater {
                 : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
-        boolean changed = ConditionEvaluator.applyStat(quest.conditions, progress, statType, statId, currentValue, isRepeat);
+        boolean changed = ConditionEvaluator.applyStat(quest.conditions, progress, statType, statId,
+                currentValue, previousValue, isRepeat);
         persistIfChanged(playerUuid, quest, progress, changed, false);
     }
 

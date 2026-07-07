@@ -79,8 +79,8 @@ public class ProgressManager {
         eventHandler.onItemPickup(playerUuid, itemType, inventoryCount);
     }
 
-    public void onStat(String playerUuid, String statType, String statId, int currentValue) {
-        eventHandler.onStat(playerUuid, statType, statId, currentValue);
+    public void onStat(String playerUuid, String statType, String statId, int currentValue, int previousValue) {
+        eventHandler.onStat(playerUuid, statType, statId, currentValue, previousValue);
     }
 
     public void onScoreChange(String playerUuid, String objective, int score) {

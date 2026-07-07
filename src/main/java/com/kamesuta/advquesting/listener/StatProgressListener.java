@@ -39,27 +39,27 @@ public class StatProgressListener implements Listener {
         Statistic stat = event.getStatistic();
 
         // Statistic の種類に応じて statType と statId を決定する
-        String statType;
+        NamespacedId statType;
         String statId;
 
         switch (stat.getType()) {
             case BLOCK -> {
                 // アイテム/ブロック系の統計カテゴリを Statistic 名から判定
-                statType = toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
                 statId = NamespacedId.from(material).toString();
             }
             case ITEM -> {
-                statType = toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 Material material = event.getMaterial();
                 if (material == null) return;
                 statId = NamespacedId.from(material).toString();
             }
             case ENTITY -> {
-                statType = toStatType(stat);
+                statType = NamespacedId.fromStatType(stat);
                 if (statType == null) return;
                 EntityType entityType = event.getEntityType();
                 if (entityType == null) return;
@@ -67,8 +67,10 @@ public class StatProgressListener implements Listener {
             }
             case UNTYPED -> {
                 // カスタム統計 (JUMP, WALK_ONE_CM, etc.)
-                statType = "minecraft:custom";
-                statId = NamespacedId.from(stat).toString();
+                NamespacedId customId = NamespacedId.fromCustomStatistic(stat);
+                if (customId == null) return;
+                statType = NamespacedId.of("minecraft", "custom");
+                statId = customId.toString();
             }
             default -> { return; }
         }
@@ -76,21 +78,7 @@ public class StatProgressListener implements Listener {
         int delta = event.getNewValue() - event.getPreviousValue();
         if (delta <= 0) return;
 
-        progressManager.onStat(player.getUniqueId().toString(), statType, statId, event.getNewValue());
-    }
-
-    /** Bukkit の Statistic を "minecraft:mined" 等の statType 文字列に変換する */
-    private static String toStatType(Statistic stat) {
-        return switch (stat) {
-            case MINE_BLOCK         -> "minecraft:mined";
-            case CRAFT_ITEM         -> "minecraft:crafted";
-            case USE_ITEM           -> "minecraft:used";
-            case BREAK_ITEM         -> "minecraft:broken";
-            case PICKUP             -> "minecraft:picked_up";
-            case DROP               -> "minecraft:dropped";
-            case KILL_ENTITY        -> "minecraft:killed";
-            case ENTITY_KILLED_BY   -> "minecraft:killed_by";
-            default                 -> null;
-        };
+        progressManager.onStat(player.getUniqueId().toString(), statType.toString(), statId,
+                event.getNewValue(), event.getPreviousValue());
     }
 }

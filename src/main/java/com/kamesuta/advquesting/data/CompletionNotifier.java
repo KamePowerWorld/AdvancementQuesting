@@ -63,8 +63,7 @@ class CompletionNotifier {
                 manager.log.warning("resetForRepeat (unlimited) error: " + e.getMessage());
             }
         }
-        // cooldown: ProgressRoutes の /status で残り時間を返すのでここでは何もしない
-        // schedule: RepeatScheduler が毎分チェックしてリセットする
+        // cooldown / schedule: RepeatScheduler が毎分チェックしてリセットする
 
         String playerName = manager.rewardManager.playerUuidToName(playerUuid);
         Component broadcastMsg = Component.text("🎉 ")

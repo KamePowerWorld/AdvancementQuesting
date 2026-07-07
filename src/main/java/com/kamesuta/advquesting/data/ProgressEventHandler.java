@@ -67,8 +67,9 @@ class ProgressEventHandler {
      * @param statType  "minecraft:mined" など
      * @param statId    "minecraft:diamond" など
      * @param currentValue プレイヤーの現在の統計値 (累積値)
+     * @param previousValue 変化前の統計値 (繰り返し復活後の基準値再設定に使う)
      */
-    public void onStat(String playerUuid, String statType, String statId, int currentValue) {
+    public void onStat(String playerUuid, String statType, String statId, int currentValue, int previousValue) {
         try {
             for (Quest quest : manager.questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
@@ -78,7 +79,7 @@ class ProgressEventHandler {
                     return statType.equals(c.get("statType")) && statId.equals(c.get("statId"));
                 });
                 if (hasMatch) {
-                    manager.progressUpdater.updateStatProgress(playerUuid, quest, statType, statId, currentValue);
+                    manager.progressUpdater.updateStatProgress(playerUuid, quest, statType, statId, currentValue, previousValue);
                 }
             }
         } catch (Exception e) {
