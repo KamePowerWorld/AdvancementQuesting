@@ -36,10 +36,6 @@ class ProgressUpdater {
 
     // ---- 条件達成判定（ProgressManager から呼ばれる委譲メソッド） ----
 
-    boolean isAllConditionsMet(Quest quest, List<Map<String, Object>> progress) {
-        return ConditionEvaluator.isAllConditionsMet(quest, progress);
-    }
-
     boolean isAllConditionsMetIncludingCheckmarks(Quest quest, List<Map<String, Object>> progress) {
         return ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
     }
@@ -62,21 +58,14 @@ class ProgressUpdater {
      * @param quest             クエスト定義
      * @param progress          更新後の進捗リスト
      * @param changed           条件の変更フラグ
-     * @param checkmarkFallback true の場合、isAllConditionsMet が false でも
-     *                          isAllConditionsMetIncludingCheckmarks を追加チェックする
-     *                          （location 更新のみ使用）
      */
     private void persistIfChanged(
             String playerUuid,
             Quest quest,
             List<Map<String, Object>> progress,
-            boolean changed,
-            boolean checkmarkFallback) throws Exception {
+            boolean changed) throws Exception {
         if (!changed) return;
-        boolean allDone = ConditionEvaluator.isAllConditionsMet(quest, progress);
-        if (!allDone && checkmarkFallback) {
-            allDone = ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
-        }
+        boolean allDone = ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
         String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
         manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
@@ -101,7 +90,7 @@ class ProgressUpdater {
                 : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean changed = ConditionEvaluator.applyAdvancement(quest.conditions, progress, condType, condValue);
-        persistIfChanged(playerUuid, quest, progress, changed, false);
+        persistIfChanged(playerUuid, quest, progress, changed);
     }
 
     void updateItemProgress(String playerUuid, Quest quest, String itemType, int inventoryCount)
@@ -113,7 +102,7 @@ class ProgressUpdater {
                 : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean changed = ConditionEvaluator.applyItem(quest.conditions, progress, itemType, inventoryCount);
-        persistIfChanged(playerUuid, quest, progress, changed, false);
+        persistIfChanged(playerUuid, quest, progress, changed);
     }
 
     void updateStatProgress(String playerUuid, Quest quest, String statType, String statId,
@@ -127,7 +116,7 @@ class ProgressUpdater {
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
         boolean changed = ConditionEvaluator.applyStat(quest.conditions, progress, statType, statId,
                 currentValue, previousValue, isRepeat);
-        persistIfChanged(playerUuid, quest, progress, changed, false);
+        persistIfChanged(playerUuid, quest, progress, changed);
     }
 
     void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
@@ -140,7 +129,7 @@ class ProgressUpdater {
 
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
         boolean changed = ConditionEvaluator.applyScoreboard(quest.conditions, progress, objective, score, isRepeat);
-        persistIfChanged(playerUuid, quest, progress, changed, false);
+        persistIfChanged(playerUuid, quest, progress, changed);
     }
 
     void updateLocationProgress(String playerUuid, Quest quest, int px, int py, int pz, String dimension)
@@ -152,6 +141,6 @@ class ProgressUpdater {
                 : ProgressManager.MAPPER.readValue(record.progress(), ProgressManager.LIST_MAP_TYPE);
 
         boolean changed = ConditionEvaluator.applyLocation(quest.conditions, progress, px, py, pz, dimension);
-        persistIfChanged(playerUuid, quest, progress, changed, true);
+        persistIfChanged(playerUuid, quest, progress, changed);
     }
 }

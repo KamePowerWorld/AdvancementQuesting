@@ -286,26 +286,31 @@ class ConditionEvaluatorTest {
     }
 
     // ================================================================
-    // isAllConditionsMet
+    // isAllConditionsMetIncludingCheckmarks
     // ================================================================
 
     @Test
-    void isAllConditionsMet_skipsCheckmarkAndDelivery() {
+    void isAllConditionsMetIncludingCheckmarks_statDoneButDeliveryPending_returnsFalse() {
+        // 統計タスク + 納品タスク2つ。統計だけ完了しても納品が残っていれば未完了。
         Quest quest = makeQuest(List.of(
-                cond("type", "checkmark", "id", "c1"),
+                cond("type", "stat", "id", "c1"),
                 cond("type", "delivery", "id", "c2"),
-                cond("type", "item", "id", "c3")
+                cond("type", "delivery", "id", "c3")
         ));
         var progress = new ArrayList<Map<String, Object>>();
+        progress.add(Map.of("conditionId", "c1", "completed", true));
+        assertFalse(ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress));
+
+        // 両方の納品を完了すると true
+        progress.add(Map.of("conditionId", "c2", "completed", true));
         progress.add(Map.of("conditionId", "c3", "completed", true));
-        // c1/c2 は進捗なしでも true になるはず
-        assertTrue(ConditionEvaluator.isAllConditionsMet(quest, progress));
+        assertTrue(ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, progress));
     }
 
     @Test
-    void isAllConditionsMet_itemNotDone_returnsFalse() {
+    void isAllConditionsMetIncludingCheckmarks_itemNotDone_returnsFalse() {
         Quest quest = makeQuest(List.of(cond("type", "item", "id", "c1")));
-        assertTrue(!ConditionEvaluator.isAllConditionsMet(quest, emptyProgress()));
+        assertFalse(ConditionEvaluator.isAllConditionsMetIncludingCheckmarks(quest, emptyProgress()));
     }
 
     @Test

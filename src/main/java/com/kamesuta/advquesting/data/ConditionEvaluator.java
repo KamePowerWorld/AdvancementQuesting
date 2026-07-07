@@ -320,26 +320,6 @@ final class ConditionEvaluator {
     // ---- 達成判定 ----
 
     /**
-     * checkmark/delivery を除く全条件が完了しているかを判定する。
-     *
-     * @param quest    クエスト定義
-     * @param progress プレイヤー進捗リスト
-     * @return 全条件（checkmark/delivery 除く）が完了していれば {@code true}
-     */
-    static boolean isAllConditionsMet(Quest quest, List<Map<String, Object>> progress) {
-        if (quest.conditions == null || quest.conditions.isEmpty()) return false;
-        for (Map<String, Object> cond : quest.conditions) {
-            String condType = (String) cond.get("type");
-            if ("checkmark".equals(condType) || "delivery".equals(condType)) continue;
-            String condId = (String) cond.get("id");
-            boolean done = progress.stream()
-                    .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
-            if (!done) return false;
-        }
-        return true;
-    }
-
-    /**
      * checkmark/delivery を含む全条件が完了しているかを判定する。
      *
      * @param quest    クエスト定義

@@ -119,8 +119,7 @@ public class ProgressManager {
             progress.removeIf(p -> conditionId.equals(p.get("conditionId")));
             progress.add(Map.of("conditionId", conditionId, "completed", true));
 
-            boolean allDone = progressUpdater.isAllConditionsMet(quest, progress);
-            if (!allDone) allDone = progressUpdater.isAllConditionsMetIncludingCheckmarks(quest, progress);
+            boolean allDone = progressUpdater.isAllConditionsMetIncludingCheckmarks(quest, progress);
             String completedAt = allDone ? Instant.now().toString() : null;
             String progressJson = MAPPER.writeValueAsString(progress);
             progressDao.upsertProgress(playerUuid, questId, progressJson, allDone, completedAt);
