@@ -228,7 +228,7 @@ app.post('/api/mc/start', async (_req: Request, res: Response) => {
   }
 
   const proc = spawn('java', [
-    '-Xms512m', '-Xmx512m', '-XX:+UseG1GC',
+    '-Xms2048m', '-Xmx2048m', '-XX:+UseG1GC',
     '-DIReallyKnowWhatIAmDoingISwear=true',
     '-jar', 'paper.jar', '--nogui',
   ], { cwd: MC_RUN_DIR, stdio: ['pipe', 'pipe', 'pipe'] })
