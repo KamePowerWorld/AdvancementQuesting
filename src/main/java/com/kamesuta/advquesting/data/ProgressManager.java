@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
@@ -34,11 +37,28 @@ public class ProgressManager {
     final JavaPlugin plugin;
     final QuestManager questManager;
     final ProgressDao progressDao;
+    /**
+     * 高頻度リスナー (統計/移動/アイテム取得) 専用の進捗DAO。
+     * Web APIが使う progressDao とは別コネクションを使い、dbExecutor 上でのみ呼び出すこと。
+     */
+    final ProgressDao asyncProgressDao;
+    /** asyncProgressDao と同じ (dbExecutor専用) コネクションを使う CompletionDao。 */
+    final CompletionDao asyncCompletionDao;
     final CompletionDao completionDao;
     final RewardClaimDao rewardClaimDao;
     final Logger log;
     NotificationRoutes notificationRoutes;
     AdvancementSyncManager advancementSyncManager;
+
+    /**
+     * 進捗DB read/write をBukkitメインスレッドから切り離すための単一スレッドexecutor。
+     * 単一スレッドのため、進捗更新は自然に直列化されレースコンディションを防ぐ。
+     */
+    final ExecutorService dbExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "AdvQuesting-DB-Writer");
+        t.setDaemon(true);
+        return t;
+    });
 
     // ヘルパーインスタンス
     final RewardManager rewardManager;
@@ -47,11 +67,14 @@ public class ProgressManager {
     private final ProgressEventHandler eventHandler;
 
     public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao,
-                           CompletionDao completionDao, RewardClaimDao rewardClaimDao) {
+                           ProgressDao asyncProgressDao, CompletionDao completionDao, CompletionDao asyncCompletionDao,
+                           RewardClaimDao rewardClaimDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
+        this.asyncProgressDao = asyncProgressDao;
         this.completionDao = completionDao;
+        this.asyncCompletionDao = asyncCompletionDao;
         this.rewardClaimDao = rewardClaimDao;
         this.log = plugin.getLogger();
 
@@ -59,6 +82,18 @@ public class ProgressManager {
         this.completionNotifier = new CompletionNotifier(this);
         this.progressUpdater = new ProgressUpdater(this);
         this.eventHandler = new ProgressEventHandler(this);
+    }
+
+    /** dbExecutor に積まれた進捗DB書き込みを完了させてからシャットダウンする。 */
+    public void shutdown() {
+        dbExecutor.shutdown();
+        try {
+            if (!dbExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warning("進捗DB書き込みの完了待ちがタイムアウトしました");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void setNotificationRoutes(NotificationRoutes notificationRoutes) {

@@ -1,5 +1,7 @@
 package com.kamesuta.advquesting.data;
 
+import com.kamesuta.advquesting.db.CompletionDao;
+import com.kamesuta.advquesting.db.ProgressDao;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -27,43 +29,59 @@ class CompletionNotifier {
     }
 
     /**
-     * クエスト完了時の共通処理: pending_rewards インクリメント + 通知 + 繰り返しリセット。
-     * upsertProgress で completed=true にした後に呼ぶ。
+     * クエスト完了時の共通処理 (同期パス用): DB更新 + 通知 + 繰り返しリセット。
+     * upsertProgress で completed=true にした後、同じスレッド上で呼ぶこと
+     * ({@link #markConditionComplete} 相当の低頻度パス専用)。
      */
     void notifyQuestComplete(String playerUuid, Quest quest) {
+        applyCompletionDb(playerUuid, quest, manager.progressDao, manager.completionDao);
+        announceCompletion(playerUuid, quest);
+    }
+
+    /**
+     * クエスト完了時のDBのみの処理: pending_rewards インクリメント + クリアログ + 繰り返しリセット。
+     * upsertProgress の直後、同一スレッド上で呼ぶこと。ここで resetForRepeatWithProgress 等が
+     * upsertProgress の書き込みを前提に read-modify-write するため、間に別スレッドの処理を挟むと
+     * (例: メインスレッドへの hop を挟んで遅延させると) 直後の再トリガーとレースして更新が失われる。
+     * 呼び出し元が使っているコネクションに対応する dao/completionDao を渡すこと。
+     */
+    void applyCompletionDb(String playerUuid, Quest quest, ProgressDao dao, CompletionDao completionDao) {
         try {
-            manager.progressDao.incrementCompletedCount(playerUuid, quest.id);
+            dao.incrementCompletedCount(playerUuid, quest.id);
         } catch (Exception e) {
             manager.log.warning("incrementCompletedCount error: " + e.getMessage());
         }
 
         try {
-            manager.completionDao.insert(playerUuid, manager.rewardManager.playerUuidToName(playerUuid),
+            completionDao.insert(playerUuid, manager.rewardManager.playerUuidToName(playerUuid),
                 quest.id, Instant.now().toString());
         } catch (Exception e) {
             manager.log.warning("completion log insert error: " + e.getMessage());
-        }
-
-        if (manager.notificationRoutes != null) {
-            manager.notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
-                manager.rewardManager.playerUuidToName(playerUuid));
         }
 
         // 繰り返しタイプ処理
         Quest.RepeatConfig repeat = quest.repeat;
         if (repeat != null && "unlimited".equals(repeat.type)) {
             try {
-                var rec = manager.progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                var rec = dao.findByPlayerAndQuest(playerUuid, quest.id);
                 List<Map<String, Object>> completedProgress = rec != null
                     ? ProgressManager.MAPPER.readValue(rec.progress(), ProgressManager.LIST_MAP_TYPE)
                     : new ArrayList<>();
                 String newProgressJson = ProgressUpdater.buildResetProgressJson(quest, completedProgress);
-                manager.progressDao.resetForRepeatWithProgress(playerUuid, quest.id, newProgressJson);
+                dao.resetForRepeatWithProgress(playerUuid, quest.id, newProgressJson);
             } catch (Exception e) {
                 manager.log.warning("resetForRepeat (unlimited) error: " + e.getMessage());
             }
         }
         // cooldown / schedule: RepeatScheduler が毎分チェックしてリセットする
+    }
+
+    /** 完了演出・通知 (Bukkit API呼び出しのみ、DBアクセスなし)。メインスレッドから呼ぶこと。 */
+    void announceCompletion(String playerUuid, Quest quest) {
+        if (manager.notificationRoutes != null) {
+            manager.notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
+                manager.rewardManager.playerUuidToName(playerUuid));
+        }
 
         String playerName = manager.rewardManager.playerUuidToName(playerUuid);
         Component broadcastMsg = Component.text("🎉 ")

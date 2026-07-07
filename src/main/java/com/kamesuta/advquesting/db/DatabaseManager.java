@@ -9,6 +9,7 @@ import java.util.List;
 
 public class DatabaseManager implements AutoCloseable {
 
+    private final File dbFile;
     private final Connection conn;
 
     public DatabaseManager(Plugin plugin) throws SQLException {
@@ -17,8 +18,31 @@ public class DatabaseManager implements AutoCloseable {
 
     /** Bukkit 非依存のコンストラクタ (テスト用にDBファイルを直接指定する)。 */
     DatabaseManager(File dbFile) throws SQLException {
+        this.dbFile = dbFile;
+        conn = openConfiguredConnection(dbFile);
+        migrate();
+    }
+
+    /**
+     * 同じDBファイルに対する追加のコネクションを開く。
+     * WALモードは複数コネクションからの同時読み書きに対応しているため、
+     * メインスレッド駆動の進捗更新処理をWeb API等が使う既存コネクションから
+     * 分離し、JDBC接続オブジェクト単位のロック競合を避けるために使う。
+     * migrate() は主コネクション側で実行済みのためここでは行わない。
+     */
+    public DatabaseManager openSecondaryConnection() throws SQLException {
+        return new DatabaseManager(openConfiguredConnection(dbFile));
+    }
+
+    /** 既に開かれ設定済みのコネクションをラップする (openSecondaryConnection 用)。 */
+    private DatabaseManager(Connection conn) {
+        this.dbFile = null;
+        this.conn = conn;
+    }
+
+    private static Connection openConfiguredConnection(File dbFile) throws SQLException {
         ensureDriverRegistered();
-        conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+        Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA journal_mode=WAL");
             st.execute("PRAGMA foreign_keys=ON");
@@ -26,7 +50,7 @@ public class DatabaseManager implements AutoCloseable {
             // 3秒待ってタイムアウトする。SQLiteExceptionが投げられ適切にハンドリングできる。
             st.execute("PRAGMA busy_timeout=3000");
         }
-        migrate();
+        return conn;
     }
 
     private void migrate() throws SQLException {

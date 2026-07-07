@@ -48,11 +48,13 @@ public final class AdvancementQuesting extends JavaPlugin {
 
     private Javalin app;
     private DatabaseManager db;
+    private DatabaseManager asyncDb;
     private ScoreboardListener scoreboardListener;
     private StatPollingListener statPollingListener;
     private RepeatScheduler repeatScheduler;
     private NotificationRoutes notificationRoutes;
     private AdvancementSyncManager advancementSyncManager;
+    private ProgressManager progressManager;
 
     @Override
     public void onEnable() {
@@ -70,7 +72,21 @@ public final class AdvancementQuesting extends JavaPlugin {
         SessionDao sessionDao = new SessionDao(db);
         AuthCodeDao authCodeDao = new AuthCodeDao(db, sessionDao);
         ProgressDao progressDao = new ProgressDao(db);
+        // 進捗更新の高頻度パス (統計/移動/アイテム取得イベント) 専用の非同期コネクション。
+        // Web API側が使う progressDao (上記) の主コネクションと分離し、ロック競合を避ける。
+        ProgressDao asyncProgressDao;
+        try {
+            asyncDb = db.openSecondaryConnection();
+            asyncProgressDao = new ProgressDao(asyncDb);
+        } catch (SQLException e) {
+            getLogger().severe("進捗DB用の非同期コネクション初期化に失敗しました: " + e.getMessage());
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         CompletionDao completionDao = new CompletionDao(db);
+        // クエスト完了時のDB処理 (incrementCompletedCount/resetForRepeatWithProgress) を
+        // upsertProgress の直後に同一スレッドで行うための asyncDb 上の CompletionDao。
+        CompletionDao asyncCompletionDao = new CompletionDao(asyncDb);
         RewardClaimDao rewardClaimDao = new RewardClaimDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
@@ -80,7 +96,7 @@ public final class AdvancementQuesting extends JavaPlugin {
             getLogger().info("クエストIDを完全形式へ移行: " + idMigrated + " ファイル");
         }
         CommentManager commentManager = new CommentManager(getDataFolder());
-        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
+        progressManager = new ProgressManager(this, questManager, progressDao, asyncProgressDao, completionDao, asyncCompletionDao, rewardClaimDao);
         advancementSyncManager = new AdvancementSyncManager(this, questManager, progressDao);
         advancementSyncManager.loadAll();
         progressManager.setAdvancementSyncManager(advancementSyncManager);
@@ -210,6 +226,9 @@ public final class AdvancementQuesting extends JavaPlugin {
         // keepAlive() 中のクライアントが Jetty 内に残ると ClassLoader が解放されない。
         if (notificationRoutes != null) notificationRoutes.closeAll();
         if (app != null) app.stop();
+        // dbExecutor に積まれた進捗DB書き込みを完了させてからコネクションを閉じる
+        if (progressManager != null) progressManager.shutdown();
+        if (asyncDb != null) asyncDb.close();
         if (db != null) db.close();
         // SQLite NativeDB は finalize() を持つため、明示的に close() しても
         // ファイナライザキューに残り ClassLoader が解放されない。
