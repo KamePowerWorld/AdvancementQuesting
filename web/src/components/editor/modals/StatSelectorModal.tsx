@@ -7,12 +7,12 @@ import { NamespacedId } from '@/util/NamespacedId.js'
 
 /** カテゴリ毎の表示設定 */
 const STAT_CATEGORIES = [
-  { id: 'minecraft:mined',      label: '採掘',   icon: '⛏️', itemBased: true },
-  { id: 'minecraft:crafted',    label: 'クラフト', icon: '🔨', itemBased: true },
-  { id: 'minecraft:used',       label: '使用',   icon: '🖐️', itemBased: true },
-  { id: 'minecraft:broken',     label: '破壊',   icon: '💥', itemBased: true },
-  { id: 'minecraft:picked_up',  label: '拾得',   icon: '🤏', itemBased: true },
-  { id: 'minecraft:dropped',    label: '破棄',   icon: '🗑️', itemBased: true },
+  { id: 'minecraft:mined',      label: '採取した回数',     icon: '⛏️', itemBased: true },
+  { id: 'minecraft:broken',     label: '破壊した回数',     icon: '💥', itemBased: true },
+  { id: 'minecraft:crafted',    label: 'クラフトした回数', icon: '🔨', itemBased: true },
+  { id: 'minecraft:used',       label: '使用した回数',     icon: '🖐️', itemBased: true },
+  { id: 'minecraft:picked_up',  label: '拾った回数',       icon: '🤏', itemBased: true },
+  { id: 'minecraft:dropped',    label: '捨てた回数',       icon: '🗑️', itemBased: true },
   { id: 'minecraft:killed',     label: '討伐',   icon: '⚔️', itemBased: false },
   { id: 'minecraft:killed_by',  label: '被討伐', icon: '💀', itemBased: false },
   { id: 'minecraft:custom',     label: 'カスタム', icon: '📊', itemBased: false },

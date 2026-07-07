@@ -3,8 +3,9 @@
  *
  * 対象統計:
  *  1. minecraft:drop (アイテムを捨てた回数)
- *  2. minecraft:crouch_one_cm (スニークした距離)
- *  3. minecraft:chest_opened (チェストを開いた回数)
+ *  2. minecraft:walk_one_cm (歩いた距離)
+ *  3. minecraft:open_chest (チェストを開いた回数)
+ *  4. minecraft:interact_with_furnace (かまどを使用した回数)
  *
  * 前提:
  *  - run/ の Minecraft サーバー + AdvancementQuesting プラグイン起動済み
@@ -15,11 +16,13 @@ import { createBot, quitBot, waitForChat, apiRequest, rcon } from './helpers.js'
 import type { Bot } from 'mineflayer'
 
 const DROP_BOT_NAME = 'DropBot' + Math.floor(Math.random() * 100000)
-const CROUCH_BOT_NAME = 'CrouchBot' + Math.floor(Math.random() * 100000)
+const WALK_BOT_NAME = 'WalkBot' + Math.floor(Math.random() * 100000)
 const CHEST_BOT_NAME = 'ChestBot' + Math.floor(Math.random() * 100000)
+const FURNACE_BOT_NAME = 'FurnaceBot' + Math.floor(Math.random() * 100000)
 const DROP_COUNT = 3
-const CROUCH_CM = 100
+const WALK_CM = 100
 const OPEN_CHEST_COUNT = 3
+const FURNACE_COUNT = 3
 
 interface QuestProgress {
   completed: boolean
@@ -129,18 +132,18 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
     })
   })
 
-  describe('minecraft:crouch_one_cm (スニークした距離)', () => {
+  describe('minecraft:walk_one_cm (歩いた距離)', () => {
     let bot: Bot
     let token: string
     let questId: number
-    const condId = `cond-crouch-${Date.now()}`
+    const condId = `cond-walk-${Date.now()}`
 
     before(async () => {
-      bot = await createBot(CROUCH_BOT_NAME)
+      bot = await createBot(WALK_BOT_NAME)
       await new Promise(r => setTimeout(r, 1500))
 
-      await rcon(`op ${CROUCH_BOT_NAME}`).catch(() => {})
-      await rcon(`gamemode survival ${CROUCH_BOT_NAME}`).catch(() => {})
+      await rcon(`op ${WALK_BOT_NAME}`).catch(() => {})
+      await rcon(`gamemode survival ${WALK_BOT_NAME}`).catch(() => {})
       await new Promise(r => setTimeout(r, 500))
 
       const chatPromise = waitForChat(bot, (t) => /\d{6}/.test(t), 8000)
@@ -157,7 +160,7 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
         'POST', '/api/quests', {
           token,
           body: {
-            title: `Crouchテスト_${Date.now()}`,
+            title: `Walkテスト_${Date.now()}`,
             status: 'public',
             icon: 'leather_boots',
             prerequisites: [],
@@ -165,8 +168,8 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
               id: condId,
               type: 'stat',
               statType: 'minecraft:custom',
-              statId: 'minecraft:crouch_one_cm',
-              count: CROUCH_CM,
+              statId: 'minecraft:walk_one_cm',
+              count: WALK_CM,
             }],
             rewards: [],
             mapPosition: { x: 150, y: 150 },
@@ -177,7 +180,7 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
       )
       assert.ok(cs === 200 || cs === 201, `クエスト作成失敗(${cs}): ${JSON.stringify(created)}`)
       questId = created.id
-      console.log(`Crouchテストクエスト作成: id=${questId}, stat=custom/crouch_one_cm ×${CROUCH_CM}cm`)
+      console.log(`Walkテストクエスト作成: id=${questId}, stat=custom/walk_one_cm ×${WALK_CM}cm`)
     })
 
     after(async () => {
@@ -187,18 +190,24 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
       if (bot) await quitBot(bot)
     })
 
-    it('crouch_one_cm 条件クエストが完了する', async () => {
+    it('walk_one_cm 条件クエストが完了する', async () => {
       const chatPromise = waitForChat(
         bot,
         (t) => t.includes('クエスト完了') || t.includes('✨'),
         30000,
       ).catch(() => null)
 
-      bot.setControlState('sneak', true)
+      // 足場を整地する: 移動はブロックに引っかかると 0cm のまま進捗しない
+      const p = bot.entity.position.floored()
+      await rcon(`fill ${p.x - 5} ${p.y - 1} ${p.z - 5} ${p.x + 5} ${p.y - 1} ${p.z + 5} minecraft:stone`).catch(() => {})
+      await rcon(`fill ${p.x - 5} ${p.y} ${p.z - 5} ${p.x + 5} ${p.y + 2} ${p.z + 5} minecraft:air`).catch(() => {})
+      await new Promise(r => setTimeout(r, 800))
+
+      const startPos = bot.entity.position.clone()
       bot.setControlState('forward', true)
-      await new Promise(r => setTimeout(r, 2000))
+      await new Promise(r => setTimeout(r, 4000))
       bot.setControlState('forward', false)
-      bot.setControlState('sneak', false)
+      console.log(`歩行距離: ${bot.entity.position.distanceTo(startPos).toFixed(2)}m`)
       await new Promise(r => setTimeout(r, 800))
 
       const mcChat = await chatPromise
@@ -219,12 +228,12 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
 
       assert.ok(
         mcChat || (status === 200 && body?.completed),
-        `スニーク${CROUCH_CM}cm移動してもクエストが完了しない。crouch_one_cm 統計イベントの可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
+        `歩いて${WALK_CM}cm移動してもクエストが完了しない。walk_one_cm 統計イベントの可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
       )
     })
   })
 
-  describe('minecraft:chest_opened (チェストを開いた回数)', () => {
+  describe('minecraft:open_chest (チェストを開いた回数)', () => {
     let bot: Bot
     let token: string
     let questId: number
@@ -260,7 +269,7 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
               id: condId,
               type: 'stat',
               statType: 'minecraft:custom',
-              statId: 'minecraft:chest_opened',
+              statId: 'minecraft:open_chest',
               count: OPEN_CHEST_COUNT,
             }],
             rewards: [],
@@ -272,7 +281,7 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
       )
       assert.ok(cs === 200 || cs === 201, `クエスト作成失敗(${cs}): ${JSON.stringify(created)}`)
       questId = created.id
-      console.log(`OpenChestテストクエスト作成: id=${questId}, stat=custom/chest_opened ×${OPEN_CHEST_COUNT}`)
+      console.log(`OpenChestテストクエスト作成: id=${questId}, stat=custom/open_chest ×${OPEN_CHEST_COUNT}`)
     })
 
     after(async () => {
@@ -282,7 +291,7 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
       if (bot) await quitBot(bot)
     })
 
-    it('chest_opened 条件クエストが完了する', async () => {
+    it('open_chest 条件クエストが完了する', async () => {
       const chatPromise = waitForChat(
         bot,
         (t) => t.includes('クエスト完了') || t.includes('✨'),
@@ -328,7 +337,116 @@ describe('カスタム統計バグ修正検証 (MC-SC-Fix)', () => {
 
       assert.ok(
         mcChat || (status === 200 && body?.completed),
-        `チェスト${OPEN_CHEST_COUNT}回開けてもクエストが完了しない。chest_opened 統計イベントの可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
+        `チェスト${OPEN_CHEST_COUNT}回開けてもクエストが完了しない。open_chest 統計イベントの可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
+      )
+    })
+  })
+
+  describe('minecraft:interact_with_furnace (かまどを使用した回数)', () => {
+    let bot: Bot
+    let token: string
+    let questId: number
+    const condId = `cond-furnace-${Date.now()}`
+
+    before(async () => {
+      bot = await createBot(FURNACE_BOT_NAME)
+      await new Promise(r => setTimeout(r, 1500))
+
+      await rcon(`op ${FURNACE_BOT_NAME}`).catch(() => {})
+      await rcon(`gamemode survival ${FURNACE_BOT_NAME}`).catch(() => {})
+      await new Promise(r => setTimeout(r, 500))
+
+      const chatPromise = waitForChat(bot, (t) => /\d{6}/.test(t), 8000)
+      bot.chat('/quest code')
+      const msg = await chatPromise
+      const code = msg.match(/(\d{6})/)![1]
+      const { status, body } = await apiRequest<{ token: string; playerUuid: string }>(
+        'POST', '/api/auth/code', { body: { code } },
+      )
+      assert.equal(status, 200, `認証失敗: ${JSON.stringify(body)}`)
+      token = body.token
+
+      const { status: cs, body: created } = await apiRequest<{ id: number }>(
+        'POST', '/api/quests', {
+          token,
+          body: {
+            title: `Furnaceテスト_${Date.now()}`,
+            status: 'public',
+            icon: 'furnace',
+            prerequisites: [],
+            conditions: [{
+              id: condId,
+              type: 'stat',
+              statType: 'minecraft:custom',
+              statId: 'minecraft:interact_with_furnace',
+              count: FURNACE_COUNT,
+            }],
+            rewards: [],
+            mapPosition: { x: 250, y: 250 },
+            category: null,
+            customButtons: [],
+          },
+        },
+      )
+      assert.ok(cs === 200 || cs === 201, `クエスト作成失敗(${cs}): ${JSON.stringify(created)}`)
+      questId = created.id
+      console.log(`Furnaceテストクエスト作成: id=${questId}, stat=custom/interact_with_furnace ×${FURNACE_COUNT}`)
+    })
+
+    after(async () => {
+      if (questId && token) {
+        await apiRequest('DELETE', `/api/quests/${questId}`, { token }).catch(() => {})
+      }
+      if (bot) await quitBot(bot)
+    })
+
+    it('interact_with_furnace 条件クエストが完了する', async () => {
+      const chatPromise = waitForChat(
+        bot,
+        (t) => t.includes('クエスト完了') || t.includes('✨'),
+        30000,
+      ).catch(() => null)
+
+      const pos = bot.entity.position.floored()
+      const furnacePos = pos.offset(2, 0, 0)
+      await rcon(`setblock ${furnacePos.x} ${furnacePos.y} ${furnacePos.z} minecraft:furnace`).catch(() => {})
+      await new Promise(r => setTimeout(r, 800))
+
+      const furnaceBlock = bot.blockAt(furnacePos)
+      if (!furnaceBlock || furnaceBlock.name !== 'furnace') {
+        throw new Error(`かまどが設置されていない: ${furnaceBlock?.name}`)
+      }
+
+      for (let i = 0; i < FURNACE_COUNT; i++) {
+        try {
+          const furnace = await bot.openFurnace(furnaceBlock)
+          await new Promise(r => setTimeout(r, 300))
+          furnace.close()
+          await new Promise(r => setTimeout(r, 500))
+        } catch (e) {
+          console.warn(`かまど操作失敗 (i=${i}):`, e)
+        }
+      }
+
+      const mcChat = await chatPromise
+      console.log('完了チャット:', mcChat ? JSON.stringify(mcChat) : '(届かず)')
+
+      let status = 0
+      let body: QuestProgress | undefined
+      if (!mcChat) {
+        for (let i = 0; i < 10; i++) {
+          ;({ status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token }))
+          if (status === 200 && body?.completed) break
+          await new Promise(r => setTimeout(r, 500))
+        }
+      } else {
+        ;({ status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token }))
+      }
+      console.log('進捗API:', status, JSON.stringify(body))
+
+      assert.ok(
+        mcChat || (status === 200 && body?.completed),
+        `かまど${FURNACE_COUNT}回開けてもクエストが完了しない。interact_with_furnace 統計イベントの可能性。チャット=${JSON.stringify(mcChat)}, API=${JSON.stringify(body)}`,
       )
     })
   })

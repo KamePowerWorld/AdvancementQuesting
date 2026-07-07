@@ -32,10 +32,6 @@ public class StatPollingListener {
      */
     public void start(JavaPlugin plugin) {
         pollingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            int playerCount = Bukkit.getOnlinePlayers().size();
-            if (playerCount > 0) {
-                Bukkit.getLogger().info("[StatPolling] Polling stats for " + playerCount + " players");
-            }
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID uuid = player.getUniqueId();
                 lastStats.putIfAbsent(uuid, new ConcurrentHashMap<>());
@@ -56,62 +52,16 @@ public class StatPollingListener {
     }
 
     /**
-     * カスタム統計をポーリングして進捗を更新する。
-     * Bukkit API で実際に利用可能な統計のみを使用する。
+     * カスタム統計 (UNTYPED) を全件ポーリングして進捗を更新する。
      */
     private void pollCustomStats(Player player, Map<String, Integer> playerStats) {
-        // Bukkit API で利用可能なカスタム統計
-        // Paper 1.21.11 の Statistic 列挙型に存在するもののみ
-        Statistic[] customStats = {
-            // 移動系
-            Statistic.JUMP,
-            Statistic.WALK_ONE_CM,
-            Statistic.SPRINT_ONE_CM,
-            Statistic.CROUCH_ONE_CM,  // スニークした距離
-            Statistic.SWIM_ONE_CM,
-            Statistic.FLY_ONE_CM,
-            Statistic.FALL_ONE_CM,
-            Statistic.CLIMB_ONE_CM,
-            Statistic.WALK_ON_WATER_ONE_CM,
-            Statistic.WALK_UNDER_WATER_ONE_CM,
-            Statistic.SNEAK_TIME,
-            // 時間系
-            Statistic.PLAY_ONE_MINUTE,
-            Statistic.TOTAL_WORLD_TIME,
-            Statistic.TIME_SINCE_DEATH,
-            Statistic.TIME_SINCE_REST,
-            // インタラクション系
-            Statistic.TALKED_TO_VILLAGER,
-            Statistic.TRADED_WITH_VILLAGER,
-            Statistic.BELL_RING,
-            Statistic.TARGET_HIT,
-            Statistic.RAID_TRIGGER,
-            Statistic.RAID_WIN,
-            Statistic.SLEEP_IN_BED,
-            Statistic.CHEST_OPENED,  // チェストを開いた回数
-            Statistic.ENDERCHEST_OPENED,
-            Statistic.SHULKER_BOX_OPENED,
-            Statistic.OPEN_BARREL,
-            Statistic.TRAPPED_CHEST_TRIGGERED,
-            // 戦闘・活動系
-            Statistic.ANIMALS_BRED,
-            Statistic.FISH_CAUGHT,
-            Statistic.MOB_KILLS,
-            Statistic.PLAYER_KILLS,
-            Statistic.DEATHS,
-            Statistic.DAMAGE_DEALT,
-            Statistic.DAMAGE_TAKEN,
-            Statistic.DAMAGE_ABSORBED,
-            Statistic.DAMAGE_RESISTED,
-            Statistic.DAMAGE_BLOCKED_BY_SHIELD,
-            // その他
-            Statistic.LEAVE_GAME,
-        };
-
-        for (Statistic stat : customStats) {
+        for (Statistic stat : Statistic.values()) {
+            if (stat.getType() != Statistic.Type.UNTYPED) continue;
+            NamespacedId customId = NamespacedId.fromCustomStatistic(stat);
+            if (customId == null) continue;
             try {
                 int newValue = player.getStatistic(stat);
-                String statId = NamespacedId.from(stat).toString();
+                String statId = customId.toString();
 
                 Integer oldValue = playerStats.get(statId);
 

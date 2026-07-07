@@ -3,6 +3,7 @@ package com.kamesuta.advquesting.util;
 import org.bukkit.Material;
 import org.bukkit.Keyed;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Statistic;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -54,6 +55,121 @@ public final class NamespacedId {
     public static NamespacedId from(Keyed keyed) {
         NamespacedKey key = keyed.getKey();
         return new NamespacedId(key.getNamespace(), key.getKey());
+    }
+
+    /**
+     * UNTYPED (カスタム統計) の Statistic を vanilla の統計ID に変換します。
+     *
+     * <p>⚠️ {@link #from(Keyed)} を Statistic に使ってはいけません。
+     * Paper の {@code Statistic.getKey()} は enum 名を小文字化するだけで、
+     * vanilla の統計ID とは一致しません (例: CHEST_OPENED → "chest_opened" だが
+     * vanilla は "open_chest")。Web UI は vanilla レジストリ
+     * (web/public/mc/registry/custom_stat.json) のIDでクエスト条件を保存するため、
+     * ここで全件明示的にマッピングします。
+     *
+     * @param stat カスタム統計 (Type.UNTYPED)
+     * @return vanilla ID の NamespacedId、UNTYPED でない場合は null
+     */
+    public static NamespacedId fromCustomStatistic(Statistic stat) {
+        String path = switch (stat) {
+            case ANIMALS_BRED -> "animals_bred";
+            case AVIATE_ONE_CM -> "aviate_one_cm";
+            case BELL_RING -> "bell_ring";
+            case BOAT_ONE_CM -> "boat_one_cm";
+            case ARMOR_CLEANED -> "clean_armor";
+            case BANNER_CLEANED -> "clean_banner";
+            case CLEAN_SHULKER_BOX -> "clean_shulker_box";
+            case CLIMB_ONE_CM -> "climb_one_cm";
+            case CROUCH_ONE_CM -> "crouch_one_cm";
+            case DAMAGE_ABSORBED -> "damage_absorbed";
+            case DAMAGE_BLOCKED_BY_SHIELD -> "damage_blocked_by_shield";
+            case DAMAGE_DEALT -> "damage_dealt";
+            case DAMAGE_DEALT_ABSORBED -> "damage_dealt_absorbed";
+            case DAMAGE_DEALT_RESISTED -> "damage_dealt_resisted";
+            case DAMAGE_RESISTED -> "damage_resisted";
+            case DAMAGE_TAKEN -> "damage_taken";
+            case DEATHS -> "deaths";
+            case DROP_COUNT -> "drop";
+            case CAKE_SLICES_EATEN -> "eat_cake_slice";
+            case ITEM_ENCHANTED -> "enchant_item";
+            case FALL_ONE_CM -> "fall_one_cm";
+            case CAULDRON_FILLED -> "fill_cauldron";
+            case FISH_CAUGHT -> "fish_caught";
+            case FLY_ONE_CM -> "fly_one_cm";
+            case HAPPY_GHAST_ONE_CM -> "happy_ghast_one_cm";
+            case HORSE_ONE_CM -> "horse_one_cm";
+            case DISPENSER_INSPECTED -> "inspect_dispenser";
+            case DROPPER_INSPECTED -> "inspect_dropper";
+            case HOPPER_INSPECTED -> "inspect_hopper";
+            case INTERACT_WITH_ANVIL -> "interact_with_anvil";
+            case BEACON_INTERACTION -> "interact_with_beacon";
+            case INTERACT_WITH_BLAST_FURNACE -> "interact_with_blast_furnace";
+            case BREWINGSTAND_INTERACTION -> "interact_with_brewingstand";
+            case INTERACT_WITH_CAMPFIRE -> "interact_with_campfire";
+            case INTERACT_WITH_CARTOGRAPHY_TABLE -> "interact_with_cartography_table";
+            case CRAFTING_TABLE_INTERACTION -> "interact_with_crafting_table";
+            case FURNACE_INTERACTION -> "interact_with_furnace";
+            case INTERACT_WITH_GRINDSTONE -> "interact_with_grindstone";
+            case INTERACT_WITH_LECTERN -> "interact_with_lectern";
+            case INTERACT_WITH_LOOM -> "interact_with_loom";
+            case INTERACT_WITH_SMITHING_TABLE -> "interact_with_smithing_table";
+            case INTERACT_WITH_SMOKER -> "interact_with_smoker";
+            case INTERACT_WITH_STONECUTTER -> "interact_with_stonecutter";
+            case JUMP -> "jump";
+            case LEAVE_GAME -> "leave_game";
+            case MINECART_ONE_CM -> "minecart_one_cm";
+            case MOB_KILLS -> "mob_kills";
+            case NAUTILUS_ONE_CM -> "nautilus_one_cm";
+            case OPEN_BARREL -> "open_barrel";
+            case CHEST_OPENED -> "open_chest";
+            case ENDERCHEST_OPENED -> "open_enderchest";
+            case SHULKER_BOX_OPENED -> "open_shulker_box";
+            case PIG_ONE_CM -> "pig_one_cm";
+            case NOTEBLOCK_PLAYED -> "play_noteblock";
+            case RECORD_PLAYED -> "play_record";
+            case PLAY_ONE_MINUTE -> "play_time";
+            case PLAYER_KILLS -> "player_kills";
+            case FLOWER_POTTED -> "pot_flower";
+            case RAID_TRIGGER -> "raid_trigger";
+            case RAID_WIN -> "raid_win";
+            case SLEEP_IN_BED -> "sleep_in_bed";
+            case SNEAK_TIME -> "sneak_time";
+            case SPRINT_ONE_CM -> "sprint_one_cm";
+            case STRIDER_ONE_CM -> "strider_one_cm";
+            case SWIM_ONE_CM -> "swim_one_cm";
+            case TALKED_TO_VILLAGER -> "talked_to_villager";
+            case TARGET_HIT -> "target_hit";
+            case TIME_SINCE_DEATH -> "time_since_death";
+            case TIME_SINCE_REST -> "time_since_rest";
+            case TOTAL_WORLD_TIME -> "total_world_time";
+            case TRADED_WITH_VILLAGER -> "traded_with_villager";
+            case TRAPPED_CHEST_TRIGGERED -> "trigger_trapped_chest";
+            case NOTEBLOCK_TUNED -> "tune_noteblock";
+            case CAULDRON_USED -> "use_cauldron";
+            case WALK_ON_WATER_ONE_CM -> "walk_on_water_one_cm";
+            case WALK_ONE_CM -> "walk_one_cm";
+            case WALK_UNDER_WATER_ONE_CM -> "walk_under_water_one_cm";
+            default -> null;
+        };
+        return path == null ? null : new NamespacedId("minecraft", path);
+    }
+
+    /**
+     * アイテム/ブロック/エンティティ系の Statistic を "minecraft:mined" 等の
+     * statType 文字列に変換します。対象外の統計は null を返します。
+     */
+    public static String toStatType(Statistic stat) {
+        return switch (stat) {
+            case MINE_BLOCK         -> "minecraft:mined";
+            case CRAFT_ITEM         -> "minecraft:crafted";
+            case USE_ITEM           -> "minecraft:used";
+            case BREAK_ITEM         -> "minecraft:broken";
+            case PICKUP             -> "minecraft:picked_up";
+            case DROP               -> "minecraft:dropped";
+            case KILL_ENTITY        -> "minecraft:killed";
+            case ENTITY_KILLED_BY   -> "minecraft:killed_by";
+            default                 -> null;
+        };
     }
 
     /**

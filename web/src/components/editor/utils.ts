@@ -3,12 +3,12 @@ import { TASK_TYPES, REWARD_TYPES, DEFAULT_ITEM_ID } from './constants.js'
 import { getItemName, getAdvancementName, getCustomStatName } from '@/hooks/useMcData.js'
 
 const STAT_CATEGORY_SHORT: Record<string, string> = {
-  'minecraft:mined':     '採掘',
-  'minecraft:crafted':   'クラフト',
-  'minecraft:used':      '使用',
-  'minecraft:broken':    '破壊',
-  'minecraft:picked_up': '拾得',
-  'minecraft:dropped':   '破棄',
+  'minecraft:mined':     '採取した回数',
+  'minecraft:broken':    '破壊した回数',
+  'minecraft:crafted':   'クラフトした回数',
+  'minecraft:used':      '使用した回数',
+  'minecraft:picked_up': '拾った回数',
+  'minecraft:dropped':   '捨てた回数',
   'minecraft:killed':    '討伐',
   'minecraft:killed_by': '被討伐',
   'minecraft:custom':    'カスタム',
