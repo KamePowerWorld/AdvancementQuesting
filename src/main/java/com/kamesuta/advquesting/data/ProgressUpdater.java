@@ -92,6 +92,7 @@ class ProgressUpdater {
         String completedAt = allDone ? Instant.now().toString() : null;
         String progressJson = ProgressManager.MAPPER.writeValueAsString(progress);
         manager.progressDao.upsertProgress(playerUuid, quest.id, progressJson, allDone, completedAt);
+        manager.invalidateProgressCache(playerUuid, quest.id);
         if (manager.advancementSyncManager != null) {
             manager.advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
         }

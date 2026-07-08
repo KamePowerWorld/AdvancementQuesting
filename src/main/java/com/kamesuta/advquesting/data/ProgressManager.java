@@ -116,6 +116,28 @@ public class ProgressManager {
         }
     }
 
+    /**
+     * primary connection ({@link #progressDao}) 経由でDBを直接書き換える公開API
+     * (setQuestCompleted / deliverItems / completeCheckmarkCondition / claimReward /
+     * markConditionComplete) から呼び、{@link #progressCache} のエントリを無効化する。
+     * <p>
+     * このキャッシュは高頻度リスナー ({@link ProgressUpdater} の updateItem/Stat/... )
+     * が dbExecutor スレッド上でのみ読み書きする前提なので、削除も dbExecutor へ積んで
+     * スレッド安全性を保つ。これを怠ると、例えば {@code quest_edit uncomplete} で
+     * DBを未完了に戻しても、キャッシュに残った完了済みレコードを次の進捗更新が読み、
+     * 「変更なし」と誤判定して再完了できなくなる。
+     * <p>
+     * 併せて保留中のデバウンス書き込み ({@link #pendingFlushes}) もキャンセルする。
+     * キャンセルしないと、primary側で書いた新しい状態を、後から発火する古い進捗の
+     * トレーリング書き込みが上書きしてしまう。
+     */
+    void invalidateProgressCache(String playerUuid, int questId) {
+        String key = playerUuid + ":" + questId;
+        ScheduledFuture<?> pending = pendingFlushes.remove(key);
+        if (pending != null) pending.cancel(false);
+        dbExecutor.submit(() -> progressCache.remove(key));
+    }
+
     public void setNotificationRoutes(NotificationRoutes notificationRoutes) {
         this.notificationRoutes = notificationRoutes;
     }
@@ -178,6 +200,7 @@ public class ProgressManager {
             String completedAt = allDone ? Instant.now().toString() : null;
             String progressJson = MAPPER.writeValueAsString(progress);
             progressDao.upsertProgress(playerUuid, questId, progressJson, allDone, completedAt);
+            invalidateProgressCache(playerUuid, questId);
             if (advancementSyncManager != null) {
                 advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
             }
@@ -213,6 +236,7 @@ public class ProgressManager {
             claimed = ok ? 1 : 0;
         }
         if (claimed == 0) return 0;
+        invalidateProgressCache(playerUuid, questId);
 
         try {
             var entries = RewardInterpreter.toLogEntries(quest.rewards);
@@ -303,6 +327,7 @@ public class ProgressManager {
         try {
             progressJson = MAPPER.writeValueAsString(progress);
             progressDao.upsertProgress(playerUuid, questId, progressJson, allDone, completedAt);
+            invalidateProgressCache(playerUuid, questId);
         } catch (Exception e) {
             log.warning("deliverItems upsert error: " + e.getMessage());
             return new DeliveryResult(delivered, failed);
@@ -344,6 +369,7 @@ public class ProgressManager {
         }
 
         progressDao.setCompleted(playerUuid, questId, completed, progressJson);
+        invalidateProgressCache(playerUuid, questId);
         if (advancementSyncManager != null) {
             advancementSyncManager.syncPlayerQuestProgress(playerUuid, quest, progressJson);
         }

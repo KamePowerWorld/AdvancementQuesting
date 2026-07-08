@@ -26,14 +26,16 @@ public class RepeatScheduler {
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final QuestManager questManager;
+    private final ProgressManager progressManager;
     private final ProgressDao progressDao;
     private final NotificationRoutes notificationRoutes;
     private final Logger log;
     private ScheduledExecutorService executor;
 
-    public RepeatScheduler(JavaPlugin plugin, QuestManager questManager,
+    public RepeatScheduler(JavaPlugin plugin, QuestManager questManager, ProgressManager progressManager,
                            ProgressDao progressDao, NotificationRoutes notificationRoutes) {
         this.questManager = questManager;
+        this.progressManager = progressManager;
         this.progressDao = progressDao;
         this.notificationRoutes = notificationRoutes;
         this.log = plugin.getLogger();
@@ -116,6 +118,7 @@ public class RepeatScheduler {
             newProgressJson = "[]";
         }
         progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.id, newProgressJson);
+        progressManager.invalidateProgressCache(rec.playerUuid(), quest.id);
         notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.id);
     }
 }

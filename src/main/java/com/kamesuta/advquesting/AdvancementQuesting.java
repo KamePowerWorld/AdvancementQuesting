@@ -203,7 +203,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         statPollingListener = new StatPollingListener(progressManager);
         statPollingListener.start(this);
 
-        repeatScheduler = new RepeatScheduler(this, questManager, progressDao, notificationRoutes);
+        repeatScheduler = new RepeatScheduler(this, questManager, progressManager, progressDao, notificationRoutes);
         repeatScheduler.start();
 
         // コマンド登録
